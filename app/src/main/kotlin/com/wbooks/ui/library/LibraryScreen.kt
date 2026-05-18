@@ -62,7 +62,7 @@ fun LibraryScreen(
         ) {
             items(books, key = { it.id }) { book ->
                 Chip(
-                    label = { Text(book.title) },
+                    label = { Text("${book.title} [${book.format.name}]") },
                     secondaryLabel = book.author?.let { { Text(it) } },
                     onClick = { onBookOpen(book) },
                     colors = ChipDefaults.secondaryChipColors(),
