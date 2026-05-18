@@ -30,7 +30,7 @@ class EpubParser(
     private val htmlParser = HtmlParser()
 
     override fun parse(input: InputStream): Document {
-        val tmp = File.createTempFile("wbooks-epub-", ".epub", tmpDir).apply { deleteOnExit() }
+        val tmp = File.createTempFile("wbooks-epub-", ".epub", tmpDir)
         try {
             tmp.outputStream().buffered().use { out -> input.copyTo(out) }
             ZipFile(tmp).use { zip ->
@@ -96,7 +96,11 @@ class EpubParser(
         return OpfData(title = title, creator = creator, spineHrefs = spineHrefs)
     }
 
-    /** Resolve a spine href relative to the OPF's directory, normalising any `../`. */
+    /**
+     * Resolve a spine href relative to the OPF's directory, normalising any `../`.
+     * The result is used purely as a [ZipFile] entry key (not a filesystem path),
+     * so a malformed href can only fail the lookup — there is no zip-slip surface.
+     */
     private fun joinEpubPath(opfDir: String, href: String): String {
         val raw = if (opfDir.isEmpty()) href else "$opfDir/$href"
         val parts = ArrayDeque<String>()
