@@ -19,7 +19,9 @@ enum class BookFormat {
     EPUB,
     TXT,
     FB2,
-    HTML;
+    HTML,
+    DOCX,
+    ODT;
 
     companion object {
         /** Match by file extension (case-insensitive). Returns null for unsupported types. */
@@ -28,6 +30,8 @@ enum class BookFormat {
             "txt" -> TXT
             "fb2" -> FB2
             "html", "htm", "xhtml" -> HTML
+            "docx" -> DOCX
+            "odt" -> ODT
             else -> null
         }
     }

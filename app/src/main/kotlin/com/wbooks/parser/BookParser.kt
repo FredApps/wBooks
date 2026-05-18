@@ -14,4 +14,6 @@ fun parserFor(format: BookFormat): BookParser = when (format) {
     BookFormat.TXT -> TxtParser()
     BookFormat.FB2 -> Fb2Parser()
     BookFormat.HTML -> HtmlParser()
+    BookFormat.DOCX -> DocxParser()
+    BookFormat.ODT -> OdtParser()
 }

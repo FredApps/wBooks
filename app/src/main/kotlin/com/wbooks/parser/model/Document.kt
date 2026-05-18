@@ -1,7 +1,7 @@
 package com.wbooks.parser.model
 
 /**
- * Parser-neutral representation of a book. All format parsers (epub/txt/fb2/html) lower to this.
+ * Parser-neutral representation of a book. All format parsers (epub/txt/fb2/html/docx/odt) lower to this.
  *
  * Inline styling is expressed as runs over plain text so the renderer can map them to
  * [androidx.compose.ui.text.AnnotatedString] without parser-specific branching.
