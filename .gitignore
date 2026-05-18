@@ -1,6 +1,7 @@
 # Build
 build/
 .gradle/
+.kotlin/
 local.properties
 
 # IDE
