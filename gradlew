@@ -205,6 +205,16 @@ fi
 # Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 DEFAULT_JVM_OPTS='-Dfile.encoding=UTF-8 "-Xmx64m" "-Xms64m"'
 
+# -- wBooks AF_UNIX workaround (mirror of the gradlew.bat block) --
+# See gradlew.bat for the explanation; in short, redirect tmpdir out of the
+# user-profile AppData\Local tree where AF_UNIX connect() is blocked.
+WBOOKS_TMP="$APP_HOME/.gradle/tmp"
+mkdir -p "$WBOOKS_TMP" 2>/dev/null || true
+export TEMP="$WBOOKS_TMP"
+export TMP="$WBOOKS_TMP"
+DEFAULT_JVM_OPTS="$DEFAULT_JVM_OPTS \"-Djava.io.tmpdir=$WBOOKS_TMP\""
+# -- end workaround --
+
 # Collect all arguments for the java command:
 #   * DEFAULT_JVM_OPTS, JAVA_OPTS, JAVA_OPTS, and optsEnvironmentVar are not allowed to contain shell fragments,
 #     and any embedded shellness will be escaped.
