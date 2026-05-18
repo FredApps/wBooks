@@ -149,6 +149,15 @@ The debug APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Install on the watch
 
+### Pairing
+
+1. On the watch, go to **Settings** → **System** → **Developer options**. If Developer options is not visible, tap **Build number** 7 times to unlock it.
+2. Enable **ADB debugging**.
+3. Go to **Settings** → **System** → **About** and note the watch's IP address.
+4. Connect your development machine to the same network as the watch.
+
+### Install
+
 Connect to your watch over ADB and install the built APK:
 
 ```powershell
@@ -159,4 +168,4 @@ $apk = "app/build/outputs/apk/debug/app-debug.apk"
 & $adb install -r $apk
 ```
 
-Replace `<watch-ip>:<port>` with your watch's ADB connection details (e.g., `192.168.1.100:5555`).
+Replace `<watch-ip>:<port>` with your watch's ADB connection details (e.g., `192.168.1.100:5555` or `192.168.1.100:5037` depending on your watch).
