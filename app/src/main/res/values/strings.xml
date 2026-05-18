@@ -20,7 +20,10 @@
     <string name="settings_autoscroll_speed">Autoscroll speed</string>
     <string name="settings_speedread_wpm">Speed reading WPM</string>
     <string name="settings_sentence_text_size">Sentence text size</string>
-    <string name="settings_transfer">File transfer</string>
+    <string name="settings_transfer">Web interface</string>
+    <string name="settings_transfer_start">Start web interface</string>
+    <string name="settings_transfer_stop">Stop web interface</string>
+    <string name="settings_transfer_subtitle">For transferring and organizing books from your browser</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_changelog">Changelog</string>
     <string name="settings_about">About</string>
@@ -32,7 +35,7 @@
     <string name="mode_speedread">Speed reading</string>
     <string name="mode_sentence">Sentence</string>
 
-    <string name="empty_library">No books yet. Open Settings &gt; File transfer to add some.</string>
+    <string name="empty_library">No books yet. Open Settings &gt; Start web interface to add some.</string>
     <string name="server_running">Upload server running</string>
     <string name="server_url">Open %1$s on a computer on the same Wi-Fi</string>
 </resources>

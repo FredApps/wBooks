@@ -29,6 +29,11 @@ class PositionsRepository(context: Context) {
         return store.data.map { prefs -> prefs[key]?.let(BookPosition::decode) ?: BookPosition.START }
     }
 
+    suspend fun readPosition(bookId: String): BookPosition {
+        val key = stringPreferencesKey("pos:$bookId")
+        return store.data.first()[key]?.let(BookPosition::decode) ?: BookPosition.START
+    }
+
     suspend fun setPosition(bookId: String, pos: BookPosition) {
         val key = stringPreferencesKey("pos:$bookId")
         store.edit { it[key] = pos.encode() }

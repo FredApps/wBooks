@@ -1,5 +1,6 @@
 package com.wbooks.ui.reader
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -20,6 +21,7 @@ fun ReaderPager(
     onExit: () -> Unit,
 ) {
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
+    BackHandler(onBack = onExit)
     HorizontalPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),

@@ -54,6 +54,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun NormalMode(
     document: Document,
+    initialPosition: BookPosition,
     settings: ReaderSettings,
     vm: ReaderViewModel,
 ) {
@@ -67,7 +68,7 @@ fun NormalMode(
 
     // ---- Restore last position when the document changes (i.e. a new book opens). ----
     LaunchedEffect(document) {
-        val flat = document.flatIndexOf(vm.currentPosition.value)
+        val flat = document.flatIndexOf(initialPosition)
         if (flat in blocks.indices) listState.scrollToItem(flat)
     }
 

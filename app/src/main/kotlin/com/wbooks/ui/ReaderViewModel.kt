@@ -37,12 +37,13 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 
 sealed interface DocumentState {
     data object Idle : DocumentState
-    data object Loading : DocumentState
-    data class Loaded(val book: Book, val doc: Document) : DocumentState
+    data class Loading(val book: Book) : DocumentState
+    data class Loaded(val book: Book, val doc: Document, val initialPosition: BookPosition) : DocumentState
     data class Failed(val book: Book, val message: String) : DocumentState
 }
 
@@ -209,7 +210,7 @@ class ReaderViewModel(
 
     fun openBook(book: Book) {
         loadJob?.cancel()
-        _document.value = DocumentState.Loading
+        _document.value = DocumentState.Loading(book)
         loadJob = viewModelScope.launch {
             positionsRepo.setLastOpenedBookId(book.id)
             val key = DocumentCache.Key(
@@ -224,8 +225,11 @@ class ReaderViewModel(
                     }
                 }
             }
+            val initialPosition = withTimeoutOrNull(1_000) {
+                positionsRepo.readPosition(book.id)
+            } ?: BookPosition.START
             _document.value = result.fold(
-                onSuccess = { DocumentState.Loaded(book, it) },
+                onSuccess = { DocumentState.Loaded(book, it, initialPosition) },
                 onFailure = { DocumentState.Failed(book, it.message ?: it::class.simpleName ?: "unknown error") },
             )
         }
@@ -268,6 +272,7 @@ class ReaderViewModel(
     fun toggleAutoscroll() = editSettings { it.copy(autoscrollEnabled = !it.autoscrollEnabled) }
 
     fun setMode(mode: ReadingMode) = editSettings { it.copy(mode = mode) }
+    fun setTextColor(argb: Int) = editSettings { it.copy(textColorArgb = argb) }
     fun setTextSize(value: Int) = editSettings { it.copy(textSizeSp = value.coerceIn(ReaderSettings.TEXT_SIZE_RANGE)) }
     fun setSentenceTextSize(value: Int) = editSettings { it.copy(sentenceTextSizeSp = value.coerceIn(ReaderSettings.SENTENCE_TEXT_SIZE_RANGE)) }
     fun setAutoscrollSpeed(value: Int) = editSettings { it.copy(autoscrollSpeed = value.coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE)) }

@@ -58,6 +58,7 @@ private data class SentenceItem(val text: String, val position: BookPosition)
 @Composable
 fun SentenceMode(
     document: Document,
+    initialPosition: BookPosition,
     settings: ReaderSettings,
     vm: ReaderViewModel,
 ) {
@@ -70,7 +71,7 @@ fun SentenceMode(
     }
 
     var index by remember(document) {
-        mutableIntStateOf(sentenceIndexFor(sentences, vm.currentPosition.value))
+        mutableIntStateOf(sentenceIndexFor(sentences, initialPosition))
     }
     var autoscrollPaused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }

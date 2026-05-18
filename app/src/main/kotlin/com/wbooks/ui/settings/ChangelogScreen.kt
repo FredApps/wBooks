@@ -4,6 +4,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,7 +44,7 @@ fun ChangelogScreen(onBack: () -> Unit) {
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             item { ListHeader { Text("Changelog") } }
@@ -52,6 +53,7 @@ fun ChangelogScreen(onBack: () -> Unit) {
                     label = { Text("Back to settings") },
                     onClick = onBack,
                     colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             for (entry in CHANGELOG) {
