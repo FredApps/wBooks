@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,6 +72,7 @@ import java.util.Date
 fun SecondaryScreen(
     state: DocumentState,
     vm: ReaderViewModel,
+    onSearchActiveChanged: (Boolean) -> Unit,
     onReaderPageRequested: () -> Unit,
 ) {
     val listState = rememberScalingLazyListState()
@@ -85,6 +87,11 @@ fun SecondaryScreen(
 
         val query by vm.searchQuery.collectAsState()
         val results by vm.searchResults.collectAsState()
+        var searchPanelOpen by remember { mutableStateOf(false) }
+
+        LaunchedEffect(searchPanelOpen, query) {
+            onSearchActiveChanged(searchPanelOpen || query.isNotBlank())
+        }
 
         if (query.isNotBlank()) {
             SearchResultsList(
@@ -111,7 +118,6 @@ fun SecondaryScreen(
             if (!text.isNullOrBlank()) vm.runSearch(text)
         }
 
-        var searchPanelOpen by remember { mutableStateOf(false) }
         if (searchPanelOpen) {
             SearchPanel(
                 onVoice = {
@@ -374,6 +380,13 @@ private fun SearchPanel(
             onClick = onVoice,
             colors = ChipDefaults.primaryChipColors(),
             modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = "Text",
+            style = MaterialTheme.typography.caption2,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 8.dp),
         )
         Box(
             modifier = Modifier
