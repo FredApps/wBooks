@@ -3,6 +3,7 @@ package com.wbooks
 import android.app.Application
 import com.wbooks.data.library.LibraryRepository
 import com.wbooks.data.settings.SettingsRepository
+import com.wbooks.transfer.TransferController
 import java.io.File
 
 class WBooksApp : Application() {
@@ -14,4 +15,6 @@ class WBooksApp : Application() {
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
 
     val libraryRepository: LibraryRepository by lazy { LibraryRepository(booksDir) }
+
+    val transferController: TransferController by lazy { TransferController(this) }
 }

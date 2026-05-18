@@ -13,6 +13,8 @@ import com.wbooks.data.settings.next
 import com.wbooks.data.settings.nextTextColor
 import com.wbooks.parser.model.Document
 import com.wbooks.parser.parserFor
+import com.wbooks.transfer.TransferController
+import com.wbooks.transfer.TransferState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,7 +41,13 @@ sealed interface DocumentState {
 class ReaderViewModel(
     private val settingsRepo: SettingsRepository,
     private val libraryRepo: LibraryRepository,
+    private val transferController: TransferController,
 ) : ViewModel() {
+
+    val transferState: StateFlow<TransferState> = transferController.state
+
+    fun startTransfer() = transferController.start()
+    fun stopTransfer() = transferController.stop()
 
     val settings: StateFlow<ReaderSettings> = settingsRepo.flow.stateIn(
         scope = viewModelScope,
@@ -103,11 +111,12 @@ class ReaderViewModel(
     class Factory(
         private val settingsRepo: SettingsRepository,
         private val libraryRepo: LibraryRepository,
+        private val transferController: TransferController,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass == ReaderViewModel::class.java)
-            return ReaderViewModel(settingsRepo, libraryRepo) as T
+            return ReaderViewModel(settingsRepo, libraryRepo, transferController) as T
         }
     }
 }
