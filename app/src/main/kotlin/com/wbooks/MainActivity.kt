@@ -4,9 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import com.wbooks.data.settings.ReaderSettings
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.wbooks.ui.ReaderViewModel
 import com.wbooks.ui.WBooksRoot
@@ -30,6 +32,13 @@ class MainActivity : ComponentActivity() {
                 ),
             )
             val settings by vm.settings.collectAsState()
+
+            SideEffect {
+                window.attributes = window.attributes.apply {
+                    screenBrightness = settings.screenBrightness
+                        .coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE) / 100f
+                }
+            }
 
             LaunchedEffect(Unit) {
                 if (freshLaunch) vm.resumeLastBook()

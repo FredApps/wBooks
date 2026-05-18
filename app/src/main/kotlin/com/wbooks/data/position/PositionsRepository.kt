@@ -29,6 +29,18 @@ class PositionsRepository(context: Context) {
         return store.data.map { prefs -> prefs[key]?.let(BookPosition::decode) ?: BookPosition.START }
     }
 
+    suspend fun hasOpened(bookId: String): Boolean {
+        val prefs = store.data.first()
+        return prefs[stringPreferencesKey("opened:$bookId")] == "1" ||
+            prefs[stringPreferencesKey("pos:$bookId")] != null ||
+            prefs[LAST_OPENED_KEY] == bookId
+    }
+
+    suspend fun markOpened(bookId: String) {
+        val key = stringPreferencesKey("opened:$bookId")
+        store.edit { it[key] = "1" }
+    }
+
     suspend fun readPosition(bookId: String): BookPosition {
         val key = stringPreferencesKey("pos:$bookId")
         return store.data.first()[key]?.let(BookPosition::decode) ?: BookPosition.START

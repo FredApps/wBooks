@@ -52,6 +52,7 @@ import kotlinx.coroutines.delay
 fun SpeedReadMode(
     document: Document,
     settings: ReaderSettings,
+    isActive: Boolean,
     onWpmChange: (Int) -> Unit,
 ) {
     val words = remember(document) { tokenize(document) }
@@ -76,7 +77,9 @@ fun SpeedReadMode(
         playing = false
     }
 
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(isActive) {
+        if (isActive) focusRequester.requestFocus()
+    }
 
     Box(
         modifier = Modifier

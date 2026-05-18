@@ -57,6 +57,7 @@ fun NormalMode(
     initialPosition: BookPosition,
     settings: ReaderSettings,
     vm: ReaderViewModel,
+    isActive: Boolean,
 ) {
     val blocks = remember(document) { document.chapters.flatMap { it.blocks } }
     val listState = rememberLazyListState()
@@ -64,7 +65,9 @@ fun NormalMode(
     val scope = rememberCoroutineScope()
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
 
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(isActive) {
+        if (isActive) focusRequester.requestFocus()
+    }
 
     // ---- Restore last position when the document changes (i.e. a new book opens). ----
     LaunchedEffect(document) {

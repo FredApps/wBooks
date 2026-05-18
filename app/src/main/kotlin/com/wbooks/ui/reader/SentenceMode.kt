@@ -61,6 +61,7 @@ fun SentenceMode(
     initialPosition: BookPosition,
     settings: ReaderSettings,
     vm: ReaderViewModel,
+    isActive: Boolean,
 ) {
     val sentences = remember(document) { segmentSentences(document) }
     if (sentences.isEmpty()) {
@@ -75,7 +76,9 @@ fun SentenceMode(
     }
     var autoscrollPaused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(isActive) {
+        if (isActive) focusRequester.requestFocus()
+    }
 
     // Handle external jumps (chapter list, bookmark tap).
     LaunchedEffect(document) {
