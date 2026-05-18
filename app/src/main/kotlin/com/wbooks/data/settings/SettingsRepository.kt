@@ -23,6 +23,7 @@ private object Keys {
     val AUTOSCROLL_ENABLED = booleanPreferencesKey("autoscroll_enabled")
     val AUTOSCROLL_SPEED = intPreferencesKey("autoscroll_speed")
     val SPEEDREAD_WPM = intPreferencesKey("speedread_wpm")
+    val THEME = stringPreferencesKey("theme")
 }
 
 /**
@@ -51,6 +52,7 @@ class SettingsRepository(context: Context) {
             autoscrollEnabled = this[Keys.AUTOSCROLL_ENABLED] ?: defaults.autoscrollEnabled,
             autoscrollSpeed = this[Keys.AUTOSCROLL_SPEED] ?: defaults.autoscrollSpeed,
             speedreadWpm = this[Keys.SPEEDREAD_WPM] ?: defaults.speedreadWpm,
+            theme = this[Keys.THEME]?.let(::readTheme) ?: defaults.theme,
         )
     }
 
@@ -63,6 +65,7 @@ class SettingsRepository(context: Context) {
         this[Keys.AUTOSCROLL_ENABLED] = s.autoscrollEnabled
         this[Keys.AUTOSCROLL_SPEED] = s.autoscrollSpeed
         this[Keys.SPEEDREAD_WPM] = s.speedreadWpm
+        this[Keys.THEME] = s.theme.name
     }
 
     private fun readMode(raw: String): ReadingMode =
@@ -70,4 +73,7 @@ class SettingsRepository(context: Context) {
 
     private fun readFont(raw: String): FontChoice =
         runCatching { FontChoice.valueOf(raw) }.getOrDefault(FontChoice.SERIF)
+
+    private fun readTheme(raw: String): ThemeChoice =
+        runCatching { ThemeChoice.valueOf(raw) }.getOrDefault(ThemeChoice.DARK)
 }

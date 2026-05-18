@@ -21,8 +21,12 @@
     <string name="settings_speedread_wpm">Speed reading WPM</string>
     <string name="settings_sentence_text_size">Sentence text size</string>
     <string name="settings_transfer">File transfer</string>
+    <string name="settings_theme">Theme</string>
     <string name="settings_changelog">Changelog</string>
     <string name="settings_about">About</string>
+
+    <string name="tile_resume">Resume reading</string>
+    <string name="tile_no_book">No book open</string>
 
     <string name="mode_normal">Normal</string>
     <string name="mode_speedread">Speed reading</string>

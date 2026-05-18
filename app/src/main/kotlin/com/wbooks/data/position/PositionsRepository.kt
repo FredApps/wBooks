@@ -7,9 +7,13 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.positionsDataStore: DataStore<Preferences> by preferencesDataStore(name = "book_positions")
+
+/** Reserved key for the most-recently-opened book; consumed by the Resume tile + auto-resume. */
+private val LAST_OPENED_KEY = stringPreferencesKey("__last_opened__")
 
 /**
  * One Preferences DataStore file for every book's last reading position, keyed by
@@ -33,5 +37,17 @@ class PositionsRepository(context: Context) {
     suspend fun clear(bookId: String) {
         val key = stringPreferencesKey("pos:$bookId")
         store.edit { it.remove(key) }
+    }
+
+    // ---- Last-opened book (for the Resume tile + app auto-resume). ----
+
+    val lastOpenedBookId: Flow<String?> = store.data.map { it[LAST_OPENED_KEY] }
+
+    suspend fun readLastOpenedBookId(): String? = store.data.first()[LAST_OPENED_KEY]
+
+    suspend fun setLastOpenedBookId(id: String?) {
+        store.edit {
+            if (id == null) it.remove(LAST_OPENED_KEY) else it[LAST_OPENED_KEY] = id
+        }
     }
 }
