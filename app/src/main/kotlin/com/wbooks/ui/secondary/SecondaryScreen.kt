@@ -381,13 +381,6 @@ private fun SearchPanel(
             colors = ChipDefaults.primaryChipColors(),
             modifier = Modifier.fillMaxWidth(),
         )
-        Text(
-            text = "Text",
-            style = MaterialTheme.typography.caption2,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 8.dp),
-        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -397,6 +390,13 @@ private fun SearchPanel(
                 .padding(horizontal = 12.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
+            if (query.isBlank()) {
+                Text(
+                    text = "Text",
+                    color = onSurface,
+                    style = MaterialTheme.typography.button,
+                )
+            }
             BasicTextField(
                 value = query,
                 onValueChange = { query = it },
