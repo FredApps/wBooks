@@ -18,6 +18,8 @@ class MainActivity : ComponentActivity() {
                     factory = ReaderViewModel.Factory(
                         app.settingsRepository,
                         app.libraryRepository,
+                        app.positionsRepository,
+                        app.bookmarksRepository,
                         app.transferController,
                     ),
                 )
