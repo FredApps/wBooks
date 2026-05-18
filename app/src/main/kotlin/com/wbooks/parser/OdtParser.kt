@@ -72,7 +72,8 @@ class OdtParser(
     private fun collectStyles(doc: org.jsoup.nodes.Document): Map<String, RunStyle> {
         val out = mutableMapOf<String, RunStyle>()
         for (s in doc.select("style|style")) {
-            val name = s.attr("style:name").ifEmpty { continue }
+            val name = s.attr("style:name")
+            if (name.isEmpty()) continue
             val tp = s.selectFirst("style|text-properties") ?: continue
             val bold = tp.attr("fo:font-weight") == "bold"
             val italic = tp.attr("fo:font-style") == "italic"
