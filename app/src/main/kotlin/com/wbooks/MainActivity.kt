@@ -15,7 +15,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             WBooksTheme {
                 val vm: ReaderViewModel = viewModel(
-                    factory = ReaderViewModel.Factory(app.settingsRepository, app.libraryRepository),
+                    factory = ReaderViewModel.Factory(
+                        app.settingsRepository,
+                        app.libraryRepository,
+                        app.transferController,
+                    ),
                 )
                 WBooksRoot(vm = vm)
             }

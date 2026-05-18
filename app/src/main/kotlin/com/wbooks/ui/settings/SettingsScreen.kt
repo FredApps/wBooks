@@ -111,7 +111,27 @@ fun SettingsScreen(vm: ReaderViewModel) {
             }
 
             item { ListHeader { Text(" ") } }
-            item { StaticChip(stringResource(R.string.settings_transfer)) }
+            item {
+                val transfer by vm.transferState.collectAsState()
+                ToggleChip(
+                    checked = transfer.running,
+                    onCheckedChange = { enabled -> if (enabled) vm.startTransfer() else vm.stopTransfer() },
+                    label = { Text(stringResource(R.string.settings_transfer)) },
+                    secondaryLabel = transfer.url?.let { url -> { Text(url) } },
+                    toggleControl = { Switch(checked = transfer.running) },
+                    colors = ToggleChipDefaults.toggleChipColors(),
+                )
+            }
+            item {
+                val transfer by vm.transferState.collectAsState()
+                if (transfer.running && transfer.pin != null) {
+                    Text(
+                        text = "PIN ${transfer.pin}",
+                        style = MaterialTheme.typography.title3,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+            }
             item { StaticChip(stringResource(R.string.settings_changelog)) }
             item { StaticChip(stringResource(R.string.settings_about)) }
         }
