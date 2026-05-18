@@ -71,6 +71,6 @@ class WBooksApp : Application() {
 
     private companion object {
         /** Bump to re-seed any books not already present in booksDir. */
-        const val SEED_VERSION = "1"
+        const val SEED_VERSION = "2"
     }
 }

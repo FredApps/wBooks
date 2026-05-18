@@ -118,7 +118,7 @@ class UploadServer(
             <form method="post" action="/upload" enctype="multipart/form-data" class="row"
                   onsubmit="return attachPin(this)">
               <label>Folder (optional): <input type="text" name="folder" placeholder="e.g. fiction"></label>
-              <input type="file" name="file" multiple accept=".epub,.txt,.fb2,.html,.htm,.xhtml">
+              <input type="file" name="file" multiple accept=".epub,.txt,.fb2,.html,.htm,.xhtml,.docx,.odt">
               <button>Upload</button>
             </form>
             <form method="post" action="/mkdir" class="row" onsubmit="return attachPin(this)">

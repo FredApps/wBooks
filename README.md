@@ -99,6 +99,10 @@ The bezel doesn't unlock any features touch can't reach. Watches without one get
 - **html / xhtml** — Jsoup. Headings, paragraphs, dividers, `<pre><code>` blocks (with language hint from `class="language-…"`). Inline `<b>/<strong>`, `<i>/<em>`, `<u>` map to run styles.
 - **epub** — ZIP walked into a `path → bytes` map; `META-INF/container.xml` → OPF rootfile; `<dc:title>`, `<dc:creator>`, `manifest`, ordered `spine`. Each spine XHTML runs through `HtmlParser`.
 - **fb2** — Jsoup XML. `title-info` → title + author; `body > section` → Chapter; nested sections become level-bumped headings inline. `<emphasis>` italic, `<strong>` bold, `<empty-line/>` divider.
+- **docx** — Office Open XML. `docProps/core.xml` → `dc:title` / `dc:creator`; `word/document.xml` → `<w:body>`. `<w:p>` with `pStyle=Heading1` starts a new chapter; `HeadingN` (N≥2) → heading block; otherwise paragraph. `<w:r>` styling: `<w:b/>`, `<w:i/>`, `<w:u/>`.
+- **odt** — OpenDocument Text. `meta.xml` → title + author; `content.xml` → `<office:text>`. `<text:h text:outline-level=1>` starts a new chapter; deeper levels become heading blocks; `<text:p>` becomes a paragraph. Inline `<text:span>` styling is resolved against the document's automatic styles (`fo:font-weight`, `fo:font-style`, `style:text-underline-style`).
+
+Unsupported elements in any format (tables, images, frames, fields, lists, drawings) are silently dropped — files that contain them still open, they just render only the prose.
 
 ### PDF support: will not be implemented
 
@@ -124,12 +128,14 @@ Built-in HTTP upload server (NanoHTTPD) toggleable from Settings. Runs as a fore
 
 ### Seed library
 
-On first install, four Project Gutenberg public-domain editions are copied from `assets/seed-books/` into `filesDir/books/` so the library isn't empty:
+On first install, six Project Gutenberg public-domain editions are copied from `assets/seed-books/` into `filesDir/books/` so the library isn't empty:
 
 - *Moby Dick* — Herman Melville (Gutenberg #2701) · EPUB
 - *Pride and Prejudice* — Jane Austen (#1342) · TXT
 - *The Adventures of Sherlock Holmes* — Arthur Conan Doyle (#1661) · HTML
 - *The Yellow Wallpaper* — Charlotte Perkins Gilman (#1952) · FB2
+- *The Strange Case of Dr Jekyll and Mr Hyde* — Robert Louis Stevenson (#43) · DOCX
+- *The Time Machine* — H. G. Wells (#35) · ODT
 
 A `.seed-version` marker prevents re-copying; user-deleted books stay deleted. Bumping `SEED_VERSION` in `WBooksApp` re-seeds on next launch.
 

@@ -57,14 +57,15 @@ fun AboutScreen(onBack: () -> Unit) {
             }
             item {
                 Body(
-                    "An Android Wear ebook reader. Reads epub, txt, fb2, and html.",
+                    "An Android Wear ebook reader. Reads epub, txt, fb2, html, docx, and odt.",
                 )
             }
             item { SectionTitle("Seed books") }
             item {
                 Body(
                     "Moby Dick · Pride and Prejudice · The Adventures of Sherlock Holmes · " +
-                        "The Yellow Wallpaper — bundled from Project Gutenberg public-domain editions.",
+                        "The Yellow Wallpaper · The Strange Case of Dr Jekyll and Mr Hyde · " +
+                        "The Time Machine — bundled from Project Gutenberg public-domain editions.",
                 )
             }
             item { SectionTitle("Built with") }
