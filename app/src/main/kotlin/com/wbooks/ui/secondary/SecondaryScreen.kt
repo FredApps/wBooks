@@ -1,5 +1,9 @@
 package com.wbooks.ui.secondary
 
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -39,13 +43,13 @@ import com.wbooks.data.position.BookPosition
 import com.wbooks.parser.model.Block
 import com.wbooks.ui.DocumentState
 import com.wbooks.ui.ReaderViewModel
+import com.wbooks.ui.SearchResult
 import java.text.DateFormat
 import java.util.Date
 
 /**
- * Page 0 — Tools. Search, bookmark-here, bookmarks list, chapter list. The
- * bookmarks list uses combinedClickable so a long press triggers a confirm
- * step (per spec). All actions route through [ReaderViewModel].
+ * Page 0 — Tools. Either the standard tools/bookmarks/chapters list, or, when
+ * a search query is active, the search results.
  */
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -60,8 +64,32 @@ fun SecondaryScreen(state: DocumentState, vm: ReaderViewModel) {
             return@Scaffold
         }
 
+        val query by vm.searchQuery.collectAsState()
+        val results by vm.searchResults.collectAsState()
+
+        if (query.isNotBlank()) {
+            SearchResultsList(
+                query = query,
+                results = results,
+                onOpen = vm::openSearchResult,
+                onClear = vm::clearSearch,
+            )
+            return@Scaffold
+        }
+
         val bookmarks by vm.bookmarks.collectAsState()
         var pendingDelete by remember { mutableStateOf<BookPosition?>(null) }
+
+        // Voice search via the platform speech recognizer. Wear OS routes this to its
+        // own speech UI; on phones it's the standard Google voice recognition dialog.
+        val searchLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            val text = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+            if (!text.isNullOrBlank()) vm.runSearch(text)
+        }
 
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -72,7 +100,7 @@ fun SecondaryScreen(state: DocumentState, vm: ReaderViewModel) {
             item {
                 Chip(
                     label = { Text(stringResource(R.string.tools_search)) },
-                    onClick = { /* TODO open search */ },
+                    onClick = { searchLauncher.launch(buildSearchIntent()) },
                     colors = ChipDefaults.secondaryChipColors(),
                 )
             }
@@ -107,6 +135,48 @@ fun SecondaryScreen(state: DocumentState, vm: ReaderViewModel) {
                 Chip(
                     label = { Text(chapterDisplay(chapter, idx)) },
                     onClick = { vm.jumpTo(BookPosition(chapterIndex = idx, blockIndex = 0)) },
+                    colors = ChipDefaults.secondaryChipColors(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchResultsList(
+    query: String,
+    results: List<SearchResult>,
+    onOpen: (SearchResult) -> Unit,
+    onClear: () -> Unit,
+) {
+    val listState = rememberScalingLazyListState()
+    ScalingLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        item { ListHeader { Text("\"$query\" · ${results.size}") } }
+        item {
+            Chip(
+                label = { Text("Clear") },
+                onClick = onClear,
+                colors = ChipDefaults.secondaryChipColors(),
+            )
+        }
+        if (results.isEmpty()) {
+            item {
+                Text(
+                    text = "No matches",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+        } else {
+            items(results, key = { "${it.position.chapterIndex}-${it.position.blockIndex}-${it.snippet.hashCode()}" }) { r ->
+                Chip(
+                    label = { Text(r.snippet) },
+                    secondaryLabel = { Text("Ch ${r.position.chapterIndex + 1}") },
+                    onClick = { onOpen(r) },
                     colors = ChipDefaults.secondaryChipColors(),
                 )
             }
@@ -170,9 +240,13 @@ private fun BookmarkRow(
 
 private fun chapterDisplay(chapter: com.wbooks.parser.model.Chapter, index: Int): String {
     chapter.title?.takeIf { it.isNotBlank() }?.let { return it }
-    // Fall back: first heading inside the chapter, then a generic name.
     chapter.blocks.firstOrNull { it is Block.Heading }?.let { heading ->
         return (heading as Block.Heading).text
     }
     return "Chapter ${index + 1}"
+}
+
+private fun buildSearchIntent(): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+    putExtra(RecognizerIntent.EXTRA_PROMPT, "Search")
 }

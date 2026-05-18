@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -38,6 +41,11 @@ import com.wbooks.ui.ReaderViewModel
 
 @Composable
 fun SettingsScreen(vm: ReaderViewModel) {
+    var showChangelog by remember { mutableStateOf(false) }
+    if (showChangelog) {
+        ChangelogScreen(onBack = { showChangelog = false })
+        return
+    }
     val state = rememberScalingLazyListState()
     val settings by vm.settings.collectAsState()
 
@@ -154,7 +162,13 @@ fun SettingsScreen(vm: ReaderViewModel) {
                     )
                 }
             }
-            item { StaticChip(stringResource(R.string.settings_changelog)) }
+            item {
+                Chip(
+                    label = { Text(stringResource(R.string.settings_changelog)) },
+                    onClick = { showChangelog = true },
+                    colors = ChipDefaults.secondaryChipColors(),
+                )
+            }
             item { StaticChip(stringResource(R.string.settings_about)) }
         }
     }
