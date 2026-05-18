@@ -4,12 +4,14 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
 }
 
-// -- Redirect build output out of OneDrive --
+// -- Redirect build output out of OneDrive (Windows local dev only) --
 // OneDrive intermittently holds open files inside app/build/, which causes
-// random "Unable to delete directory" failures from Gradle's clean phase. Move
-// every subproject's build dir to a local-disk scratch path. The project source
-// itself stays in OneDrive (it's git-tracked anyway).
-val wbooksBuildRoot = file("C:/GradleTmp/wbooks-build")
-subprojects {
-    layout.buildDirectory.set(file("$wbooksBuildRoot/${project.name}"))
+// random "Unable to delete directory" failures from Gradle's clean phase. On
+// Windows we move every subproject's build dir to a local-disk scratch path.
+// Skipped on other OSes (e.g. Linux CI runners) where OneDrive isn't a factor.
+if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+    val wbooksBuildRoot = file("C:/GradleTmp/wbooks-build")
+    subprojects {
+        layout.buildDirectory.set(file("$wbooksBuildRoot/${project.name}"))
+    }
 }
