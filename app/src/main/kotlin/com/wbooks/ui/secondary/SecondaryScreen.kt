@@ -35,6 +35,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -44,6 +45,7 @@ import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
+import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.ListHeader
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Scaffold
@@ -66,7 +68,11 @@ import java.util.Date
  */
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
-fun SecondaryScreen(state: DocumentState, vm: ReaderViewModel) {
+fun SecondaryScreen(
+    state: DocumentState,
+    vm: ReaderViewModel,
+    onReaderPageRequested: () -> Unit,
+) {
     val listState = rememberScalingLazyListState()
 
     Scaffold(timeText = { TimeText() }) {
@@ -84,7 +90,10 @@ fun SecondaryScreen(state: DocumentState, vm: ReaderViewModel) {
             SearchResultsList(
                 query = query,
                 results = results,
-                onOpen = vm::openSearchResult,
+                onOpen = { result ->
+                    vm.openSearchResult(result)
+                    onReaderPageRequested()
+                },
                 onClear = vm::clearSearch,
             )
             return@Scaffold
@@ -132,6 +141,12 @@ fun SecondaryScreen(state: DocumentState, vm: ReaderViewModel) {
         ) {
             item {
                 Chip(
+                    icon = {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_search),
+                            contentDescription = null,
+                        )
+                    },
                     label = { Text(stringResource(R.string.tools_search)) },
                     onClick = { searchPanelOpen = true },
                     colors = ChipDefaults.secondaryChipColors(),

@@ -93,9 +93,15 @@ class ReaderViewModel(
      */
     private val _jumps = Channel<BookPosition>(capacity = Channel.CONFLATED)
     val jumps: Flow<BookPosition> = _jumps.receiveAsFlow()
+    private val _pendingNormalJump = MutableStateFlow<BookPosition?>(null)
+    val pendingNormalJump: StateFlow<BookPosition?> = _pendingNormalJump.asStateFlow()
 
     fun jumpTo(position: BookPosition) {
         viewModelScope.launch { _jumps.send(position) }
+    }
+
+    fun consumePendingNormalJump(position: BookPosition) {
+        if (_pendingNormalJump.value == position) _pendingNormalJump.value = null
     }
 
     /** Called by the renderer when the visible block changes. Debounced upstream. */
@@ -164,10 +170,13 @@ class ReaderViewModel(
     }
 
     fun openSearchResult(result: SearchResult) {
-        // Per spec: opening a search result resets the reader to Normal mode.
-        setMode(ReadingMode.NORMAL)
-        jumpTo(result.position)
-        clearSearch()
+        viewModelScope.launch {
+            // Search results open in Normal mode; keep the jump pending until that
+            // mode is composed so the previous reader mode cannot consume it.
+            settingsRepo.update { it.copy(mode = ReadingMode.NORMAL) }
+            _pendingNormalJump.value = result.position
+            clearSearch()
+        }
     }
 
     private fun searchDocument(doc: Document, query: String): List<SearchResult> {
