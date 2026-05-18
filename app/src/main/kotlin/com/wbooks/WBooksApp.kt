@@ -7,6 +7,10 @@ import com.wbooks.data.position.PositionsRepository
 import com.wbooks.data.settings.SettingsRepository
 import com.wbooks.parser.cache.DocumentCache
 import com.wbooks.transfer.TransferController
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.io.File
 
 class WBooksApp : Application() {
@@ -22,9 +26,15 @@ class WBooksApp : Application() {
     val transferController: TransferController by lazy { TransferController(this) }
     val documentCache: DocumentCache by lazy { DocumentCache(File(cacheDir, "parsed")) }
 
+    /** Application-scope coroutine scope for one-shot background work that needs to outlive any single screen. */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
-        seedLibraryIfFirstRun()
+        // Run the seed copy off the main thread so first-launch startup latency
+        // isn't blocked by ~2 MB of asset I/O. The library refresh at the end
+        // pushes the new books into the StateFlow the UI is already collecting.
+        appScope.launch { seedLibraryIfFirstRun() }
     }
 
     /**
@@ -36,17 +46,14 @@ class WBooksApp : Application() {
      * shouldn't have it reappear on every launch. The version marker only triggers
      * the copy-once-per-bump behaviour.
      */
-    private fun seedLibraryIfFirstRun() {
+    private suspend fun seedLibraryIfFirstRun() {
         val marker = File(filesDir, ".seed-version")
         val current = marker.takeIf { it.exists() }?.readText()?.trim()
         if (current == SEED_VERSION) return
 
-        val names = runCatching { assets.list("seed-books") }.getOrNull() ?: return
-        if (names.isEmpty()) {
-            marker.writeText(SEED_VERSION)
-            return
-        }
+        val names = runCatching { assets.list("seed-books") }.getOrNull().orEmpty()
         booksDir.mkdirs()
+        var copied = 0
         for (name in names) {
             val dest = File(booksDir, name)
             if (dest.exists()) continue
@@ -54,9 +61,12 @@ class WBooksApp : Application() {
                 assets.open("seed-books/$name").use { input ->
                     dest.outputStream().use { output -> input.copyTo(output) }
                 }
+                copied++
             }
         }
         marker.writeText(SEED_VERSION)
+
+        if (copied > 0) libraryRepository.refresh()
     }
 
     private companion object {

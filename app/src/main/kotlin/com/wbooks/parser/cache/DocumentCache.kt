@@ -8,23 +8,24 @@ import java.io.DataOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.ObjectInputStream
-import java.io.ObjectOutputStream
 import java.security.MessageDigest
 
 /**
  * On-disk cache of parsed [Document]s, keyed by Book.id and fingerprinted with
  * (file size, mtime, schema version). Large EPUBs take noticeable time to parse
- * on a watch CPU; round-tripping via ObjectOutputStream is much faster.
+ * on a watch CPU; the cache makes reopens near-instant.
+ *
+ * Encoding goes through [DocumentCodec] — an explicit binary layout, not Java
+ * serialization. Bump [SCHEMA_VERSION] when DocumentCodec's layout changes; old
+ * cache files are then silently skipped on load.
  *
  * File layout under [dir]:
- *   <sha1-of-bookId>.bin   header { magic, schemaVersion, sizeBytes, mtimeMs } + ObjectOutputStream(Document)
- *
- * Schema versioning: bump [SCHEMA_VERSION] when any model class
- * ([Document], [com.wbooks.parser.model.Chapter], [com.wbooks.parser.model.Block],
- * [com.wbooks.parser.model.Run], [com.wbooks.parser.model.RunStyle]) gains, loses,
- * or renames a field, OR when the parsers change in a way that produces different
- * output for the same input. Stale entries are silently ignored.
+ *   <sha1-of-bookId>.bin :
+ *       i32 magic
+ *       i32 schemaVersion
+ *       i64 sizeBytes (fingerprint)
+ *       i64 mtimeMs   (fingerprint)
+ *       DocumentCodec.write(doc) ...
  */
 class DocumentCache(private val dir: File) {
 
@@ -42,7 +43,7 @@ class DocumentCache(private val dir: File) {
                 val size = dis.readLong()
                 val mtime = dis.readLong()
                 if (size != key.sizeBytes || mtime != key.mtimeMs) return@use null
-                ObjectInputStream(dis).readObject() as? Document
+                DocumentCodec.read(dis)
             }
         }.getOrNull()
     }
@@ -57,7 +58,7 @@ class DocumentCache(private val dir: File) {
                 dos.writeInt(SCHEMA_VERSION)
                 dos.writeLong(key.sizeBytes)
                 dos.writeLong(key.mtimeMs)
-                ObjectOutputStream(dos).use { oos -> oos.writeObject(doc) }
+                DocumentCodec.write(dos, doc)
             }
             // Atomic-ish rename so a half-written cache file can never be read.
             if (file.exists()) file.delete()
@@ -80,8 +81,9 @@ class DocumentCache(private val dir: File) {
         return File(dir, "$sha.bin")
     }
 
-    private companion object {
-        const val MAGIC = 0x77426F6B          // "wBok"
-        const val SCHEMA_VERSION = 1
+    companion object {
+        private const val MAGIC = 0x77426F6B    // "wBok"
+        /** Bump when [DocumentCodec]'s layout changes or model fields are added/removed/reordered. */
+        const val SCHEMA_VERSION = 2
     }
 }
