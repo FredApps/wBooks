@@ -134,24 +134,30 @@ A `.seed-version` marker prevents re-copying; user-deleted books stay deleted. B
 
 ## Build
 
+Prerequisites:
+- JDK 21 or later (Microsoft OpenJDK or another distribution)
+- Android SDK with API level 36 (set as `compileSdk` in build configuration)
+
+Set environment variables and build:
+
 ```powershell
-$env:JAVA_HOME    = "<path-to-jdk>"
-$env:ANDROID_HOME = "<path-to-android-sdk>"
+$env:JAVA_HOME    = "path/to/jdk"
+$env:ANDROID_HOME = "path/to/android-sdk"
 .\gradlew.bat assembleDebug
 ```
 
-The build output goes to `C:\GradleTmp\wbooks-build\app\build\` rather than `app/build/` inside the project. OneDrive sync intermittently locks files in `app/build/`; redirecting buildDir is in [build.gradle.kts](build.gradle.kts).
-
-### AF_UNIX tmpdir workaround
-
-The wrapper scripts (`gradlew` / `gradlew.bat`) redirect `TEMP` / `TMP` / `java.io.tmpdir` to `.gradle/tmp` inside the project. On the build machine, the user-profile `AppData\Local` tree has AppContainer/sandbox SIDs that let processes *bind* AF_UNIX sockets there but block *connecting* to them — Gradle dies at launch with `java.net.SocketException: Invalid argument: connect` from `sun.nio.ch.UnixDomainSockets.connect0`. The redirect moves those sockets to a project-local path the sandbox doesn't restrict. Harmless on other machines.
+The debug APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Install on the watch
 
-The development watch lives at `<watch-ip>:5555` with ADB pinned to that port.
+Connect to your watch over ADB and install the built APK:
 
 ```powershell
 $adb = "$env:ANDROID_HOME\platform-tools\adb.exe"
-& $adb connect <watch-ip>:5555
-& $adb -s <watch-ip>:5555 install -r "C:\GradleTmp\wbooks-build\app\build\outputs\apk\debug\app-debug.apk"
+$apk = "app/build/outputs/apk/debug/app-debug.apk"
+
+& $adb connect <watch-ip>:<port>
+& $adb install -r $apk
 ```
+
+Replace `<watch-ip>:<port>` with your watch's ADB connection details (e.g., `192.168.1.100:5555`).
