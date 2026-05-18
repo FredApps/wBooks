@@ -26,6 +26,8 @@ Anything running Wear OS 3 or later should work. The list below is not exhaustiv
 
 If a watch runs Wear OS 3.0 or later (API 30+) it should install and work; this is just where coverage has been mentally tested. Watch faces with very small viewports (< 360 px round) may need text-size tweaks; the existing slider goes down to 10 sp which covers most of them.
 
+Using a watch with a bezel is recommended but not required for smooth scrolling. There is also autoread functionality and screen scrolling available for those without it.
+
 ## Architecture
 
 ```
