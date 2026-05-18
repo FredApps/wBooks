@@ -102,10 +102,6 @@ The bezel doesn't unlock any features touch can't reach. Watches without one get
 
 PDF is a rendering format, not a content format. It encodes exact pixel positions and fonts, not logical structure (chapters, paragraphs, sections). On a small round Wear OS screen with variable text sizes and reflow, PDF either requires either shrinking to unreadable sizes or horizontal scrolling to see full lines — both worsen the reading experience. The supported formats (TXT, HTML, EPUB, FB2) preserve semantic structure and reflow naturally to any screen size. Adding PDF would contradict the app's design principle that every text should be readable at any font size on any watch.
 
-### Syntax colouring
-
-Code blocks inside HTML books go through `parser/highlight/SyntaxHighlighter` — a small generic regex tokenizer (keywords + strings + numbers + comments). Language-specific keyword sets can be added without touching callers.
-
 ### Storage
 
 - Books are stored on the watch under `filesDir/books/`.
