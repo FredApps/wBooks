@@ -1,29 +1,42 @@
 package com.wbooks.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
+import androidx.wear.compose.material.Icon
+import androidx.wear.compose.material.InlineSlider
+import androidx.wear.compose.material.InlineSliderDefaults
 import androidx.wear.compose.material.ListHeader
+import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Scaffold
+import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
+import androidx.wear.compose.material.ToggleChip
+import androidx.wear.compose.material.ToggleChipDefaults
 import com.wbooks.R
+import com.wbooks.data.settings.ReaderSettings
+import com.wbooks.ui.ReaderViewModel
 
-/**
- * Settings page (pager page 2). Populated as stub chips; each will become its own
- * detail screen (font picker, color picker, sliders) once wired to DataStore.
- */
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(vm: ReaderViewModel) {
     val state = rememberScalingLazyListState()
+    val settings by vm.settings.collectAsState()
+
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -32,23 +45,125 @@ fun SettingsScreen() {
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item { ListHeader { Text(stringResource(R.string.page_settings)) } }
-            item { settingChip(stringResource(R.string.settings_reading_mode)) }
-            item { settingChip(stringResource(R.string.settings_font)) }
-            item { settingChip(stringResource(R.string.settings_text_size)) }
-            item { settingChip(stringResource(R.string.settings_text_color)) }
-            item { settingChip(stringResource(R.string.settings_autoscroll)) }
-            item { settingChip(stringResource(R.string.settings_autoscroll_speed)) }
-            item { settingChip(stringResource(R.string.settings_speedread_wpm)) }
-            item { settingChip(stringResource(R.string.settings_sentence_text_size)) }
-            item { settingChip(stringResource(R.string.settings_transfer)) }
-            item { settingChip(stringResource(R.string.settings_changelog)) }
-            item { settingChip(stringResource(R.string.settings_about)) }
+
+            item {
+                CyclerChip(
+                    label = stringResource(R.string.settings_reading_mode),
+                    value = settings.mode.name.lowercase().replaceFirstChar { it.titlecase() },
+                    onClick = vm::cycleMode,
+                )
+            }
+            item {
+                CyclerChip(
+                    label = stringResource(R.string.settings_font),
+                    value = settings.font.familyName,
+                    onClick = vm::cycleFont,
+                )
+            }
+            item {
+                SliderRow(
+                    label = stringResource(R.string.settings_text_size),
+                    value = settings.textSizeSp,
+                    range = ReaderSettings.TEXT_SIZE_RANGE,
+                    onChange = vm::setTextSize,
+                )
+            }
+            item {
+                SliderRow(
+                    label = stringResource(R.string.settings_sentence_text_size),
+                    value = settings.sentenceTextSizeSp,
+                    range = ReaderSettings.SENTENCE_TEXT_SIZE_RANGE,
+                    onChange = vm::setSentenceTextSize,
+                )
+            }
+            item {
+                ColorChip(
+                    label = stringResource(R.string.settings_text_color),
+                    argb = settings.textColorArgb,
+                    onClick = vm::cycleTextColor,
+                )
+            }
+            item {
+                ToggleChip(
+                    checked = settings.autoscrollEnabled,
+                    onCheckedChange = { vm.toggleAutoscroll() },
+                    label = { Text(stringResource(R.string.settings_autoscroll)) },
+                    toggleControl = { Switch(checked = settings.autoscrollEnabled) },
+                    colors = ToggleChipDefaults.toggleChipColors(),
+                )
+            }
+            item {
+                SliderRow(
+                    label = stringResource(R.string.settings_autoscroll_speed),
+                    value = settings.autoscrollSpeed,
+                    range = ReaderSettings.AUTOSCROLL_SPEED_RANGE,
+                    onChange = vm::setAutoscrollSpeed,
+                )
+            }
+            item {
+                SliderRow(
+                    label = stringResource(R.string.settings_speedread_wpm),
+                    value = settings.speedreadWpm,
+                    range = ReaderSettings.WPM_RANGE,
+                    step = 25,
+                    onChange = vm::setSpeedreadWpm,
+                )
+            }
+
+            item { ListHeader { Text(" ") } }
+            item { StaticChip(stringResource(R.string.settings_transfer)) }
+            item { StaticChip(stringResource(R.string.settings_changelog)) }
+            item { StaticChip(stringResource(R.string.settings_about)) }
         }
     }
 }
 
 @Composable
-private fun settingChip(label: String) {
+private fun CyclerChip(label: String, value: String, onClick: () -> Unit) {
+    Chip(
+        label = { Text(label) },
+        secondaryLabel = { Text(value) },
+        onClick = onClick,
+        colors = ChipDefaults.secondaryChipColors(),
+    )
+}
+
+@Composable
+private fun ColorChip(label: String, argb: Int, onClick: () -> Unit) {
+    Chip(
+        label = { Text(label) },
+        secondaryLabel = { Text("#%06X".format(argb and 0xFFFFFF), color = Color(argb)) },
+        onClick = onClick,
+        colors = ChipDefaults.secondaryChipColors(),
+    )
+}
+
+@Composable
+private fun SliderRow(
+    label: String,
+    value: Int,
+    range: IntRange,
+    step: Int = 1,
+    onChange: (Int) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "$label: $value",
+            style = MaterialTheme.typography.caption2,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+        )
+        InlineSlider(
+            value = value,
+            onValueChange = onChange,
+            valueProgression = range step step,
+            decreaseIcon = { Icon(InlineSliderDefaults.Decrease, contentDescription = "decrease") },
+            increaseIcon = { Icon(InlineSliderDefaults.Increase, contentDescription = "increase") },
+        )
+    }
+}
+
+@Composable
+private fun StaticChip(label: String) {
     Chip(
         label = { Text(label) },
         onClick = { /* TODO open detail */ },

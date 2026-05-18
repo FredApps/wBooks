@@ -1,0 +1,73 @@
+package com.wbooks.data.settings
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "reader_settings")
+
+private object Keys {
+    val MODE = stringPreferencesKey("mode")
+    val FONT = stringPreferencesKey("font")
+    val TEXT_SIZE = intPreferencesKey("text_size")
+    val SENTENCE_TEXT_SIZE = intPreferencesKey("sentence_text_size")
+    val TEXT_COLOR = intPreferencesKey("text_color")
+    val AUTOSCROLL_ENABLED = booleanPreferencesKey("autoscroll_enabled")
+    val AUTOSCROLL_SPEED = intPreferencesKey("autoscroll_speed")
+    val SPEEDREAD_WPM = intPreferencesKey("speedread_wpm")
+}
+
+/**
+ * Persists [ReaderSettings] via Jetpack DataStore. Single instance per process
+ * (the underlying [DataStore] is held by [Context.dataStore]); construct it from
+ * the Application's context so the file lives in the app data dir.
+ */
+class SettingsRepository(context: Context) {
+
+    private val store: DataStore<Preferences> = context.applicationContext.dataStore
+
+    val flow: Flow<ReaderSettings> = store.data.map { prefs -> prefs.toSettings() }
+
+    suspend fun update(transform: (ReaderSettings) -> ReaderSettings) {
+        store.edit { prefs -> prefs.applySettings(transform(prefs.toSettings())) }
+    }
+
+    private fun Preferences.toSettings(): ReaderSettings {
+        val defaults = ReaderSettings()
+        return ReaderSettings(
+            mode = this[Keys.MODE]?.let(::readMode) ?: defaults.mode,
+            font = this[Keys.FONT]?.let(::readFont) ?: defaults.font,
+            textSizeSp = this[Keys.TEXT_SIZE] ?: defaults.textSizeSp,
+            sentenceTextSizeSp = this[Keys.SENTENCE_TEXT_SIZE] ?: defaults.sentenceTextSizeSp,
+            textColorArgb = this[Keys.TEXT_COLOR] ?: defaults.textColorArgb,
+            autoscrollEnabled = this[Keys.AUTOSCROLL_ENABLED] ?: defaults.autoscrollEnabled,
+            autoscrollSpeed = this[Keys.AUTOSCROLL_SPEED] ?: defaults.autoscrollSpeed,
+            speedreadWpm = this[Keys.SPEEDREAD_WPM] ?: defaults.speedreadWpm,
+        )
+    }
+
+    private fun MutablePreferences.applySettings(s: ReaderSettings) {
+        this[Keys.MODE] = s.mode.name
+        this[Keys.FONT] = s.font.name
+        this[Keys.TEXT_SIZE] = s.textSizeSp
+        this[Keys.SENTENCE_TEXT_SIZE] = s.sentenceTextSizeSp
+        this[Keys.TEXT_COLOR] = s.textColorArgb
+        this[Keys.AUTOSCROLL_ENABLED] = s.autoscrollEnabled
+        this[Keys.AUTOSCROLL_SPEED] = s.autoscrollSpeed
+        this[Keys.SPEEDREAD_WPM] = s.speedreadWpm
+    }
+
+    private fun readMode(raw: String): ReadingMode =
+        runCatching { ReadingMode.valueOf(raw) }.getOrDefault(ReadingMode.NORMAL)
+
+    private fun readFont(raw: String): FontChoice =
+        runCatching { FontChoice.valueOf(raw) }.getOrDefault(FontChoice.SERIF)
+}
