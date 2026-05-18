@@ -15,6 +15,7 @@ import com.wbooks.data.settings.ReadingMode
 import com.wbooks.data.settings.SettingsRepository
 import com.wbooks.data.settings.next
 import com.wbooks.data.settings.nextTextColor
+import com.wbooks.parser.model.Block
 import com.wbooks.parser.model.Document
 import com.wbooks.parser.parserFor
 import com.wbooks.transfer.TransferController
@@ -133,6 +134,65 @@ class ReaderViewModel(
     val transferState: StateFlow<TransferState> = transferController.state
     fun startTransfer() = transferController.start()
     fun stopTransfer() = transferController.stop()
+
+    // ---- Search ----
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _searchResults = MutableStateFlow<List<SearchResult>>(emptyList())
+    val searchResults: StateFlow<List<SearchResult>> = _searchResults.asStateFlow()
+
+    fun runSearch(query: String) {
+        val state = _document.value
+        if (state !is DocumentState.Loaded || query.isBlank()) return
+        _searchQuery.value = query
+        viewModelScope.launch {
+            _searchResults.value = withContext(Dispatchers.Default) {
+                searchDocument(state.doc, query)
+            }
+        }
+    }
+
+    fun clearSearch() {
+        _searchQuery.value = ""
+        _searchResults.value = emptyList()
+    }
+
+    fun openSearchResult(result: SearchResult) {
+        // Per spec: opening a search result resets the reader to Normal mode.
+        setMode(ReadingMode.NORMAL)
+        jumpTo(result.position)
+        clearSearch()
+    }
+
+    private fun searchDocument(doc: Document, query: String): List<SearchResult> {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) return emptyList()
+        val out = mutableListOf<SearchResult>()
+        for ((ci, chapter) in doc.chapters.withIndex()) {
+            for ((bi, block) in chapter.blocks.withIndex()) {
+                val text = when (block) {
+                    is Block.Heading -> block.text
+                    is Block.Paragraph -> block.runs.joinToString("") { it.text }
+                    is Block.Code -> block.text
+                    Block.Divider -> ""
+                }
+                if (text.isEmpty()) continue
+                val idx = text.lowercase().indexOf(q)
+                if (idx < 0) continue
+                val start = (idx - 20).coerceAtLeast(0)
+                val end = (idx + q.length + 20).coerceAtMost(text.length)
+                val pre = if (start > 0) "…" else ""
+                val post = if (end < text.length) "…" else ""
+                out += SearchResult(
+                    position = com.wbooks.data.position.BookPosition(ci, bi),
+                    snippet = pre + text.substring(start, end).replace(Regex("\\s+"), " ") + post,
+                )
+                if (out.size >= 100) return out
+            }
+        }
+        return out
+    }
 
     // ---- Library + document lifecycle ----
     init {

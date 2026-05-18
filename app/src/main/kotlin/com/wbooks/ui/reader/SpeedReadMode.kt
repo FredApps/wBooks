@@ -5,7 +5,9 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,16 +35,16 @@ import com.wbooks.parser.model.Document
 import kotlinx.coroutines.delay
 
 /**
- * Rapid Serial Visual Presentation — one word at a time, centred, advancing at
- * [ReaderSettings.speedreadWpm].
+ * RSVP — one word at a time, focal letter coloured and pinned to screen centre.
  *
  * Interactions:
- *  - Tap: toggle play/pause.
- *  - Rotary bezel: adjust WPM live (each detent ~25 wpm). The change is pushed
- *    back via [onWpmChange] so it persists in DataStore.
+ *  - Tap: toggle play / pause.
+ *  - Rotary bezel: adjust WPM live (persisted via [onWpmChange]).
  *
- * Tokenisation includes heading text (so chapter titles get a beat at their
- * speed) but skips dividers and code blocks — code isn't meant to be RSVP-read.
+ * Focal point: the optimal recognition point per the classic RSVP rule (Spritz
+ * et al.). The word is rendered as a three-cell Row — prefix (weight, end-aligned),
+ * focal letter (centre, accented colour), suffix (weight, start-aligned) — which
+ * places the focal letter on the screen's vertical axis without manual measuring.
  */
 @Composable
 fun SpeedReadMode(
@@ -92,19 +94,18 @@ fun SpeedReadMode(
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(12.dp).fillMaxWidth(),
         ) {
             Text(
                 text = "${settings.speedreadWpm} wpm  ·  ${index + 1}/${words.size}",
                 color = Color(settings.textColorArgb).copy(alpha = 0.5f),
                 style = MaterialTheme.typography.caption2,
             )
-            Text(
-                text = words[index],
-                color = Color(settings.textColorArgb),
-                fontSize = (settings.textSizeSp + 10).sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center,
+            FocalWord(
+                word = words[index],
+                fontSizeSp = settings.textSizeSp + 10,
+                baseColor = Color(settings.textColorArgb),
+                focalColor = FOCAL_COLOR,
             )
             if (!playing) {
                 Text(
@@ -116,6 +117,70 @@ fun SpeedReadMode(
         }
     }
 }
+
+private val FOCAL_COLOR = Color(0xFFF06B5A)
+
+@Composable
+private fun FocalWord(
+    word: String,
+    fontSizeSp: Int,
+    baseColor: Color,
+    focalColor: Color,
+) {
+    val orp = focalIndex(word)
+    val prefix = word.substring(0, orp)
+    val focal = word[orp].toString()
+    val suffix = if (orp + 1 <= word.lastIndex) word.substring(orp + 1) else ""
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+            Text(
+                text = prefix,
+                color = baseColor,
+                fontSize = fontSizeSp.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+            )
+        }
+        Text(
+            text = focal,
+            color = focalColor,
+            fontSize = fontSizeSp.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+        )
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            Text(
+                text = suffix,
+                color = baseColor,
+                fontSize = fontSizeSp.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Start,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+/**
+ * Optimal recognition point. Standard RSVP table:
+ *   1 char      -> 0
+ *   2-5 chars   -> 1
+ *   6-9 chars   -> 2
+ *   10-13 chars -> 3
+ *   14+ chars   -> 4
+ */
+internal fun focalIndex(word: String): Int = when (word.length) {
+    0, 1 -> 0
+    in 2..5 -> 1
+    in 6..9 -> 2
+    in 10..13 -> 3
+    else -> 4
+}.coerceAtMost(word.lastIndex.coerceAtLeast(0))
 
 private fun tokenize(doc: Document): List<String> {
     val ws = Regex("\\s+")
