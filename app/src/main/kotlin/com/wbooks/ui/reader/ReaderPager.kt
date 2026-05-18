@@ -25,7 +25,7 @@ fun ReaderPager(
         modifier = Modifier.fillMaxSize(),
     ) { page ->
         when (page) {
-            0 -> SecondaryScreen(state = state)
+            0 -> SecondaryScreen(state = state, vm = vm)
             1 -> ReaderScreen(state = state, vm = vm, onExit = onExit)
             2 -> SettingsScreen(vm = vm)
         }

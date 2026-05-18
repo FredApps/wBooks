@@ -1,5 +1,9 @@
 package com.wbooks.ui.settings
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -113,9 +117,27 @@ fun SettingsScreen(vm: ReaderViewModel) {
             item { ListHeader { Text(" ") } }
             item {
                 val transfer by vm.transferState.collectAsState()
+                val notifLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { _ ->
+                    // Whether the user grants or denies notification permission, the
+                    // server still runs — without permission the foreground notification
+                    // simply won't be visible. Start regardless.
+                    vm.startTransfer()
+                }
                 ToggleChip(
                     checked = transfer.running,
-                    onCheckedChange = { enabled -> if (enabled) vm.startTransfer() else vm.stopTransfer() },
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                vm.startTransfer()
+                            }
+                        } else {
+                            vm.stopTransfer()
+                        }
+                    },
                     label = { Text(stringResource(R.string.settings_transfer)) },
                     secondaryLabel = transfer.url?.let { url -> { Text(url) } },
                     toggleControl = { Switch(checked = transfer.running) },

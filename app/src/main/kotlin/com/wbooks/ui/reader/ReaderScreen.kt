@@ -38,9 +38,9 @@ fun ReaderScreen(
                 Text("Failed to open ${state.book.title}: ${state.message}")
             }
             is DocumentState.Loaded -> when (settings.mode) {
-                ReadingMode.NORMAL -> NormalMode(document = state.doc, settings = settings)
+                ReadingMode.NORMAL -> NormalMode(document = state.doc, settings = settings, vm = vm)
                 ReadingMode.SPEEDREAD -> SpeedReadMode(document = state.doc, settings = settings, onWpmChange = vm::setSpeedreadWpm)
-                ReadingMode.SENTENCE -> SentenceMode(document = state.doc, settings = settings)
+                ReadingMode.SENTENCE -> SentenceMode(document = state.doc, settings = settings, vm = vm)
             }
         }
     }
