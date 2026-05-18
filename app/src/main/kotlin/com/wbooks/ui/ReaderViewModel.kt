@@ -13,8 +13,10 @@ import com.wbooks.data.settings.FontChoice
 import com.wbooks.data.settings.ReaderSettings
 import com.wbooks.data.settings.ReadingMode
 import com.wbooks.data.settings.SettingsRepository
+import com.wbooks.data.settings.ThemeChoice
 import com.wbooks.data.settings.next
 import com.wbooks.data.settings.nextTextColor
+import com.wbooks.parser.cache.DocumentCache
 import com.wbooks.parser.model.Block
 import com.wbooks.parser.model.Document
 import com.wbooks.parser.parserFor
@@ -49,6 +51,7 @@ class ReaderViewModel(
     private val positionsRepo: PositionsRepository,
     private val bookmarksRepo: BookmarksRepository,
     private val transferController: TransferController,
+    private val documentCache: DocumentCache,
 ) : ViewModel() {
 
     // ---- Settings ----
@@ -207,15 +210,36 @@ class ReaderViewModel(
         loadJob?.cancel()
         _document.value = DocumentState.Loading
         loadJob = viewModelScope.launch {
+            positionsRepo.setLastOpenedBookId(book.id)
+            val key = DocumentCache.Key(
+                bookId = book.id,
+                sizeBytes = book.file.length(),
+                mtimeMs = book.file.lastModified(),
+            )
             val result = runCatching {
-                withContext(Dispatchers.IO) {
+                documentCache.load(key) ?: withContext(Dispatchers.IO) {
                     book.file.inputStream().use { parserFor(book.format).parse(it) }
-                }
+                }.also { parsed -> runCatching { documentCache.store(key, parsed) } }
             }
             _document.value = result.fold(
                 onSuccess = { DocumentState.Loaded(book, it) },
                 onFailure = { DocumentState.Failed(book, it.message ?: it::class.simpleName ?: "unknown error") },
             )
+        }
+    }
+
+    /**
+     * Open the last book the user was reading, if any. Called from MainActivity on
+     * first creation and from the Resume tile entry point. No-op if either there's
+     * no last-opened id or it doesn't match anything currently in the library.
+     */
+    fun resumeLastBook() {
+        viewModelScope.launch {
+            val id = positionsRepo.readLastOpenedBookId() ?: return@launch
+            // Make sure the library scan has run so books.value is populated.
+            libraryRepo.refresh()
+            val book = libraryRepo.books.value.firstOrNull { it.id == id } ?: return@launch
+            openBook(book)
         }
     }
 
@@ -228,6 +252,8 @@ class ReaderViewModel(
     fun cycleMode() = editSettings { it.copy(mode = it.mode.next()) }
     fun cycleFont() = editSettings { it.copy(font = it.font.next()) }
     fun cycleTextColor() = editSettings { it.copy(textColorArgb = nextTextColor(it.textColorArgb)) }
+    fun cycleTheme() = editSettings { it.copy(theme = it.theme.next()) }
+    fun setTheme(theme: ThemeChoice) = editSettings { it.copy(theme = theme) }
     fun toggleAutoscroll() = editSettings { it.copy(autoscrollEnabled = !it.autoscrollEnabled) }
 
     fun setMode(mode: ReadingMode) = editSettings { it.copy(mode = mode) }
@@ -247,11 +273,14 @@ class ReaderViewModel(
         private val positionsRepo: PositionsRepository,
         private val bookmarksRepo: BookmarksRepository,
         private val transferController: TransferController,
+        private val documentCache: DocumentCache,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass == ReaderViewModel::class.java)
-            return ReaderViewModel(settingsRepo, libraryRepo, positionsRepo, bookmarksRepo, transferController) as T
+            return ReaderViewModel(
+                settingsRepo, libraryRepo, positionsRepo, bookmarksRepo, transferController, documentCache,
+            ) as T
         }
     }
 }

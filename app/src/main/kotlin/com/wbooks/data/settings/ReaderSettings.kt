@@ -9,6 +9,14 @@ fun ReadingMode.next(): ReadingMode = when (this) {
     ReadingMode.SENTENCE -> ReadingMode.NORMAL
 }
 
+enum class ThemeChoice {
+    DARK,
+    LIGHT,
+    SYSTEM;
+
+    fun next(): ThemeChoice = entries[(ordinal + 1) % entries.size]
+}
+
 enum class FontChoice(val familyName: String) {
     SERIF("serif"),
     SANS("sans-serif"),
@@ -36,6 +44,7 @@ data class ReaderSettings(
     val autoscrollSpeed: Int = 20,
     /** Words per minute in speedread mode. */
     val speedreadWpm: Int = 300,
+    val theme: ThemeChoice = ThemeChoice.DARK,
 ) {
     companion object {
         val TEXT_SIZE_RANGE = 10..36

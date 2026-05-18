@@ -42,8 +42,13 @@ import com.wbooks.ui.ReaderViewModel
 @Composable
 fun SettingsScreen(vm: ReaderViewModel) {
     var showChangelog by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
     if (showChangelog) {
         ChangelogScreen(onBack = { showChangelog = false })
+        return
+    }
+    if (showAbout) {
+        AboutScreen(onBack = { showAbout = false })
         return
     }
     val state = rememberScalingLazyListState()
@@ -70,6 +75,13 @@ fun SettingsScreen(vm: ReaderViewModel) {
                     label = stringResource(R.string.settings_font),
                     value = settings.font.familyName,
                     onClick = vm::cycleFont,
+                )
+            }
+            item {
+                CyclerChip(
+                    label = stringResource(R.string.settings_theme),
+                    value = settings.theme.name.lowercase().replaceFirstChar { it.titlecase() },
+                    onClick = vm::cycleTheme,
                 )
             }
             item {
@@ -169,7 +181,13 @@ fun SettingsScreen(vm: ReaderViewModel) {
                     colors = ChipDefaults.secondaryChipColors(),
                 )
             }
-            item { StaticChip(stringResource(R.string.settings_about)) }
+            item {
+                Chip(
+                    label = { Text(stringResource(R.string.settings_about)) },
+                    onClick = { showAbout = true },
+                    colors = ChipDefaults.secondaryChipColors(),
+                )
+            }
         }
     }
 }

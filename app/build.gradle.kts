@@ -76,5 +76,12 @@ dependencies {
     implementation(libs.jsoup)
     implementation(libs.nanohttpd)
 
+    implementation(libs.androidx.wear.tiles)
+    implementation(libs.androidx.wear.protolayout)
+    implementation(libs.androidx.wear.protolayout.material)
+    implementation(libs.androidx.wear.protolayout.expression)
+    implementation(libs.guava.listenablefuture)
+    implementation(libs.androidx.concurrent.futures)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
