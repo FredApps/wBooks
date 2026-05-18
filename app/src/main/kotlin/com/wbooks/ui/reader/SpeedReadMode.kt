@@ -27,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.wear.compose.material.CompactChip
+import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.wbooks.data.settings.ReaderSettings
@@ -108,11 +110,28 @@ fun SpeedReadMode(
                 focalColor = FOCAL_COLOR,
             )
             if (!playing) {
-                Text(
-                    text = "tap to play",
-                    color = Color(settings.textColorArgb).copy(alpha = 0.4f),
-                    style = MaterialTheme.typography.caption2,
-                )
+                // Touch-only WPM control: visible only when paused so it doesn't
+                // distract during reading. Bezel users adjust WPM live without pausing.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                ) {
+                    CompactChip(
+                        label = { Text("−25") },
+                        onClick = { onWpmChange(settings.speedreadWpm - 25) },
+                        colors = ChipDefaults.secondaryChipColors(),
+                    )
+                    Text(
+                        text = "tap to play",
+                        color = Color(settings.textColorArgb).copy(alpha = 0.5f),
+                        style = MaterialTheme.typography.caption2,
+                    )
+                    CompactChip(
+                        label = { Text("+25") },
+                        onClick = { onWpmChange(settings.speedreadWpm + 25) },
+                        colors = ChipDefaults.secondaryChipColors(),
+                    )
+                }
             }
         }
     }

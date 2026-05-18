@@ -112,11 +112,16 @@ fun SentenceMode(
                 true
             }
             .pointerInput(settings.autoscrollEnabled) {
-                detectTapGestures(onTap = {
+                detectTapGestures(onTap = { offset ->
                     if (settings.autoscrollEnabled) {
+                        // Spec: autoscroll pauses on tap, resumes on tap.
                         autoscrollPaused = !autoscrollPaused
-                    } else if (index < sentences.size - 1) {
-                        index++
+                    } else {
+                        // Touch-only navigation: top third of the screen taps to the
+                        // previous sentence, bottom two thirds tap to the next.
+                        val prevZone = offset.y < size.height / 3f
+                        index = if (prevZone) (index - 1).coerceAtLeast(0)
+                        else (index + 1).coerceAtMost(sentences.size - 1)
                     }
                 })
             },
