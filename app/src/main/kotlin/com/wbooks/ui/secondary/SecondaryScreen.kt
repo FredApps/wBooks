@@ -363,6 +363,12 @@ private fun SearchPanel(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text("Search")
+        Text(
+            text = "Searching and jumping in books is only available in normal mode",
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.caption2,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
         Chip(
             label = { Text("Voice") },
             onClick = onVoice,
