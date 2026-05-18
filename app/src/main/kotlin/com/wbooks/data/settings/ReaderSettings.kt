@@ -44,6 +44,7 @@ data class ReaderSettings(
     val textColorArgb: Int = 0xFFE8E6E1.toInt(),
     val autoscrollEnabled: Boolean = false,
     val autoscrollSpeed: Int = 20,
+    val screenBrightness: Int = 100,
     /** Words per minute in speedread mode. */
     val speedreadWpm: Int = 300,
     val theme: ThemeChoice = ThemeChoice.DARK,
@@ -52,6 +53,7 @@ data class ReaderSettings(
         val TEXT_SIZE_RANGE = 10..36
         val SENTENCE_TEXT_SIZE_RANGE = 14..48
         val AUTOSCROLL_SPEED_RANGE = 1..60
+        val SCREEN_BRIGHTNESS_RANGE = 10..100
         val WPM_RANGE = 100..900
 
         /** Curated text-colour palette the user can cycle through in settings. */

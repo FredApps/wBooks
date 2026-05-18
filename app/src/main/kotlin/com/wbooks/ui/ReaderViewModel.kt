@@ -42,7 +42,7 @@ import kotlinx.coroutines.withContext
 
 sealed interface DocumentState {
     data object Idle : DocumentState
-    data class Loading(val book: Book) : DocumentState
+    data class Loading(val book: Book, val isFirstOpen: Boolean) : DocumentState
     data class Loaded(val book: Book, val doc: Document, val initialPosition: BookPosition) : DocumentState
     data class Failed(val book: Book, val message: String) : DocumentState
 }
@@ -210,8 +210,10 @@ class ReaderViewModel(
 
     fun openBook(book: Book) {
         loadJob?.cancel()
-        _document.value = DocumentState.Loading(book)
         loadJob = viewModelScope.launch {
+            val isFirstOpen = !positionsRepo.hasOpened(book.id)
+            _document.value = DocumentState.Loading(book, isFirstOpen)
+            positionsRepo.markOpened(book.id)
             positionsRepo.setLastOpenedBookId(book.id)
             val key = DocumentCache.Key(
                 bookId = book.id,
@@ -276,6 +278,7 @@ class ReaderViewModel(
     fun setTextSize(value: Int) = editSettings { it.copy(textSizeSp = value.coerceIn(ReaderSettings.TEXT_SIZE_RANGE)) }
     fun setSentenceTextSize(value: Int) = editSettings { it.copy(sentenceTextSizeSp = value.coerceIn(ReaderSettings.SENTENCE_TEXT_SIZE_RANGE)) }
     fun setAutoscrollSpeed(value: Int) = editSettings { it.copy(autoscrollSpeed = value.coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE)) }
+    fun setScreenBrightness(value: Int) = editSettings { it.copy(screenBrightness = value.coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE)) }
     fun setSpeedreadWpm(value: Int) = editSettings { it.copy(speedreadWpm = value.coerceIn(ReaderSettings.WPM_RANGE)) }
     fun setFont(font: FontChoice) = editSettings { it.copy(font = font) }
 

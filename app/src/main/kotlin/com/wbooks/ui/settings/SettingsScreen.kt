@@ -125,6 +125,16 @@ fun SettingsScreen(vm: ReaderViewModel) {
             }
             item {
                 SliderRow(
+                    label = stringResource(R.string.settings_screen_brightness),
+                    value = settings.screenBrightness,
+                    range = ReaderSettings.SCREEN_BRIGHTNESS_RANGE,
+                    step = 5,
+                    suffix = "%",
+                    onChange = vm::setScreenBrightness,
+                )
+            }
+            item {
+                SliderRow(
                     label = stringResource(R.string.settings_speedread_wpm),
                     value = settings.speedreadWpm,
                     range = ReaderSettings.WPM_RANGE,
@@ -254,11 +264,12 @@ private fun SliderRow(
     value: Int,
     range: IntRange,
     step: Int = 1,
+    suffix: String = "",
     onChange: (Int) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = "$label: $value",
+            text = "$label: $value$suffix",
             style = MaterialTheme.typography.caption2,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
         )

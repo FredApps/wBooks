@@ -18,6 +18,7 @@
     <string name="settings_text_color">Text color</string>
     <string name="settings_autoscroll">Autoscroll</string>
     <string name="settings_autoscroll_speed">Autoscroll speed</string>
+    <string name="settings_screen_brightness">Screen brightness</string>
     <string name="settings_speedread_wpm">Speed reading WPM</string>
     <string name="settings_sentence_text_size">Sentence text size</string>
     <string name="settings_transfer">Web interface</string>

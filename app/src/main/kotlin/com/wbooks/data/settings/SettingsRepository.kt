@@ -22,6 +22,7 @@ private object Keys {
     val TEXT_COLOR = intPreferencesKey("text_color")
     val AUTOSCROLL_ENABLED = booleanPreferencesKey("autoscroll_enabled")
     val AUTOSCROLL_SPEED = intPreferencesKey("autoscroll_speed")
+    val SCREEN_BRIGHTNESS = intPreferencesKey("screen_brightness")
     val SPEEDREAD_WPM = intPreferencesKey("speedread_wpm")
     val THEME = stringPreferencesKey("theme")
 }
@@ -51,6 +52,8 @@ class SettingsRepository(context: Context) {
             textColorArgb = this[Keys.TEXT_COLOR] ?: defaults.textColorArgb,
             autoscrollEnabled = this[Keys.AUTOSCROLL_ENABLED] ?: defaults.autoscrollEnabled,
             autoscrollSpeed = this[Keys.AUTOSCROLL_SPEED] ?: defaults.autoscrollSpeed,
+            screenBrightness = (this[Keys.SCREEN_BRIGHTNESS] ?: defaults.screenBrightness)
+                .coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE),
             speedreadWpm = this[Keys.SPEEDREAD_WPM] ?: defaults.speedreadWpm,
             theme = this[Keys.THEME]?.let(::readTheme) ?: defaults.theme,
         )
@@ -64,6 +67,7 @@ class SettingsRepository(context: Context) {
         this[Keys.TEXT_COLOR] = s.textColorArgb
         this[Keys.AUTOSCROLL_ENABLED] = s.autoscrollEnabled
         this[Keys.AUTOSCROLL_SPEED] = s.autoscrollSpeed
+        this[Keys.SCREEN_BRIGHTNESS] = s.screenBrightness
         this[Keys.SPEEDREAD_WPM] = s.speedreadWpm
         this[Keys.THEME] = s.theme.name
     }

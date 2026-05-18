@@ -27,6 +27,7 @@ import com.wbooks.ui.ReaderViewModel
 fun ReaderScreen(
     state: DocumentState,
     vm: ReaderViewModel,
+    isActive: Boolean,
     onExit: () -> Unit,
 ) {
     val settings by vm.settings.collectAsState()
@@ -44,10 +45,12 @@ fun ReaderScreen(
                         text = "Opening ${state.book.title}",
                         textAlign = TextAlign.Center,
                     )
-                    Text(
-                        text = "First open may take a moment",
-                        textAlign = TextAlign.Center,
-                    )
+                    if (state.isFirstOpen) {
+                        Text(
+                            text = "First open may take a moment",
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                 }
             }
             is DocumentState.Failed -> Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
@@ -59,13 +62,20 @@ fun ReaderScreen(
                     initialPosition = state.initialPosition,
                     settings = settings,
                     vm = vm,
+                    isActive = isActive,
                 )
-                ReadingMode.SPEEDREAD -> SpeedReadMode(document = state.doc, settings = settings, onWpmChange = vm::setSpeedreadWpm)
+                ReadingMode.SPEEDREAD -> SpeedReadMode(
+                    document = state.doc,
+                    settings = settings,
+                    isActive = isActive,
+                    onWpmChange = vm::setSpeedreadWpm,
+                )
                 ReadingMode.SENTENCE -> SentenceMode(
                     document = state.doc,
                     initialPosition = state.initialPosition,
                     settings = settings,
                     vm = vm,
+                    isActive = isActive,
                 )
             }
         }
