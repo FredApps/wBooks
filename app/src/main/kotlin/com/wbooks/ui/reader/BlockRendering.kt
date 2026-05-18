@@ -79,9 +79,11 @@ fun BlockView(block: Block, settings: ReaderSettings) {
 }
 
 private fun FontChoice.toFontFamily(): FontFamily = when (this) {
+    FontChoice.DEFAULT -> FontFamily.Default
     FontChoice.SERIF -> FontFamily.Serif
     FontChoice.SANS -> FontFamily.SansSerif
     FontChoice.MONO -> FontFamily.Monospace
+    FontChoice.CURSIVE -> FontFamily.Cursive
 }
 
 private fun List<Run>.toAnnotatedString(): AnnotatedString = buildAnnotatedString {

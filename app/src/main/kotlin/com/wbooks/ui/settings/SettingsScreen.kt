@@ -36,6 +36,7 @@ import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.ToggleChip
 import androidx.wear.compose.material.ToggleChipDefaults
 import com.wbooks.R
+import com.wbooks.data.settings.FontChoice
 import com.wbooks.data.settings.ReaderSettings
 import com.wbooks.ui.ReaderViewModel
 
@@ -69,7 +70,7 @@ fun SettingsScreen(vm: ReaderViewModel) {
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = state,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item { ListHeader { Text(stringResource(R.string.page_settings)) } }
@@ -79,13 +80,6 @@ fun SettingsScreen(vm: ReaderViewModel) {
                     label = stringResource(R.string.settings_reading_mode),
                     value = settings.mode.name.lowercase().replaceFirstChar { it.titlecase() },
                     onClick = vm::cycleMode,
-                )
-            }
-            item {
-                CyclerChip(
-                    label = stringResource(R.string.settings_font),
-                    value = settings.font.familyName,
-                    onClick = vm::cycleFont,
                 )
             }
             item {
@@ -112,19 +106,13 @@ fun SettingsScreen(vm: ReaderViewModel) {
                 )
             }
             item {
-                ColorChip(
-                    label = stringResource(R.string.settings_text_color),
-                    argb = settings.textColorArgb,
-                    onClick = vm::cycleTextColor,
-                )
-            }
-            item {
                 ToggleChip(
                     checked = settings.autoscrollEnabled,
                     onCheckedChange = { vm.toggleAutoscroll() },
                     label = { Text(stringResource(R.string.settings_autoscroll)) },
                     toggleControl = { Switch(checked = settings.autoscrollEnabled) },
                     colors = ToggleChipDefaults.toggleChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             item {
@@ -145,6 +133,26 @@ fun SettingsScreen(vm: ReaderViewModel) {
                 )
             }
 
+            item { ListHeader { Text(stringResource(R.string.settings_font)) } }
+            items(FontChoice.entries.size) { idx ->
+                val font = FontChoice.entries[idx]
+                ChoiceChip(
+                    label = font.familyName,
+                    selected = settings.font == font,
+                    onClick = { vm.setFont(font) },
+                )
+            }
+
+            item { ListHeader { Text(stringResource(R.string.settings_text_color)) } }
+            items(ReaderSettings.TEXT_COLOR_PALETTE.size) { idx ->
+                val argb = ReaderSettings.TEXT_COLOR_PALETTE[idx]
+                ColorChoiceChip(
+                    argb = argb,
+                    selected = settings.textColorArgb == argb,
+                    onClick = { vm.setTextColor(argb) },
+                )
+            }
+
             item { ListHeader { Text(" ") } }
             item {
                 val transfer by vm.transferState.collectAsState()
@@ -161,10 +169,20 @@ fun SettingsScreen(vm: ReaderViewModel) {
                             vm.stopTransfer()
                         }
                     },
-                    label = { Text(stringResource(R.string.settings_transfer)) },
-                    secondaryLabel = transfer.url?.let { url -> { Text(url) } },
+                    label = {
+                        Text(
+                            if (transfer.running) stringResource(R.string.settings_transfer_stop)
+                            else stringResource(R.string.settings_transfer_start)
+                        )
+                    },
+                    secondaryLabel = {
+                        Text(
+                            transfer.url ?: stringResource(R.string.settings_transfer_subtitle)
+                        )
+                    },
                     toggleControl = { Switch(checked = transfer.running) },
                     colors = ToggleChipDefaults.toggleChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             item {
@@ -182,6 +200,7 @@ fun SettingsScreen(vm: ReaderViewModel) {
                     label = { Text(stringResource(R.string.settings_changelog)) },
                     onClick = { showChangelog = true },
                     colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             item {
@@ -189,6 +208,7 @@ fun SettingsScreen(vm: ReaderViewModel) {
                     label = { Text(stringResource(R.string.settings_about)) },
                     onClick = { showAbout = true },
                     colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
@@ -202,16 +222,29 @@ private fun CyclerChip(label: String, value: String, onClick: () -> Unit) {
         secondaryLabel = { Text(value) },
         onClick = onClick,
         colors = ChipDefaults.secondaryChipColors(),
+        modifier = Modifier.fillMaxWidth(),
     )
 }
 
 @Composable
-private fun ColorChip(label: String, argb: Int, onClick: () -> Unit) {
+private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Chip(
-        label = { Text(label) },
+        label = { Text(if (selected) "$label (selected)" else label) },
+        onClick = onClick,
+        colors = if (selected) ChipDefaults.primaryChipColors() else ChipDefaults.secondaryChipColors(),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun ColorChoiceChip(argb: Int, selected: Boolean, onClick: () -> Unit) {
+    val label = colorName(argb)
+    Chip(
+        label = { Text(if (selected) "$label (selected)" else label) },
         secondaryLabel = { Text("#%06X".format(argb and 0xFFFFFF), color = Color(argb)) },
         onClick = onClick,
-        colors = ChipDefaults.secondaryChipColors(),
+        colors = if (selected) ChipDefaults.primaryChipColors() else ChipDefaults.secondaryChipColors(),
+        modifier = Modifier.fillMaxWidth(),
     )
 }
 
@@ -245,5 +278,16 @@ private fun StaticChip(label: String) {
         label = { Text(label) },
         onClick = { /* TODO open detail */ },
         colors = ChipDefaults.secondaryChipColors(),
+        modifier = Modifier.fillMaxWidth(),
     )
+}
+
+private fun colorName(argb: Int): String = when (argb) {
+    0xFFE8E6E1.toInt() -> "Warm white"
+    0xFFFFFFFF.toInt() -> "White"
+    0xFFD4C19C.toInt() -> "Sepia"
+    0xFF9CB5D4.toInt() -> "Pale blue"
+    0xFFA8D49C.toInt() -> "Pale green"
+    0xFFD49C9C.toInt() -> "Pale red"
+    else -> "Custom"
 }

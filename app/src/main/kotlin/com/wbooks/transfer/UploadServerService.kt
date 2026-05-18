@@ -74,7 +74,7 @@ class UploadServerService : Service() {
         if (nm.getNotificationChannel(CHANNEL_ID) != null) return
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Upload server", NotificationManager.IMPORTANCE_LOW)
-                .apply { description = "Shown while the file-transfer server is running" }
+                .apply { description = "Shown while the web interface is running" }
         )
     }
 

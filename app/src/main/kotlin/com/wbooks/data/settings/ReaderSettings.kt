@@ -18,9 +18,11 @@ enum class ThemeChoice {
 }
 
 enum class FontChoice(val familyName: String) {
+    DEFAULT("default"),
     SERIF("serif"),
     SANS("sans-serif"),
-    MONO("monospace");
+    MONO("monospace"),
+    CURSIVE("cursive");
 
     fun next(): FontChoice = entries[(ordinal + 1) % entries.size]
 }

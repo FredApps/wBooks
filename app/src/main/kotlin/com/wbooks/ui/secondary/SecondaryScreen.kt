@@ -53,6 +53,7 @@ import com.wbooks.R
 import com.wbooks.data.bookmarks.Bookmark
 import com.wbooks.data.position.BookPosition
 import com.wbooks.parser.model.Block
+import com.wbooks.parser.model.Document
 import com.wbooks.ui.DocumentState
 import com.wbooks.ui.ReaderViewModel
 import com.wbooks.ui.SearchResult
@@ -121,11 +122,12 @@ fun SecondaryScreen(state: DocumentState, vm: ReaderViewModel) {
 
         val bookmarks by vm.bookmarks.collectAsState()
         var pendingDelete by remember { mutableStateOf<BookPosition?>(null) }
+        val chapters = remember(state.doc) { chapterJumps(state.doc) }
 
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = listState,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item {
@@ -133,6 +135,7 @@ fun SecondaryScreen(state: DocumentState, vm: ReaderViewModel) {
                     label = { Text(stringResource(R.string.tools_search)) },
                     onClick = { searchPanelOpen = true },
                     colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             item {
@@ -140,6 +143,7 @@ fun SecondaryScreen(state: DocumentState, vm: ReaderViewModel) {
                     label = { Text(stringResource(R.string.tools_bookmark_here)) },
                     onClick = { vm.bookmarkHere() },
                     colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
 
@@ -161,12 +165,12 @@ fun SecondaryScreen(state: DocumentState, vm: ReaderViewModel) {
             }
 
             item { ListHeader { Text(stringResource(R.string.tools_chapters)) } }
-            val chapters = state.doc.chapters.withIndex().toList()
-            items(chapters, key = { it.index }) { (idx, chapter) ->
+            items(chapters, key = { "${it.position.chapterIndex}-${it.position.blockIndex}" }) { chapter ->
                 Chip(
-                    label = { Text(chapterDisplay(chapter, idx)) },
-                    onClick = { vm.jumpTo(BookPosition(chapterIndex = idx, blockIndex = 0)) },
+                    label = { Text(chapter.title) },
+                    onClick = { vm.jumpTo(chapter.position) },
                     colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
@@ -184,7 +188,7 @@ private fun SearchResultsList(
     ScalingLazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         item { ListHeader { Text("\"$query\" · ${results.size}") } }
@@ -193,6 +197,7 @@ private fun SearchResultsList(
                 label = { Text("Clear") },
                 onClick = onClear,
                 colors = ChipDefaults.secondaryChipColors(),
+                modifier = Modifier.fillMaxWidth(),
             )
         }
         if (results.isEmpty()) {
@@ -209,6 +214,7 @@ private fun SearchResultsList(
                     secondaryLabel = { Text("Ch ${r.position.chapterIndex + 1}") },
                     onClick = { onOpen(r) },
                     colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
@@ -247,12 +253,13 @@ private fun BookmarkRow(
                 label = { Text("Yes") },
                 onClick = onConfirmDelete,
                 colors = ChipDefaults.primaryChipColors(),
-                modifier = Modifier.padding(end = 2.dp),
+                modifier = Modifier.weight(1f),
             )
             Chip(
                 label = { Text("No") },
                 onClick = onCancelDelete,
                 colors = ChipDefaults.secondaryChipColors(),
+                modifier = Modifier.weight(1f),
             )
         }
     } else {
@@ -261,20 +268,55 @@ private fun BookmarkRow(
             secondaryLabel = { Text(subtitle) },
             onClick = onJump,
             colors = ChipDefaults.secondaryChipColors(),
-            modifier = Modifier.combinedClickable(
-                onClick = onJump,
-                onLongClick = onRequestDelete,
-            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = onJump,
+                    onLongClick = onRequestDelete,
+                ),
         )
     }
 }
 
-private fun chapterDisplay(chapter: com.wbooks.parser.model.Chapter, index: Int): String {
-    chapter.title?.takeIf { it.isNotBlank() }?.let { return it }
-    chapter.blocks.firstOrNull { it is Block.Heading }?.let { heading ->
-        return (heading as Block.Heading).text
+private data class ChapterJump(val title: String, val position: BookPosition)
+
+private fun chapterJumps(doc: Document): List<ChapterJump> {
+    val headingJumps = mutableListOf<ChapterJump>()
+    for ((ci, chapter) in doc.chapters.withIndex()) {
+        chapter.title?.takeIf { it.isNotBlank() }?.let { title ->
+            headingJumps += ChapterJump(title, BookPosition(ci, 0))
+        }
+        for ((bi, block) in chapter.blocks.withIndex()) {
+            if (block is Block.Heading && block.text.isNotBlank()) {
+                headingJumps += ChapterJump(block.text, BookPosition(ci, bi))
+            }
+        }
     }
-    return "Chapter ${index + 1}"
+    val distinct = headingJumps.distinctBy { it.position }
+    val explicitChapters = distinct.filter { it.title.looksLikeChapterHeading() }
+    val meaningfulHeadings = distinct.filterNot { it.title.looksLikeBoilerplateHeading() }
+    return (explicitChapters.ifEmpty { meaningfulHeadings }).ifEmpty {
+        doc.chapters.mapIndexed { idx, _ -> ChapterJump("Chapter ${idx + 1}", BookPosition(idx, 0)) }
+    }
+}
+
+private fun String.looksLikeChapterHeading(): Boolean {
+    val t = trim()
+    return t.startsWith("chapter ", ignoreCase = true) ||
+        Regex("^(book|part|volume)\\s+[ivxlcdm0-9]+\\b", RegexOption.IGNORE_CASE).containsMatchIn(t)
+}
+
+private fun String.looksLikeBoilerplateHeading(): Boolean {
+    val t = trim()
+    if (t.isBlank()) return true
+    val lower = t.lowercase()
+    return lower.startsWith("the project gutenberg ebook") ||
+        lower.startsWith("project gutenberg") ||
+        lower.startsWith("by ") ||
+        lower == "contents" ||
+        lower == "table of contents" ||
+        lower.contains("transcriber's note") ||
+        lower.contains("transcriber’s note")
 }
 
 private fun buildSearchIntent(): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {

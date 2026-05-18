@@ -5,7 +5,7 @@ import fi.iki.elonen.NanoHTTPD
 import java.io.File
 
 /**
- * Tiny HTTP server bound to the watch's Wi-Fi address. Backs the "File transfer"
+ * Tiny HTTP server bound to the watch's Wi-Fi address. Backs the web interface
  * setting: the user toggles it from Settings, opens the displayed URL in a browser,
  * enters the displayed PIN, and uploads / deletes / sorts books.
  *
