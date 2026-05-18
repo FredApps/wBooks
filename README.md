@@ -1,10 +1,30 @@
 # wBooks
 
-An Android Wear OS ebook reader. Targets standalone watches running Wear OS 3 or later (min SDK 30) — Pixel Watch, Galaxy Watch 4/5/6, Mobvoi TicWatch, Fossil Gen 6+, and so on. Every interaction works with touch alone; a rotating bezel or crown is treated as a bonus.
+An Android Wear OS ebook reader. Targets standalone watches running Wear OS 3 or later (min SDK 30). Every interaction works with touch alone; a rotating bezel or crown is treated as a bonus, never a requirement.
 
 ## Status
 
 Feature-complete against the original spec apart from the deferred phone companion app. The library ships pre-populated with one book of each supported format (Project Gutenberg public-domain editions).
+
+## Watch compatibility
+
+Anything running Wear OS 3 or later should work. The list below is not exhaustive — every model that meets the runtime requirements is in scope — but it covers the watches most people are likely on.
+
+| Watch | OS at launch | Rotary input | Notes |
+| --- | --- | --- | --- |
+| Google Pixel Watch / Watch 2 / Watch 3 | Wear OS 3.5 / 4 / 5 | Crown (rotates) | Crown drives the rotary modifier alongside touch. |
+| Samsung Galaxy Watch 4, Watch 5, Watch 5 Pro | Wear OS 3 / 4 (One UI Watch) | Touch bezel | Bezel scroll via the touch-ring; works as bezel where the modifier expects rotary events. |
+| Samsung Galaxy Watch 4 Classic, Watch 6 Classic | Wear OS 3 / 4 | Physical rotating bezel | Native rotary; the dev watch is the SM-R965F (Watch 6 Classic). |
+| Samsung Galaxy Watch 6, Watch 7, Watch FE | Wear OS 4 / 5 | Touch bezel | Same as Watch 5. |
+| Samsung Galaxy Watch Ultra | Wear OS 5 | Touch bezel + Quick button | Touch primary; bezel works for scrolling. |
+| Mobvoi TicWatch Pro 5, Pro 5 Enduro | Wear OS 3 / 4 | Crown | Crown rotation feeds the rotary modifier. |
+| Mobvoi TicWatch E3 / E-series | Wear OS 3 | Touch only | Fully supported via touch — the test case for the touch-first design. |
+| OnePlus Watch 2, Watch 2R | Wear OS 4 | Two physical side buttons (no rotary) | Touch only for in-app scrolling. |
+| Fossil Gen 6 (Wellness Edition) | Wear OS 3 (upgrade) | Crown | Crown rotates. |
+| Skagen Falster Gen 6, Michael Kors Gen 6 | Wear OS 3 (upgrade) | Crown | Same chassis as Fossil Gen 6. |
+| Xiaomi Watch 2, Watch 2 Pro | Wear OS 3 / 4 | Crown (button) | Crown is a button, not rotary; scroll by touch. |
+
+If a watch runs Wear OS 3.0 or later (API 30+) it should install and work; this is just where coverage has been mentally tested. Watch faces with very small viewports (< 360 px round) may need text-size tweaks; the existing slider goes down to 10 sp which covers most of them.
 
 ## Architecture
 
