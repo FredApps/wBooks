@@ -3,6 +3,8 @@ package com.wbooks.transfer
 import com.wbooks.data.book.BookFormat
 import fi.iki.elonen.NanoHTTPD
 import java.io.File
+import java.net.URLDecoder
+import java.security.MessageDigest
 
 /**
  * Tiny HTTP server bound to the watch's Wi-Fi address. Backs the web interface
@@ -10,8 +12,12 @@ import java.io.File
  * enters the displayed PIN, and uploads / deletes / sorts books.
  *
  * Security model: unauthenticated on the local network. Every mutating endpoint
- * requires the right PIN as a form field. The PIN is regenerated each time the
- * server starts so a captured screenshot of a previous PIN is useless.
+ * requires the right PIN, supplied as the `pin` query-string parameter so it can
+ * be checked *before* NanoHTTPD spools the request body (multipart uploads in
+ * particular). The PIN is regenerated each time the server starts so a captured
+ * screenshot of a previous PIN is useless. A sliding-window counter trips the
+ * endpoint after [MAX_PIN_FAILURES] wrong attempts inside [PIN_WINDOW_MS] to
+ * make a 10k-combo brute force impractical.
  *
  * Books live under [booksDir]. Subdirectories are treated as folders for sorting;
  * arbitrary nesting is allowed but the UI flattens it for now.
@@ -21,6 +27,9 @@ class UploadServer(
     private val booksDir: File,
     private val pin: String,
 ) : NanoHTTPD(port) {
+
+    private val pinBytes = pin.toByteArray(Charsets.UTF_8)
+    private val failedAttempts = ArrayDeque<Long>()
 
     override fun serve(session: IHTTPSession): Response = try {
         when (session.uri.trimEnd('/').ifEmpty { "/" }) {
@@ -48,23 +57,30 @@ class UploadServer(
             .toList()
         for (f in entries) {
             val rel = f.relativeTo(booksDir).invariantSeparatorsPath
+            val relEsc = htmlEscape(rel)
+            // The `?pin=` query string is appended by the page's JS on submit so the
+            // server can gate before parseBody runs (multipart spool-to-disk would
+            // otherwise happen pre-auth). Confirm messages live in data-confirm so the
+            // filename never has to be escaped for a JS string context.
             if (f.isDirectory) {
                 rows.append(
-                    """<tr><td>&#x1F4C1; $rel/</td><td>folder</td>
-                       <td><form method="post" action="/delete" onsubmit="return confirm('Delete folder $rel?')">
-                           <input type="hidden" name="path" value="$rel">
-                           <input type="hidden" name="pin" value="">
-                           <button onclick="this.previousElementSibling.value=document.getElementById('pin').value">delete</button>
+                    """<tr><td>&#x1F4C1; $relEsc/</td><td>folder</td>
+                       <td><form method="post" action="/delete"
+                                 data-confirm="Delete folder $relEsc?"
+                                 onsubmit="return confirmAndAttachPin(this)">
+                           <input type="hidden" name="path" value="$relEsc">
+                           <button>delete</button>
                        </form></td></tr>"""
                 )
             } else if (BookFormat.fromExtension(f.extension) != null) {
-                val size = humanBytes(f.length())
+                val size = htmlEscape(humanBytes(f.length()))
                 rows.append(
-                    """<tr><td>$rel</td><td>$size</td>
-                       <td><form method="post" action="/delete" onsubmit="return confirm('Delete $rel?')">
-                           <input type="hidden" name="path" value="$rel">
-                           <input type="hidden" name="pin" value="">
-                           <button onclick="this.previousElementSibling.value=document.getElementById('pin').value">delete</button>
+                    """<tr><td>$relEsc</td><td>$size</td>
+                       <td><form method="post" action="/delete"
+                                 data-confirm="Delete $relEsc?"
+                                 onsubmit="return confirmAndAttachPin(this)">
+                           <input type="hidden" name="path" value="$relEsc">
+                           <button>delete</button>
                        </form></td></tr>"""
                 )
             }
@@ -81,22 +97,31 @@ class UploadServer(
               input[type=text],input[type=password]{padding:6px}
               button{padding:6px 12px}
               .note{color:#666;font-size:0.85em}
-            </style></head><body>
+            </style>
+            <script>
+              function attachPin(form) {
+                var p = document.getElementById('pin').value;
+                form.action = form.getAttribute('action').split('?')[0] + '?pin=' + encodeURIComponent(p);
+                return true;
+              }
+              function confirmAndAttachPin(form) {
+                if (!confirm(form.dataset.confirm)) return false;
+                return attachPin(form);
+              }
+            </script>
+            </head><body>
             <h1>wBooks transfer</h1>
             <div class="row">
               <label>PIN: <input id="pin" type="password" autocomplete="off" inputmode="numeric"></label>
               <span class="note">Shown on the watch.</span>
             </div>
             <form method="post" action="/upload" enctype="multipart/form-data" class="row"
-                  onsubmit="this.querySelector('[name=pin]').value=document.getElementById('pin').value">
-              <input type="hidden" name="pin" value="">
+                  onsubmit="return attachPin(this)">
               <label>Folder (optional): <input type="text" name="folder" placeholder="e.g. fiction"></label>
               <input type="file" name="file" multiple accept=".epub,.txt,.fb2,.html,.htm,.xhtml">
               <button>Upload</button>
             </form>
-            <form method="post" action="/mkdir" class="row"
-                  onsubmit="this.querySelector('[name=pin]').value=document.getElementById('pin').value">
-              <input type="hidden" name="pin" value="">
+            <form method="post" action="/mkdir" class="row" onsubmit="return attachPin(this)">
               <label>New folder: <input type="text" name="name" required></label>
               <button>Create</button>
             </form>
@@ -107,12 +132,13 @@ class UploadServer(
     }
 
     private fun handleUpload(session: IHTTPSession): Response {
-        require(session.method == Method.POST) { return methodNotAllowed() }
+        if (session.method != Method.POST) return methodNotAllowed()
+        gatePin(session)?.let { return it }
         // NanoHTTPD writes uploaded files to temp paths and populates this map keyed by the form field.
+        // Runs only after PIN passes so unauth peers can't fill storage by spamming uploads.
         val tempFiles = HashMap<String, String>()
         session.parseBody(tempFiles)
         val params = session.parameters
-        gatePin(params)?.let { return it }
 
         val folder = params["folder"]?.firstOrNull().orEmpty().trim().trim('/', '\\')
         val targetDir = if (folder.isEmpty()) booksDir else File(booksDir, folder).apply { mkdirs() }
@@ -135,9 +161,9 @@ class UploadServer(
     }
 
     private fun handleDelete(session: IHTTPSession): Response {
-        require(session.method == Method.POST) { return methodNotAllowed() }
+        if (session.method != Method.POST) return methodNotAllowed()
+        gatePin(session)?.let { return it }
         val params = parsedForm(session)
-        gatePin(params)?.let { return it }
         val path = params["path"]?.firstOrNull().orEmpty()
         val target = File(booksDir, path)
         if (!target.canonicalPath.startsWith(booksDir.canonicalPath) || !target.exists()) {
@@ -148,9 +174,9 @@ class UploadServer(
     }
 
     private fun handleMkdir(session: IHTTPSession): Response {
-        require(session.method == Method.POST) { return methodNotAllowed() }
+        if (session.method != Method.POST) return methodNotAllowed()
+        gatePin(session)?.let { return it }
         val params = parsedForm(session)
-        gatePin(params)?.let { return it }
         val name = params["name"]?.firstOrNull().orEmpty().trim().trim('/', '\\')
         if (name.isEmpty()) return badRequest("folder name required")
         val target = File(booksDir, name)
@@ -162,9 +188,9 @@ class UploadServer(
     }
 
     private fun handleMove(session: IHTTPSession): Response {
-        require(session.method == Method.POST) { return methodNotAllowed() }
+        if (session.method != Method.POST) return methodNotAllowed()
+        gatePin(session)?.let { return it }
         val params = parsedForm(session)
-        gatePin(params)?.let { return it }
         val from = File(booksDir, params["from"]?.firstOrNull().orEmpty())
         val toDir = File(booksDir, params["to"]?.firstOrNull().orEmpty().trim('/', '\\'))
         if (!from.canonicalPath.startsWith(booksDir.canonicalPath) ||
@@ -174,7 +200,9 @@ class UploadServer(
         }
         toDir.mkdirs()
         val dest = uniqueFile(toDir, from.name)
-        from.renameTo(dest)
+        if (!from.renameTo(dest)) {
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Move failed")
+        }
         return redirectToIndex("Moved")
     }
 
@@ -185,10 +213,65 @@ class UploadServer(
         return session.parameters
     }
 
-    /** Returns null when the PIN matches, or a 403 Response when it doesn't. */
-    private fun gatePin(params: Map<String, List<String>>): Response? {
-        val supplied = params["pin"]?.firstOrNull()
-        return if (supplied == pin) null else forbidden("bad PIN")
+    /**
+     * Returns null when the PIN matches, or an error Response (403 / 429) when it
+     * doesn't. PIN comes from the query string so this can run *before* parseBody;
+     * the comparison is constant-time and a sliding-window counter rate-limits
+     * brute force against the 10k-combo PIN space.
+     */
+    private fun gatePin(session: IHTTPSession): Response? {
+        val supplied = pinFromQuery(session).toByteArray(Charsets.UTF_8)
+        if (MessageDigest.isEqual(supplied, pinBytes)) return null
+        return if (recordFailedAttempt()) {
+            newFixedLengthResponse(TOO_MANY_REQUESTS, "text/plain", "Too many bad PIN attempts; restart the server from the watch")
+                .also { it.addHeader("Retry-After", (PIN_WINDOW_MS / 1000).toString()) }
+        } else {
+            forbidden("bad PIN")
+        }
+    }
+
+    private fun pinFromQuery(session: IHTTPSession): String {
+        val qs = session.queryParameterString ?: return ""
+        for (kv in qs.split('&')) {
+            val eq = kv.indexOf('=')
+            val key = if (eq < 0) kv else kv.substring(0, eq)
+            if (key == "pin") {
+                val raw = if (eq < 0) "" else kv.substring(eq + 1)
+                return try {
+                    URLDecoder.decode(raw, "UTF-8")
+                } catch (_: IllegalArgumentException) {
+                    ""
+                }
+            }
+        }
+        return ""
+    }
+
+    /** True if this attempt has just exceeded the rate-limit threshold. */
+    private fun recordFailedAttempt(): Boolean {
+        val now = System.currentTimeMillis()
+        synchronized(failedAttempts) {
+            while (failedAttempts.isNotEmpty() && now - failedAttempts.first() > PIN_WINDOW_MS) {
+                failedAttempts.removeFirst()
+            }
+            failedAttempts.addLast(now)
+            return failedAttempts.size > MAX_PIN_FAILURES
+        }
+    }
+
+    private fun htmlEscape(s: String): String {
+        val out = StringBuilder(s.length)
+        for (c in s) {
+            when (c) {
+                '&' -> out.append("&amp;")
+                '<' -> out.append("&lt;")
+                '>' -> out.append("&gt;")
+                '"' -> out.append("&quot;")
+                '\'' -> out.append("&#39;")
+                else -> out.append(c)
+            }
+        }
+        return out.toString()
     }
 
     private fun uniqueFile(dir: File, name: String): File {
@@ -227,6 +310,17 @@ class UploadServer(
         n >= 1024 * 1024 -> "%.1f MB".format(n / 1024.0 / 1024.0)
         n >= 1024 -> "%.0f KB".format(n / 1024.0)
         else -> "$n B"
+    }
+
+    companion object {
+        private const val MAX_PIN_FAILURES = 10
+        private const val PIN_WINDOW_MS = 60_000L
+
+        // NanoHTTPD 2.3.1's Response.Status enum doesn't include 429.
+        private val TOO_MANY_REQUESTS = object : Response.IStatus {
+            override fun getDescription() = "429 Too Many Requests"
+            override fun getRequestStatus() = 429
+        }
     }
 }
 
