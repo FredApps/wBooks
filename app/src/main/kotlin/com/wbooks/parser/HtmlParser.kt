@@ -19,8 +19,20 @@ import java.io.InputStream
  * (Pandoc/Pygments convention) when present.
  */
 class HtmlParser : BookParser {
-    override fun parse(input: InputStream): Document {
-        val doc = Jsoup.parse(input, Charsets.UTF_8.name(), "")
+    override fun parse(input: InputStream): Document =
+        fromJsoup(Jsoup.parse(input, Charsets.UTF_8.name(), ""))
+
+    /** Parse already-decoded HTML text. Used by [EpubParser] when feeding spine chapters. */
+    fun parse(html: String): Document = fromJsoup(Jsoup.parse(html))
+
+    /** Convert a single XHTML body into a list of [Block]s suitable for one [Chapter]. */
+    internal fun blocksOf(html: String): List<Block> {
+        val out = mutableListOf<Block>()
+        walk(Jsoup.parse(html).body(), out)
+        return out
+    }
+
+    private fun fromJsoup(doc: org.jsoup.nodes.Document): Document {
         val title = doc.title().ifBlank { doc.selectFirst("h1")?.text().orEmpty() }
         val blocks = mutableListOf<Block>()
         walk(doc.body(), blocks)

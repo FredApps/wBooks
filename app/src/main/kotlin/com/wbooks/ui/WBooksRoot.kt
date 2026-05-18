@@ -1,26 +1,27 @@
 package com.wbooks.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import com.wbooks.data.book.Book
 import com.wbooks.ui.library.LibraryScreen
 import com.wbooks.ui.reader.ReaderPager
 
 /**
- * Top-level navigation: the library lives at the back of the stack; opening a book
- * pushes the three-page reader pager (Tools | Reader | Settings).
+ * Top-level nav. Library is the back of the stack; opening a book asks the VM to
+ * load it and pushes the reader pager when there is a Loading/Loaded/Failed state.
+ * Back from the reader (close) returns to Idle, which renders the library again.
  */
 @Composable
 fun WBooksRoot(vm: ReaderViewModel) {
-    var openBook by remember { mutableStateOf<Book?>(null) }
+    val docState by vm.document.collectAsState()
+    val books by vm.books.collectAsState()
 
-    val current = openBook
-    if (current == null) {
-        LibraryScreen(onBookOpen = { openBook = it })
-    } else {
-        ReaderPager(book = current, vm = vm, onExit = { openBook = null })
+    when (docState) {
+        DocumentState.Idle -> LibraryScreen(
+            books = books,
+            onBookOpen = { vm.openBook(it) },
+            onRefresh = { vm.refreshLibrary() },
+        )
+        else -> ReaderPager(state = docState, vm = vm, onExit = { vm.closeBook() })
     }
 }

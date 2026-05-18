@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -23,9 +24,12 @@ import com.wbooks.data.book.Book
 
 @Composable
 fun LibraryScreen(
-    books: List<Book> = emptyList(),
+    books: List<Book>,
     onBookOpen: (Book) -> Unit,
+    onRefresh: () -> Unit,
 ) {
+    LaunchedEffect(Unit) { onRefresh() }
+
     val listState = rememberScalingLazyListState()
     Scaffold(timeText = { TimeText() }) {
         if (books.isEmpty()) {

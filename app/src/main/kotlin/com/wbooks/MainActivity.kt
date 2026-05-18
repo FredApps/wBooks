@@ -11,10 +11,12 @@ import com.wbooks.ui.theme.WBooksTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val repo = (application as WBooksApp).settingsRepository
+        val app = application as WBooksApp
         setContent {
             WBooksTheme {
-                val vm: ReaderViewModel = viewModel(factory = ReaderViewModel.Factory(repo))
+                val vm: ReaderViewModel = viewModel(
+                    factory = ReaderViewModel.Factory(app.settingsRepository, app.libraryRepository),
+                )
                 WBooksRoot(vm = vm)
             }
         }
