@@ -2,36 +2,46 @@ package com.wbooks.ui.reader
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.wbooks.data.book.Book
+import androidx.compose.ui.unit.dp
+import androidx.wear.compose.material.CircularProgressIndicator
+import androidx.wear.compose.material.Text
 import com.wbooks.data.settings.ReadingMode
+import com.wbooks.ui.DocumentState
 import com.wbooks.ui.ReaderViewModel
 
 /**
- * Dispatches to the active reading mode. Mode + display preferences come from
- * the shared [ReaderViewModel] — flipping mode in Settings is reflected here
- * immediately because both screens collect the same StateFlow.
+ * Renders whichever variant ([NormalMode], [SpeedReadMode], [SentenceMode]) the
+ * current settings select. Empty / loading / failed are handled here so the modes
+ * can assume they always get a real Document.
  */
 @Composable
 fun ReaderScreen(
-    book: Book,
+    state: DocumentState,
     vm: ReaderViewModel,
     onExit: () -> Unit,
 ) {
     val settings by vm.settings.collectAsState()
 
     Box(Modifier.fillMaxSize()) {
-        when (settings.mode) {
-            ReadingMode.NORMAL -> NormalMode(book = book, settings = settings)
-            ReadingMode.SPEEDREAD -> SpeedReadMode(
-                book = book,
-                settings = settings,
-                onWpmChange = vm::setSpeedreadWpm,
-            )
-            ReadingMode.SENTENCE -> SentenceMode(book = book, settings = settings)
+        when (state) {
+            DocumentState.Idle -> Unit // never rendered: root routes Idle to LibraryScreen
+            DocumentState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            is DocumentState.Failed -> Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                Text("Failed to open ${state.book.title}: ${state.message}")
+            }
+            is DocumentState.Loaded -> when (settings.mode) {
+                ReadingMode.NORMAL -> NormalMode(document = state.doc, settings = settings)
+                ReadingMode.SPEEDREAD -> SpeedReadMode(document = state.doc, settings = settings, onWpmChange = vm::setSpeedreadWpm)
+                ReadingMode.SENTENCE -> SentenceMode(document = state.doc, settings = settings)
+            }
         }
     }
 }
