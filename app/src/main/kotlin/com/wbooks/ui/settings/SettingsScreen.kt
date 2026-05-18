@@ -54,6 +54,17 @@ fun SettingsScreen(vm: ReaderViewModel) {
     val state = rememberScalingLazyListState()
     val settings by vm.settings.collectAsState()
 
+    // Hoisted out of the lazy item so it survives the row scrolling off-screen between
+    // the user tapping the toggle and the system permission dialog returning.
+    val notifLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ ->
+        // Whether the user grants or denies notification permission, the server
+        // still runs — without permission the foreground notification just won't
+        // be visible. Start regardless.
+        vm.startTransfer()
+    }
+
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -137,14 +148,6 @@ fun SettingsScreen(vm: ReaderViewModel) {
             item { ListHeader { Text(" ") } }
             item {
                 val transfer by vm.transferState.collectAsState()
-                val notifLauncher = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestPermission()
-                ) { _ ->
-                    // Whether the user grants or denies notification permission, the
-                    // server still runs — without permission the foreground notification
-                    // simply won't be visible. Start regardless.
-                    vm.startTransfer()
-                }
                 ToggleChip(
                     checked = transfer.running,
                     onCheckedChange = { enabled ->
