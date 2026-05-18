@@ -171,3 +171,9 @@ $apk = "app/build/outputs/apk/debug/app-debug.apk"
 ```
 
 Replace `<watch-ip>:<port>` with your watch's ADB connection details (e.g., `192.168.1.100:5555` or `192.168.1.100:5037` depending on your watch).
+
+## License
+
+Source code is licensed under [GNU General Public License v3.0](LICENSE).
+
+The bundled seed books are public-domain editions from Project Gutenberg. Users are solely responsible for ensuring any books they add to the library are legally obtained and used in accordance with applicable copyright laws in their jurisdiction. This app does not impose licensing restrictions on user-imported content.
