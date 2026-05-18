@@ -39,7 +39,9 @@ fun LibraryScreen(
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(books.isNotEmpty()) {
+        if (books.isNotEmpty()) focusRequester.requestFocus()
+    }
 
     Scaffold(timeText = { TimeText() }) {
         if (books.isEmpty()) {

@@ -41,6 +41,9 @@ class EpubParser(
         }
     }
 
+    fun parse(file: File): Document =
+        ZipFile(file).use { zip -> parseZip(zip) }
+
     private fun parseZip(zip: ZipFile): Document {
         val containerXml = readEntryAsString(zip, "META-INF/container.xml")
             ?: error("EPUB: missing META-INF/container.xml")

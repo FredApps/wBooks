@@ -17,6 +17,7 @@ import com.wbooks.data.settings.ThemeChoice
 import com.wbooks.data.settings.next
 import com.wbooks.data.settings.nextTextColor
 import com.wbooks.parser.cache.DocumentCache
+import com.wbooks.parser.EpubParser
 import com.wbooks.parser.model.Block
 import com.wbooks.parser.model.Document
 import com.wbooks.parser.parserFor
@@ -217,14 +218,24 @@ class ReaderViewModel(
                 mtimeMs = book.file.lastModified(),
             )
             val result = runCatching {
-                documentCache.load(key) ?: withContext(Dispatchers.IO) {
-                    book.file.inputStream().use { parserFor(book.format).parse(it) }
-                }.also { parsed -> runCatching { documentCache.store(key, parsed) } }
+                documentCache.load(key) ?: parseBook(book).also { parsed ->
+                    viewModelScope.launch(Dispatchers.IO) {
+                        runCatching { documentCache.store(key, parsed) }
+                    }
+                }
             }
             _document.value = result.fold(
                 onSuccess = { DocumentState.Loaded(book, it) },
                 onFailure = { DocumentState.Failed(book, it.message ?: it::class.simpleName ?: "unknown error") },
             )
+        }
+    }
+
+    private suspend fun parseBook(book: Book): Document = withContext(Dispatchers.IO) {
+        if (book.format == com.wbooks.data.book.BookFormat.EPUB) {
+            EpubParser().parse(book.file)
+        } else {
+            book.file.inputStream().use { parserFor(book.format).parse(it) }
         }
     }
 
