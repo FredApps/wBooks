@@ -72,6 +72,17 @@ goto fail
 
 set CLASSPATH=%APP_HOME%\gradle\wrapper\gradle-wrapper.jar
 
+@rem -- wBooks AF_UNIX workaround --
+@rem AF_UNIX connect() fails on socket files under this machine's user-profile
+@rem AppData\Local tree (AppContainer/sandbox restriction). The JDK uses java.io.tmpdir
+@rem for its internal NIO pipe sockets, so we redirect TEMP/TMP and java.io.tmpdir
+@rem to a project-local directory that is outside the restricted tree.
+set "WBOOKS_TMP=%APP_HOME%\.gradle\tmp"
+if not exist "%WBOOKS_TMP%" mkdir "%WBOOKS_TMP%" >NUL 2>&1
+set "TEMP=%WBOOKS_TMP%"
+set "TMP=%WBOOKS_TMP%"
+set "DEFAULT_JVM_OPTS=%DEFAULT_JVM_OPTS% "-Djava.io.tmpdir=%WBOOKS_TMP%""
+@rem -- end workaround --
 
 @rem Execute Gradle
 "%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" org.gradle.wrapper.GradleWrapperMain %*

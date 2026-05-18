@@ -81,6 +81,10 @@ $env:ANDROID_HOME = "<path-to-android-sdk>"
 .\gradlew.bat assembleDebug
 ```
 
+### AF_UNIX tmpdir workaround
+
+The wrapper scripts (`gradlew` / `gradlew.bat`) redirect `TEMP`/`TMP`/`java.io.tmpdir` to `.gradle/tmp` inside the project. This is intentional: on the build machine, the user-profile `AppData\Local` tree has AppContainer/sandbox SIDs that let processes *bind* AF_UNIX sockets there but block *connecting* to them, which breaks the JDK's internal NIO pipe initialization (Gradle dies with `Caused by: java.net.SocketException: Invalid argument: connect` from `sun.nio.ch.UnixDomainSockets.connect0`). The redirect moves those sockets to a project-local path that the sandbox doesn't restrict. Harmless on other machines.
+
 ## Install on the watch
 
 The watch lives at `<watch-ip>:5555` with ADB pinned to that port.
