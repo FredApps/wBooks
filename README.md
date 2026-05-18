@@ -98,16 +98,19 @@ The bezel doesn't unlock any features touch can't reach. Watches without one get
 - **epub** — ZIP walked into a `path → bytes` map; `META-INF/container.xml` → OPF rootfile; `<dc:title>`, `<dc:creator>`, `manifest`, ordered `spine`. Each spine XHTML runs through `HtmlParser`.
 - **fb2** — Jsoup XML. `title-info` → title + author; `body > section` → Chapter; nested sections become level-bumped headings inline. `<emphasis>` italic, `<strong>` bold, `<empty-line/>` divider.
 
+### PDF support: not implemented
+
+PDF is a rendering format, not a content format. It encodes exact pixel positions and fonts, not logical structure (chapters, paragraphs, sections). On a small round Wear OS screen with variable text sizes and reflow, PDF either requires either shrinking to unreadable sizes or horizontal scrolling to see full lines — both worsen the reading experience. The supported formats (TXT, HTML, EPUB, FB2) preserve semantic structure and reflow naturally to any screen size. Adding PDF would contradict the app's design principle that every text should be readable at any font size on any watch.
+
 ### Syntax colouring
 
 Code blocks inside HTML books go through `parser/highlight/SyntaxHighlighter` — a small generic regex tokenizer (keywords + strings + numbers + comments). Language-specific keyword sets can be added without touching callers.
 
 ### Storage
 
-- Books on disk under `filesDir/books/`.
+- Books are stored on the watch under `filesDir/books/`.
 - Reader settings, per-book reading position, per-book bookmarks, and the last-opened book all live in DataStore Preferences.
 - Parsed documents are cached under `cacheDir/parsed/` keyed by SHA-1 of the book id, fingerprinted by file size + mtime + schema version. Large EPUBs (Moby Dick has 1300+ XHTML chapters) reopen near-instantly after the first parse.
-- No Room: every collection is small enough that key/value is fine.
 
 ### Search
 
