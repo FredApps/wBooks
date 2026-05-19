@@ -12,6 +12,15 @@ data class ChangelogEntry(
  */
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.3.0",
+        date = "2026-05-19",
+        notes = listOf(
+            "Phone companion app (separate APK). Mirrors the watch's library; SAF picker sends books to the watch over the Wear Data Layer (no IP / PIN). Material 3, dark-mode aware, minSdk 24.",
+            "Watch-side BookReceiverService accepts uploads via ChannelClient and list / delete via MessageClient.sendRequest. Scope is cancelled on service teardown; binder thread is no longer blocked.",
+            "LAN upload server (NanoHTTPD) stays as an additive transport — companion is an alternative, not a replacement.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.2.0",
         date = "2026-05-19",
         notes = listOf(
