@@ -45,6 +45,9 @@ android {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
         }
+        getByName("test") {
+            java.srcDirs("src/test/kotlin")
+        }
     }
 
     packaging {
@@ -84,4 +87,7 @@ dependencies {
     implementation(libs.androidx.concurrent.futures)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.jsoup)
 }
