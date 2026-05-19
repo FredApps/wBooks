@@ -116,10 +116,12 @@ Search uses the platform `RecognizerIntent.ACTION_RECOGNIZE_SPEECH` so voice inp
 
 ### File transfer
 
-Two transports, both additive:
+wBooks is designed watch-first and works fully standalone. The watch has two optional transports for adding books:
 
-- **LAN upload server** (NanoHTTPD) toggleable from Settings. Runs as a foreground service so it survives screen-off; persistent notification shows the URL + PIN. Every mutating endpoint is gated by a 4-digit PIN (regenerated per start) checked before the request body is parsed; a sliding-window counter trips the endpoint after 10 wrong PINs / 60 s.
-- **Phone companion** (`:companion` module, separate APK). Talks to the watch via the Wear Data Layer: `MessageClient.sendRequest` for list/delete, `ChannelClient` for streaming file uploads. The watch advertises a `wbooks_receiver` capability so the phone can discover any paired node automatically — no pairing UI, no PIN. See [Companion app](#companion-app) below.
+- **LAN upload server** (NanoHTTPD, built-in). Toggleable from Settings. Runs as a foreground service so it survives screen-off; persistent notification shows the URL + PIN. Every mutating endpoint is gated by a 4-digit PIN (regenerated per start) checked before the request body is parsed; a sliding-window counter trips the endpoint after 10 wrong PINs / 60 s. Works over any local network without a phone.
+- **Phone companion** (`:companion` module, separate APK). Optional, requires a paired Wear OS phone. Talks to the watch via the Wear Data Layer: `MessageClient.sendRequest` for list/delete, `ChannelClient` for streaming file uploads. The watch advertises a `wbooks_receiver` capability so the phone can discover any paired node automatically — no pairing UI, no PIN. See [Companion app](#companion-app) below.
+
+You don't need a phone to use wBooks. The LAN server is always available on the watch itself. The companion is an alternative transport for users with a paired phone — pick whichever fits your workflow.
 
 ### Companion app
 
