@@ -1,9 +1,9 @@
 package com.wbooks.companion
 
 /**
- * Mirror of `:app`'s `WearProtocol`. Kept in sync by convention — there's no
- * shared module. Two MessageClient request/response paths and one ChannelClient
- * path-prefix; if the watch app grows a path, add it here too.
+ * Mirror of `app/src/main/kotlin/com/wbooks/transfer/WearProtocol.kt`. There's no
+ * shared module; the constants are few enough that mirroring is cheaper than
+ * extracting one. When adding or renaming a path, update both files.
  */
 object WearProtocol {
     const val PATH_LIST = "/wbooks/library/list"
@@ -13,7 +13,14 @@ object WearProtocol {
 
 data class BookSummary(val id: String, val title: String, val format: String)
 
-/** Parser counterpart to `:app`'s `LibraryListJson.encode`. Minimal hand-rolled JSON reader. */
+/**
+ * Parser counterpart to `:app`'s `LibraryListJson.encode`. Minimal hand-rolled JSON
+ * reader — handles only the shape the watch encoder emits.
+ *
+ * Decoding invariant (matches the encoder): we do **not** parse `\uXXXX` escapes,
+ * because the encoder never emits them — it writes non-ASCII as raw UTF-8 and only
+ * escapes control chars below 0x20. If you change the encoder, update this too.
+ */
 object LibraryListJson {
     fun decode(bytes: ByteArray): List<BookSummary> {
         val json = String(bytes, Charsets.UTF_8)
