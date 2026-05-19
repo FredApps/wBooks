@@ -5,25 +5,20 @@ plugins {
 }
 
 android {
-    namespace = "com.wbooks"
+    namespace = "com.wbooks.companion"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.wbooks"
-        minSdk = 30
+        applicationId = "com.wbooks.companion"
+        minSdk = 24
         targetSdk = 35
-        versionCode = 2
+        versionCode = 1
         versionName = "0.2.0"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            isMinifyEnabled = false
         }
     }
 
@@ -38,21 +33,11 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true
     }
 
     sourceSets {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
-        }
-        getByName("test") {
-            java.srcDirs("src/test/kotlin")
-        }
-    }
-
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
 }
@@ -62,34 +47,19 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.datastore.preferences)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.foundation)
-
-    implementation(libs.androidx.wear)
-    implementation(libs.androidx.wear.compose.material)
-    implementation(libs.androidx.wear.compose.foundation)
-    implementation(libs.androidx.wear.compose.navigation)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.core)
+    implementation(libs.androidx.lifecycle.runtime.compose)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
-    implementation(libs.jsoup)
-    implementation(libs.nanohttpd)
     implementation(libs.play.services.wearable)
 
-    implementation(libs.androidx.wear.tiles)
-    implementation(libs.androidx.wear.protolayout)
-    implementation(libs.androidx.wear.protolayout.material)
-    implementation(libs.androidx.wear.protolayout.expression)
-    implementation(libs.guava.listenablefuture)
-    implementation(libs.androidx.concurrent.futures)
-
     debugImplementation(libs.androidx.compose.ui.tooling)
-
-    testImplementation(libs.junit)
-    testImplementation(libs.jsoup)
 }
