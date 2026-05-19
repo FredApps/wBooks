@@ -19,6 +19,9 @@ internal object WearProtocol {
 
     /** ChannelClient path prefix. Real path: `/wbooks/upload/<urlencoded-filename>`. */
     const val PATH_UPLOAD_PREFIX = "/wbooks/upload/"
+
+    /** Phone -> watch (empty payload). Watch replies with [StatsJson]. */
+    const val PATH_STATS = "/wbooks/stats"
 }
 
 /**
@@ -47,6 +50,45 @@ internal object LibraryListJson {
 }
 
 internal data class BookSummary(val id: String, val title: String, val format: String)
+
+/**
+ * Encoder for [com.wbooks.data.stats.ReadingStatsRepository.Summary]. Same
+ * "no \uXXXX escapes" invariant as [LibraryListJson]; the phone-side decoder
+ * is in `companion`'s WearProtocol.kt.
+ */
+internal object StatsJson {
+    fun encode(s: com.wbooks.data.stats.ReadingStatsRepository.Summary): String {
+        val sb = StringBuilder()
+        sb.append("""{"totalMs":""").append(s.totalMs)
+        sb.append(""","todayMs":""").append(s.todayMs)
+        sb.append(""","booksFinished":""").append(s.booksFinished)
+        sb.append(""","daily":[""")
+        s.recentDaily.forEachIndexed { i, d ->
+            if (i > 0) sb.append(',')
+            sb.append("""{"date":""").append(quote(d.date.toString()))
+            sb.append(""","ms":""").append(d.ms).append('}')
+        }
+        sb.append("""],"wpm":[""")
+        s.recentWpm.forEachIndexed { i, w ->
+            if (i > 0) sb.append(',')
+            sb.append("""{"ts":""").append(w.timestampMs)
+            sb.append(""","wpm":""").append(w.wpm).append('}')
+        }
+        sb.append("]}")
+        return sb.toString()
+    }
+
+    private fun quote(s: String): String {
+        val sb = StringBuilder(s.length + 2).append('"')
+        for (c in s) when (c) {
+            '\\' -> sb.append("\\\\")
+            '"' -> sb.append("\\\"")
+            else -> if (c < ' ') sb.append("\\u%04x".format(c.code)) else sb.append(c)
+        }
+        sb.append('"')
+        return sb.toString()
+    }
+}
 
 private fun jsonString(s: String): String {
     val sb = StringBuilder(s.length + 2)

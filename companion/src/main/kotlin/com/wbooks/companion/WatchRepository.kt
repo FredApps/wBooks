@@ -43,6 +43,14 @@ class WatchRepository(context: Context) {
         }.getOrElse { Result.Error(it.message ?: "Failed to fetch library") }
     }
 
+    suspend fun fetchStats(): Result<StatsSummary> = withContext(Dispatchers.IO) {
+        val node = bestNode() ?: return@withContext Result.NoWatch
+        runCatching {
+            val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_STATS, ByteArray(0)).await()
+            Result.Ok(StatsJson.decode(bytes))
+        }.getOrElse { Result.Error(it.message ?: "Failed to fetch stats") }
+    }
+
     suspend fun deleteBook(id: String): Result<List<BookSummary>> = withContext(Dispatchers.IO) {
         val node = bestNode() ?: return@withContext Result.NoWatch
         runCatching {

@@ -3,7 +3,9 @@ package com.wbooks
 import android.app.Application
 import com.wbooks.data.bookmarks.BookmarksRepository
 import com.wbooks.data.library.LibraryRepository
+import com.wbooks.data.pace.ReadingPaceRepository
 import com.wbooks.data.position.PositionsRepository
+import com.wbooks.data.stats.ReadingStatsRepository
 import com.wbooks.data.settings.SettingsRepository
 import com.wbooks.parser.cache.DocumentCache
 import com.wbooks.transfer.TransferController
@@ -23,6 +25,8 @@ class WBooksApp : Application() {
     val libraryRepository: LibraryRepository by lazy { LibraryRepository(booksDir) }
     val positionsRepository: PositionsRepository by lazy { PositionsRepository(this) }
     val bookmarksRepository: BookmarksRepository by lazy { BookmarksRepository(this) }
+    val readingPaceRepository: ReadingPaceRepository by lazy { ReadingPaceRepository(this) }
+    val readingStatsRepository: ReadingStatsRepository by lazy { ReadingStatsRepository(this) }
     val transferController: TransferController by lazy { TransferController(this) }
     val documentCache: DocumentCache by lazy { DocumentCache(File(cacheDir, "parsed")) }
 

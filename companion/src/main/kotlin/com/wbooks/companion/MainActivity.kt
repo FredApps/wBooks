@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -29,36 +30,50 @@ class MainActivity : ComponentActivity() {
 
     private val mainViewModel: MainViewModel by viewModels { MainViewModel.Factory(application) }
     private val gutenbergViewModel: GutenbergViewModel by viewModels { GutenbergViewModel.Factory(application) }
+    private val statsViewModel: StatsViewModel by viewModels { StatsViewModel.Factory(application) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
             MaterialTheme(colorScheme = colors) {
-                var showGutenberg by rememberSaveable { mutableStateOf(false) }
-                if (showGutenberg) {
-                    GutenbergScreen(
+                var screen by rememberSaveable { mutableStateOf(Screen.LIBRARY) }
+                when (screen) {
+                    Screen.GUTENBERG -> GutenbergScreen(
                         vm = gutenbergViewModel,
                         onBack = {
-                            showGutenberg = false
+                            screen = Screen.LIBRARY
                             // The library may have grown; refresh on return.
                             mainViewModel.refresh()
                         },
                     )
-                } else {
-                    CompanionScreen(
+                    Screen.STATS -> StatsScreen(
+                        vm = statsViewModel,
+                        onBack = { screen = Screen.LIBRARY },
+                    )
+                    Screen.LIBRARY -> CompanionScreen(
                         vm = mainViewModel,
-                        onBrowseGutenberg = { showGutenberg = true },
+                        onBrowseGutenberg = { screen = Screen.GUTENBERG },
+                        onShowStats = {
+                            screen = Screen.STATS
+                            statsViewModel.refresh()
+                        },
                     )
                 }
             }
         }
     }
+
+    private enum class Screen { LIBRARY, GUTENBERG, STATS }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CompanionScreen(vm: MainViewModel, onBrowseGutenberg: () -> Unit) {
+private fun CompanionScreen(
+    vm: MainViewModel,
+    onBrowseGutenberg: () -> Unit,
+    onShowStats: () -> Unit,
+) {
     val state by vm.state.collectAsStateWithLifecycle()
 
     val pickFile = rememberLauncherForActivityResult(
@@ -72,6 +87,9 @@ private fun CompanionScreen(vm: MainViewModel, onBrowseGutenberg: () -> Unit) {
             TopAppBar(
                 title = { Text(stringResource(R.string.library_title)) },
                 actions = {
+                    IconButton(onClick = onShowStats) {
+                        Icon(Icons.Default.DateRange, contentDescription = "Reading stats")
+                    }
                     IconButton(onClick = onBrowseGutenberg) {
                         Icon(Icons.Default.Search, contentDescription = "Project Gutenberg")
                     }

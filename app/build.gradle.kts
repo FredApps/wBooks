@@ -103,6 +103,8 @@ dependencies {
     implementation(libs.androidx.wear.protolayout)
     implementation(libs.androidx.wear.protolayout.material)
     implementation(libs.androidx.wear.protolayout.expression)
+    implementation(libs.androidx.wear.watchface.complications.data.source)
+    implementation(libs.androidx.wear.watchface.complications.data.source.ktx)
     implementation(libs.guava.listenablefuture)
     implementation(libs.androidx.concurrent.futures)
 
