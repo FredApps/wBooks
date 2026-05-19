@@ -27,6 +27,15 @@
             android:name="com.google.android.wearable.standalone"
             android:value="true" />
 
+        <!--
+          Sentry auto-init. DSN comes from local.properties via manifestPlaceholders;
+          empty value = no-op (SDK logs a warning and drops events). Configure by
+          adding `sentry.dsn=https://...` to local.properties.
+        -->
+        <meta-data android:name="io.sentry.dsn" android:value="${sentryDsn}" />
+        <meta-data android:name="io.sentry.auto-init" android:value="true" />
+        <meta-data android:name="io.sentry.environment" android:value="watch" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

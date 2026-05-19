@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- INTERNET is needed for the Gutenberg OPDS browser to fetch catalogue / books,
+         and (when configured) for Sentry to upload crash events. Wear Data Layer
+         transports locally over BT/Wi-Fi and does not require this permission. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -8,6 +13,15 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
+
+        <!--
+          Sentry auto-init. DSN comes from local.properties via manifestPlaceholders;
+          empty value = no-op (SDK logs a warning and drops events). Configure by
+          adding `sentry.dsn=https://...` to local.properties.
+        -->
+        <meta-data android:name="io.sentry.dsn" android:value="${sentryDsn}" />
+        <meta-data android:name="io.sentry.auto-init" android:value="true" />
+        <meta-data android:name="io.sentry.environment" android:value="phone" />
 
         <activity
             android:name=".MainActivity"

@@ -1,7 +1,22 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+}
+
+/**
+ * Read a key from `local.properties` (gitignored) so each dev / CI can supply
+ * their own Sentry DSN without committing it. Empty string when absent — Sentry
+ * then auto-inits with no DSN and silently no-ops.
+ */
+fun localProperty(name: String): String {
+    val file = rootProject.file("local.properties")
+    if (!file.exists()) return ""
+    val props = Properties()
+    file.inputStream().use { props.load(it) }
+    return props.getProperty(name).orEmpty()
 }
 
 android {
@@ -14,6 +29,8 @@ android {
         targetSdk = 35
         versionCode = 3
         versionName = "0.3.0"
+
+        manifestPlaceholders["sentryDsn"] = localProperty("sentry.dsn")
     }
 
     buildTypes {
@@ -80,6 +97,7 @@ dependencies {
     implementation(libs.jsoup)
     implementation(libs.nanohttpd)
     implementation(libs.play.services.wearable)
+    implementation(libs.sentry.android)
 
     implementation(libs.androidx.wear.tiles)
     implementation(libs.androidx.wear.protolayout)

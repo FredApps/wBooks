@@ -52,24 +52,29 @@ class WatchRepository(context: Context) {
     }
 
     suspend fun uploadBook(uri: Uri, filename: String): Result<Unit> = withContext(Dispatchers.IO) {
-        val node = bestNode() ?: return@withContext Result.NoWatch
-        val resolver = appContext.contentResolver
-        val input: InputStream = resolver.openInputStream(uri)
+        val input = appContext.contentResolver.openInputStream(uri)
             ?: return@withContext Result.Error("Cannot open file")
-        runCatching {
-            input.use { stream ->
-                val path = WearProtocol.PATH_UPLOAD_PREFIX + URLEncoder.encode(filename, "UTF-8")
-                val channel = channelClient.openChannel(node.id, path).await()
-                try {
-                    val out = channelClient.getOutputStream(channel).await()
-                    out.use { stream.copyTo(it) }
-                } finally {
-                    channelClient.close(channel).await()
-                }
-            }
-            Result.Ok(Unit)
-        }.getOrElse { Result.Error(it.message ?: "Upload failed") }
+        uploadStream(input, filename)
     }
+
+    /** Push [input] to the watch under [filename]; closes [input] when done. */
+    suspend fun uploadStream(input: InputStream, filename: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            val node = bestNode() ?: run { input.close(); return@withContext Result.NoWatch }
+            runCatching {
+                input.use { stream ->
+                    val path = WearProtocol.PATH_UPLOAD_PREFIX + URLEncoder.encode(filename, "UTF-8")
+                    val channel = channelClient.openChannel(node.id, path).await()
+                    try {
+                        val out = channelClient.getOutputStream(channel).await()
+                        out.use { stream.copyTo(it) }
+                    } finally {
+                        channelClient.close(channel).await()
+                    }
+                }
+                Result.Ok(Unit)
+            }.getOrElse { Result.Error(it.message ?: "Upload failed") }
+        }
 
     /** Find a connected node that has the wBooks watch app installed. */
     private suspend fun bestNode(): Node? {
