@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,7 +30,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = lightColorScheme()) {
+            val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
+            MaterialTheme(colorScheme = colors) {
                 CompanionScreen(viewModel)
             }
         }
@@ -116,7 +118,6 @@ private fun CompanionScreen(vm: MainViewModel) {
     }
 
     state.errorMessage?.let { msg ->
-        LaunchedEffect(msg) { /* could surface via SnackbarHostState */ }
         AlertDialog(
             onDismissRequest = vm::dismissError,
             text = { Text(msg) },

@@ -6,9 +6,9 @@ package com.wbooks.transfer
  * with JSON payloads; upload goes over [com.google.android.gms.wearable.ChannelClient]
  * with the filename URL-encoded into the channel path.
  *
- * Duplicated as-is in `:companion`'s `WearProtocol.kt` — there's no shared module
- * and the constants are few enough that mirroring them is cheaper than introducing
- * one. Keep both files in sync when adding paths.
+ * **Mirrored in `companion/src/main/kotlin/com/wbooks/companion/WearProtocol.kt`** —
+ * there's no shared module; the constants are few enough that mirroring them is
+ * cheaper than introducing one. When adding or renaming a path, update both files.
  */
 internal object WearProtocol {
     /** Phone -> watch (empty payload). Watch replies on the same path with [LibraryListJson]. */
@@ -24,6 +24,11 @@ internal object WearProtocol {
 /**
  * Plain JSON shapes traded over the protocol. Hand-encoded as strings rather than
  * dragging in a JSON library — the schema is small and stable.
+ *
+ * Encoding invariant (relied on by `companion`'s `LibraryListJson.decode`): we never
+ * emit `\uXXXX` escapes. Non-ASCII characters are written as raw UTF-8 bytes; only
+ * control chars below 0x20 are escaped as `\uXXXX`. The decoder doesn't handle
+ * `\uXXXX`, so if you change the encoder to emit them, update the decoder too.
  */
 internal object LibraryListJson {
     /** Build `{"books":[{"id":"...","title":"...","format":"EPUB"},...]}`. */

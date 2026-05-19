@@ -6,7 +6,7 @@ import android.app.NotificationManager
 import android.content.Context
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.tasks.Task
-import com.google.android.gms.tasks.Tasks
+import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.wearable.ChannelClient
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
@@ -16,8 +16,8 @@ import com.wbooks.data.book.BookFormat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import java.io.File
 import java.net.URLDecoder
@@ -40,31 +40,49 @@ class BookReceiverService : WearableListenerService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /**
-     * Request/response handler used by [com.google.android.gms.wearable.MessageClient.sendRequest].
-     * Library state lives in [com.wbooks.WBooksApp.libraryRepository] on the UI process; we
-     * use runBlocking off the binder thread because the platform expects a synchronously
-     * available Task<ByteArray>. The work is cheap (file listing of booksDir).
-     */
-    override fun onRequest(nodeId: String, path: String, data: ByteArray): Task<ByteArray> {
-        return when (path) {
-            WearProtocol.PATH_LIST -> Tasks.forResult(currentLibraryJson())
-            WearProtocol.PATH_DELETE -> {
-                val id = parseId(String(data, Charsets.UTF_8))
-                if (id != null) deleteBook(id)
-                Tasks.forResult(currentLibraryJson())
-            }
-            else -> Tasks.forResult(ByteArray(0))
-        }
+    override fun onDestroy() {
+        // The service is destroyed after an idle window; any in-flight onRequest /
+        // onChannelOpened work must be cancelled to avoid orphan coroutines holding
+        // references to a destroyed Service or writing half-files.
+        scope.cancel()
+        super.onDestroy()
     }
 
-    private fun currentLibraryJson(): ByteArray = runBlocking {
+    /**
+     * Request/response handler used by [com.google.android.gms.wearable.MessageClient.sendRequest].
+     * `onRequest` is invoked on the binder thread; we must return a Task immediately and
+     * let the actual work complete asynchronously. The work is launched on [scope] (which
+     * runs on Dispatchers.IO and gets cancelled in [onDestroy]) and resolves the
+     * [TaskCompletionSource] when done.
+     */
+    override fun onRequest(nodeId: String, path: String, data: ByteArray): Task<ByteArray> {
+        val tcs = TaskCompletionSource<ByteArray>()
+        scope.launch {
+            try {
+                val result = when (path) {
+                    WearProtocol.PATH_LIST -> currentLibraryJson()
+                    WearProtocol.PATH_DELETE -> {
+                        val id = parseId(String(data, Charsets.UTF_8))
+                        if (id != null) deleteBook(id)
+                        currentLibraryJson()
+                    }
+                    else -> ByteArray(0)
+                }
+                tcs.setResult(result)
+            } catch (t: Throwable) {
+                tcs.setException(t as? Exception ?: RuntimeException(t))
+            }
+        }
+        return tcs.task
+    }
+
+    private suspend fun currentLibraryJson(): ByteArray {
         val app = application as WBooksApp
         app.libraryRepository.refresh()
         val books = app.libraryRepository.books.value.map { b ->
             BookSummary(id = b.id, title = b.title, format = b.format.name)
         }
-        LibraryListJson.encode(books).toByteArray(Charsets.UTF_8)
+        return LibraryListJson.encode(books).toByteArray(Charsets.UTF_8)
     }
 
     override fun onChannelOpened(channel: ChannelClient.Channel) {
@@ -96,7 +114,14 @@ class BookReceiverService : WearableListenerService() {
         app.libraryRepository.delete(id)
     }
 
-    /** Extract the `"id":"..."` value from a small JSON payload without pulling in a JSON lib. */
+    /**
+     * Extract the `"id":"..."` value from a small JSON payload without pulling in a JSON lib.
+     *
+     * Safe by virtue of [com.wbooks.data.library.LibraryRepository.delete]: an id that doesn't
+     * exactly match an existing `Book.id` is a no-op, and book ids are derived from the file's
+     * relative path under `booksDir` — there's no path construction here that could escape.
+     * If a future caller starts treating ids as paths, tighten this with a stricter check.
+     */
     private fun parseId(json: String): String? {
         val key = "\"id\""
         val ki = json.indexOf(key)
