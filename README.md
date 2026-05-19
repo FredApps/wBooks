@@ -162,31 +162,113 @@ On first install, six Project Gutenberg public-domain editions are copied from `
 
 A `.seed-version` marker prevents re-copying; user-deleted books stay deleted. Bumping `SEED_VERSION` in `WBooksApp` re-seeds on next launch.
 
-## Crash reporting
+### Crash reporting (optional)
 
-Both apps ship the Sentry SDK with auto-init. To enable reporting, add your project's DSN to `local.properties` (gitignored):
+Both the watch app and phone companion include the Sentry SDK with auto-init. Crash reporting is **optional** and disabled by default.
+
+**To enable crash reporting:**
+
+1. Create a [Sentry](https://sentry.io) account and project
+2. Add your DSN to `local.properties` (in the project root, gitignored):
+   ```properties
+   sentry.dsn=https://<key>@<region>.sentry.io/<project-id>
+   ```
+3. Rebuild:
+   ```powershell
+   .\gradlew.bat assembleDebug
+   ```
+
+**If DSN is missing or empty:** The SDK is included but disabled (logs a warning at startup, drops all events).
+
+**In Sentry UI:** Events are tagged `environment=watch` (from the watch APK) and `environment=phone` (from the companion) so you can filter them separately.
+
+## Development Setup
+
+### Prerequisites
+
+- **JDK 21 or later** (Microsoft OpenJDK, Temurin, or another distribution)
+- **Android SDK API level 36** (set as `compileSdk`)
+- **Android Studio** (2024.1+) recommended, but not required if building from the command line
+
+### Environment variables
+
+Set these in your shell profile or for the current session:
+
+```powershell
+# Windows (PowerShell)
+$env:JAVA_HOME    = "path/to/jdk"
+$env:ANDROID_HOME = "path/to/android-sdk"
+
+# macOS / Linux (bash)
+export JAVA_HOME=/path/to/jdk
+export ANDROID_HOME=/path/to/android-sdk
+```
+
+### Optional: Local configuration
+
+Create `local.properties` in the project root (gitignored) for optional settings:
 
 ```properties
+# Sentry crash reporting (optional; build works without this)
 sentry.dsn=https://<key>@<region>.sentry.io/<project-id>
 ```
 
-Empty / missing = SDK no-ops (logs a warning, drops events). Events are tagged `environment=watch` from the watch APK and `environment=phone` from the companion so they can be filtered apart in the Sentry UI.
+If not set, the Sentry SDK is included but no-ops (logs a warning, drops events).
 
-## Build
-
-Prerequisites:
-- JDK 21 or later (Microsoft OpenJDK or another distribution)
-- Android SDK with API level 36 (set as `compileSdk` in build configuration)
-
-Set environment variables and build:
+### Build from command line
 
 ```powershell
-$env:JAVA_HOME    = "path/to/jdk"
-$env:ANDROID_HOME = "path/to/android-sdk"
+# Watch app
 .\gradlew.bat assembleDebug
+
+# Phone companion app
+.\gradlew.bat companion:assembleDebug
 ```
 
-The debug APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
+Output:
+- Watch: `app/build/outputs/apk/debug/app-debug.apk`
+- Phone: `companion/build/outputs/apk/debug/companion-debug.apk`
+
+### IDE Setup (Android Studio)
+
+1. Open the project root in Android Studio
+2. File → Project Structure → Project Settings → JDK — select your JDK 21
+3. File → Settings → SDK Manager → check API 36 is installed
+4. Tools → AVD Manager — optional, for testing on emulator
+
+### Running tests
+
+```powershell
+# Run all tests (unit + integration)
+.\gradlew.bat test
+
+# Run watch app tests only
+.\gradlew.bat app:test
+
+# Run companion app tests only
+.\gradlew.bat companion:test
+```
+
+Tests cover the parser modules (DocxParser, OdtParser) and transfer protocols. Run before submitting changes.
+
+### Emulator setup (optional)
+
+For Wear OS testing without a physical device:
+
+1. AVD Manager → Create Virtual Device
+2. Select a Wear OS image (e.g., "Wear OS 5" on Round 390 x 390)
+3. Select API 30 or later
+4. Launch the emulator
+
+Then:
+
+```powershell
+.\gradlew.bat installDebug  # Installs to the running emulator
+```
+
+The emulator is useful for quick iteration but doesn't fully replicate watch hardware (screen size, battery, screen-off behavior).
+
+## Build
 
 ## Install on the watch
 
@@ -210,6 +292,10 @@ $apk = "app/build/outputs/apk/debug/app-debug.apk"
 ```
 
 Replace `<watch-ip>:<port>` with your watch's ADB connection details (e.g., `192.168.1.100:5555` or `192.168.1.100:5037` depending on your watch).
+
+## Contributing
+
+wBooks is open to contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting issues, code style, testing, and submitting pull requests.
 
 ## License
 
