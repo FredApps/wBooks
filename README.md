@@ -4,7 +4,7 @@ An Android Wear OS ebook reader. Targets standalone watches running Wear OS 3 or
 
 ## Status
 
-Feature-complete against the original spec apart from the deferred phone companion app. The library ships pre-populated with one book of each supported format (Project Gutenberg public-domain editions).
+Feature-complete against the original spec. The library ships pre-populated with one book of each supported format (Project Gutenberg public-domain editions).
 
 ## Watch compatibility
 
@@ -103,10 +103,6 @@ The bezel doesn't unlock any features touch can't reach. Watches without one get
 - **odt** — OpenDocument Text. `meta.xml` → title + author; `content.xml` → `<office:text>`. `<text:h text:outline-level=1>` starts a new chapter; deeper levels become heading blocks; `<text:p>` becomes a paragraph. Inline `<text:span>` styling is resolved against the document's automatic styles (`fo:font-weight`, `fo:font-style`, `style:text-underline-style`).
 
 Unsupported elements in any format (tables, images, frames, fields, lists, drawings) are silently dropped — files that contain them still open, they just render only the prose.
-
-### PDF support: will not be implemented
-
-PDF is a rendering format, not a content format. It encodes exact pixel positions and fonts, not logical structure (chapters, paragraphs, sections). On a small round Wear OS screen with variable text sizes and reflow, PDF either requires either shrinking to unreadable sizes or horizontal scrolling to see full lines — both worsen the reading experience. The supported formats (TXT, HTML, EPUB, FB2) preserve semantic structure and reflow naturally to any screen size. Adding PDF would contradict the app's design principle that every text should be readable at any font size on any watch.
 
 ### Storage
 
@@ -292,6 +288,12 @@ $apk = "app/build/outputs/apk/debug/app-debug.apk"
 ```
 
 Replace `<watch-ip>:<port>` with your watch's ADB connection details (e.g., `192.168.1.100:5555` or `192.168.1.100:5037` depending on your watch).
+
+## Known Issues and Limitations
+
+### PDF support: will not be implemented
+
+PDF is a rendering format, not a content format. It encodes exact pixel positions and fonts, not logical structure (chapters, paragraphs, sections). On a small round Wear OS screen with variable text sizes and reflow, PDF either requires shrinking to unreadable sizes or horizontal scrolling to see full lines — both worsen the reading experience. The supported formats (TXT, HTML, EPUB, FB2, DOCX, ODT) preserve semantic structure and reflow naturally to any screen size. Adding PDF would contradict the app's design principle that every text should be readable at any font size on any watch.
 
 ## Contributing
 
