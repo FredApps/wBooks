@@ -95,9 +95,9 @@ The bezel doesn't unlock any features touch can't reach. Watches without one get
 
 ### Format support
 
-- **txt** — Blank lines split paragraphs; UPPERCASE short lines are treated as headings.
-- **html / xhtml** — Jsoup. Headings, paragraphs, dividers, `<pre><code>` blocks (with language hint from `class="language-…"`). Inline `<b>/<strong>`, `<i>/<em>`, `<u>` map to run styles.
 - **epub** — ZIP walked into a `path → bytes` map; `META-INF/container.xml` → OPF rootfile; `<dc:title>`, `<dc:creator>`, `manifest`, ordered `spine`. Each spine XHTML runs through `HtmlParser`.
+- **html / xhtml** — Jsoup. Headings, paragraphs, dividers, `<pre><code>` blocks (with language hint from `class="language-…"`). Inline `<b>/<strong>`, `<i>/<em>`, `<u>` map to run styles.
+- **txt** — Blank lines split paragraphs; UPPERCASE short lines are treated as headings.
 - **fb2** — Jsoup XML. `title-info` → title + author; `body > section` → Chapter; nested sections become level-bumped headings inline. `<emphasis>` italic, `<strong>` bold, `<empty-line/>` divider.
 - **docx** — Office Open XML. `docProps/core.xml` → `dc:title` / `dc:creator`; `word/document.xml` → `<w:body>`. `<w:p>` with `pStyle=Heading1` starts a new chapter; `HeadingN` (N≥2) → heading block; otherwise paragraph. `<w:r>` styling: `<w:b/>`, `<w:i/>`, `<w:u/>`.
 - **odt** — OpenDocument Text. `meta.xml` → title + author; `content.xml` → `<office:text>`. `<text:h text:outline-level=1>` starts a new chapter; deeper levels become heading blocks; `<text:p>` becomes a paragraph. Inline `<text:span>` styling is resolved against the document's automatic styles (`fo:font-weight`, `fo:font-style`, `style:text-underline-style`).
