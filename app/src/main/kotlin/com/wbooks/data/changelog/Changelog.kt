@@ -12,6 +12,19 @@ data class ChangelogEntry(
  */
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.4.0",
+        date = "2026-05-19",
+        notes = listOf(
+            "Time-to-finish estimate on the Tools page: per-book exponential moving average of ms-per-block-advance turns into \"~ Xm in chapter / ~ Xh Ym in book\". RSVP and chapter jumps are filtered out so the EMA tracks actual reading pace.",
+            "Reading-time tile and watch-face complication surfacing today's minutes; both read the same daily totals from a new ReadingStatsRepository.",
+            "Books-finished counter, daily reading totals (30-day rolling window), and last-50 WPM samples now persisted on the watch and exposed over a new /wbooks/stats Wear Data Layer path.",
+            "Phone companion gains a stats dashboard: Today / Total / Finished cards, a 30-day bar chart of reading minutes, and a WPM-trend line chart (both pure Compose Canvas).",
+            "Sentry SDK wired into both APKs; DSN sourced from local.properties so the project builds without an account.",
+            "Phone-side Project Gutenberg browser: search the OPDS catalogue and stream a downloaded book straight to the watch via ChannelClient — no intermediate temp file.",
+            "Release builds run through R8 + resource shrinking for both modules.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.3.0",
         date = "2026-05-19",
         notes = listOf(
