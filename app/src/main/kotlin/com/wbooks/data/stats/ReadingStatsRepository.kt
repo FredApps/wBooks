@@ -41,6 +41,12 @@ class ReadingStatsRepository(context: Context) {
     data class DailyEntry(val date: LocalDate, val ms: Long)
     data class WpmSample(val timestampMs: Long, val wpm: Int)
 
+    /**
+     * Add [deltaMs] to today's reading time. Sessions that cross midnight are
+     * attributed in chunks based on whatever day is "today" at the moment of
+     * each call — [ReaderViewModel] flushes every minute, so the worst-case
+     * misattribution is ≤ 1 minute landing on the new day.
+     */
     suspend fun recordSession(deltaMs: Long) {
         if (deltaMs <= 0) return
         val today = LocalDate.now().toString()
@@ -91,6 +97,12 @@ class ReadingStatsRepository(context: Context) {
 
     suspend fun snapshot(): Summary = summaryFlow.first()
 
+    /**
+     * Last [daysBack] days, oldest-first. Older `day:` keys remain on disk but
+     * are never read — DataStore stays cheap (a year of daily entries is
+     * <50 KB). A real prune-on-write would tighten this if storage ever
+     * becomes a concern.
+     */
     private fun recentDaily(prefs: Preferences, daysBack: Int): List<DailyEntry> {
         val today = LocalDate.now()
         val out = mutableListOf<DailyEntry>()

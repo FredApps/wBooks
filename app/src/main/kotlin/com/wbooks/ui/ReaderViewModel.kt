@@ -27,6 +27,8 @@ import com.wbooks.transfer.TransferController
 import com.wbooks.transfer.TransferState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,6 +66,7 @@ class ReaderViewModel(
     private var lastAdvanceMs: Long = 0L
     private var lastAdvancePosition: BookPosition? = null
     private var sessionStartMs: Long = 0L
+    private var sessionFlushJob: Job? = null
     private var lastWpmSampleMs: Long = 0L
 
     // ---- Settings ----
@@ -107,6 +110,10 @@ class ReaderViewModel(
     val pendingNormalJump: StateFlow<BookPosition?> = _pendingNormalJump.asStateFlow()
 
     fun jumpTo(position: BookPosition) {
+        // Invalidate the pace baseline — the next reportPosition is the jump
+        // target arriving, not a natural advance, and its near-instant delta
+        // would otherwise pull the EMA artificially low.
+        lastAdvancePosition = null
         viewModelScope.launch { _jumps.send(position) }
     }
 
@@ -123,7 +130,13 @@ class ReaderViewModel(
         viewModelScope.launch { positionsRepo.setPosition(state.book.id, position) }
     }
 
-    /** When the user reaches the end of the last chapter, count this book as finished. */
+    /**
+     * Count the book as "finished" the first time the user lands on the last
+     * block of the last chapter. This means "reached the end at least once" —
+     * not "actually read every word." Idempotent at the repository level so
+     * scrolling back and re-reaching the end doesn't bump the counter twice.
+     * RSVP zip-throughs and search-jump-to-end also trigger it, by design.
+     */
     private fun maybeMarkFinished(state: DocumentState.Loaded, position: BookPosition) {
         val lastChapter = state.doc.chapters.lastIndex
         if (position.chapterIndex < lastChapter) return
@@ -137,15 +150,47 @@ class ReaderViewModel(
     fun startReadingSession() {
         if (sessionStartMs != 0L) return  // already running
         sessionStartMs = System.currentTimeMillis()
+        // Periodic flush so an OOM kill or force-stop only loses one interval
+        // worth of session time, not the whole session. Also splits sessions
+        // that cross midnight onto the correct days at minute granularity.
+        sessionFlushJob?.cancel()
+        sessionFlushJob = viewModelScope.launch {
+            while (isActive) {
+                delay(SESSION_FLUSH_INTERVAL_MS)
+                flushSessionPartial()
+            }
+        }
     }
 
     /** Reader screen exit / app background — flush accumulated time. */
     fun endReadingSession() {
+        sessionFlushJob?.cancel()
+        sessionFlushJob = null
         val start = sessionStartMs
         if (start == 0L) return
         sessionStartMs = 0L
-        val delta = System.currentTimeMillis() - start
-        viewModelScope.launch { statsRepo.recordSession(delta) }
+        recordSessionCapped(System.currentTimeMillis() - start)
+    }
+
+    /** Mid-session flush — commits ms since [sessionStartMs] and rebases. */
+    private fun flushSessionPartial() {
+        val start = sessionStartMs
+        if (start == 0L) return
+        val now = System.currentTimeMillis()
+        sessionStartMs = now
+        recordSessionCapped(now - start)
+    }
+
+    /**
+     * Cap each recorded chunk to [SESSION_FLUSH_INTERVAL_MS] × 2. A larger gap
+     * means the device was suspended (Doze, ambient, screen-off) — counting
+     * suspended time as "reading" would be wrong. TODO: pause the session via
+     * a real idle signal (screen-off receiver, no-reportPosition timeout).
+     */
+    private fun recordSessionCapped(deltaMs: Long) {
+        val capped = deltaMs.coerceAtMost(SESSION_FLUSH_INTERVAL_MS * 2)
+        if (capped <= 0) return
+        viewModelScope.launch { statsRepo.recordSession(capped) }
     }
 
     /** Periodic WPM sample during RSVP, called from the speed-reading screen. */
@@ -155,20 +200,44 @@ class ReaderViewModel(
 
     /**
      * Feed the inter-position interval into [paceRepo] so the Tools page can
-     * compute time-to-finish. Skipped on the first position of a session and
-     * when the renderer reports the same position twice. Outlier deltas (idle
-     * pauses, double-fires) get filtered out by the repository.
+     * compute time-to-finish. Three sources of garbage we explicitly skip:
+     *
+     * 1. **RSVP mode** advances position at WPM rate (≤200ms per word), which
+     *    would dominate the EMA used for Normal-mode ETA. Sentence mode is
+     *    user-paced, so we treat it like Normal.
+     * 2. **Jumps** (chapter list, bookmark, search result) set
+     *    [lastAdvancePosition] to null in [jumpTo] / [openSearchResult] so the
+     *    next reportPosition just re-baselines without computing a delta.
+     * 3. **Non-natural advances** (chapter change, backwards, multi-block leap)
+     *    are treated like jumps even if no explicit jumpTo ran — defends
+     *    against renderer quirks. See [isNaturalAdvance].
+     *
+     * Remaining outliers (long pauses, double-fires) are clamped at the
+     * repository level via [ReadingPaceRepository]'s MIN/MAX bounds.
      */
     private fun recordAdvanceIfNeeded(bookId: String, position: BookPosition) {
+        val mode = settings.value.mode
+        if (mode != ReadingMode.NORMAL && mode != ReadingMode.SENTENCE) {
+            // RSVP: don't record, but update the baseline so resuming Normal
+            // doesn't trigger a huge "jump" delta the moment the next page
+            // advances.
+            lastAdvancePosition = position
+            lastAdvanceMs = System.currentTimeMillis()
+            return
+        }
         val now = System.currentTimeMillis()
         val prior = lastAdvancePosition
-        if (prior != null && prior != position) {
+        if (prior != null && prior != position && isNaturalAdvance(prior, position)) {
             val delta = now - lastAdvanceMs
             viewModelScope.launch { paceRepo.recordAdvance(bookId, delta) }
         }
         lastAdvancePosition = position
         lastAdvanceMs = now
     }
+
+    /** Stays in the same chapter and moves forward by exactly one block. */
+    private fun isNaturalAdvance(prev: BookPosition, next: BookPosition): Boolean =
+        prev.chapterIndex == next.chapterIndex && next.blockIndex - prev.blockIndex == 1
 
     // ---- Reading-pace ETA ----
     data class ReadingEta(val chapterMs: Long, val bookMs: Long)
@@ -183,7 +252,7 @@ class ReaderViewModel(
     val readingEta: StateFlow<ReadingEta?> = _document
         .flatMapLatest { state ->
             if (state !is DocumentState.Loaded) flow { emit(null) }
-            else combine(paceRepo.paceFlow(state.book.id), positionsRepo.positionFlow(state.book.id)) { pace, pos ->
+            else combine(paceRepo.paceFlow(state.book.id), currentPosition) { pace, pos ->
                 if (pace == null || !pace.isReady) null
                 else computeEta(state.doc, pos, pace.msPerBlock)
             }
@@ -272,6 +341,8 @@ class ReaderViewModel(
     }
 
     fun openSearchResult(result: SearchResult) {
+        // Search-result open is a jump too — see jumpTo for why we invalidate.
+        lastAdvancePosition = null
         viewModelScope.launch {
             // Search results open in Normal mode; keep the jump pending until that
             // mode is composed so the previous reader mode cannot consume it.
@@ -321,6 +392,9 @@ class ReaderViewModel(
 
     fun openBook(book: Book) {
         loadJob?.cancel()
+        // Reset pace baseline so the first reportPosition after the new book
+        // loads doesn't compute a cross-book delta.
+        lastAdvancePosition = null
         loadJob = viewModelScope.launch {
             val isFirstOpen = !positionsRepo.hasOpened(book.id)
             _document.value = DocumentState.Loading(book, isFirstOpen)
@@ -408,6 +482,8 @@ class ReaderViewModel(
 
     private companion object {
         const val WPM_SAMPLE_DEBOUNCE_MS = 5_000L
+        /** Cadence for splitting a session into commit-able chunks. */
+        const val SESSION_FLUSH_INTERVAL_MS = 60_000L
     }
 
     class Factory(

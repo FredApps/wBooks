@@ -55,6 +55,7 @@ import androidx.wear.compose.material.TimeText
 import com.wbooks.R
 import com.wbooks.data.bookmarks.Bookmark
 import com.wbooks.data.position.BookPosition
+import com.wbooks.data.stats.formatDurationMs
 import com.wbooks.parser.model.Block
 import com.wbooks.parser.model.Document
 import com.wbooks.ui.DocumentState
@@ -177,11 +178,11 @@ fun SecondaryScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                     ) {
                         Text(
-                            text = "~ ${formatDuration(e.chapterMs)} in chapter",
+                            text = "~ ${formatDurationMs(e.chapterMs)} in chapter",
                             style = MaterialTheme.typography.body2,
                         )
                         Text(
-                            text = "~ ${formatDuration(e.bookMs)} in book",
+                            text = "~ ${formatDurationMs(e.bookMs)} in book",
                             style = MaterialTheme.typography.body2,
                         )
                     }
@@ -358,18 +359,6 @@ private fun String.looksLikeBoilerplateHeading(): Boolean {
         lower == "table of contents" ||
         lower.contains("transcriber's note") ||
         lower.contains("transcriber’s note")
-}
-
-/** Format a duration as "Xm" / "Xh Ym" — the Tools page is tight on space. */
-internal fun formatDuration(ms: Long): String {
-    val totalMinutes = (ms / 60_000).coerceAtLeast(0)
-    val hours = totalMinutes / 60
-    val minutes = totalMinutes % 60
-    return when {
-        hours <= 0 -> "${minutes}m"
-        minutes == 0L -> "${hours}h"
-        else -> "${hours}h ${minutes}m"
-    }
 }
 
 private fun buildSearchIntent(): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {

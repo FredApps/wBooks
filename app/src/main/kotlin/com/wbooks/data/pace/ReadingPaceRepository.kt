@@ -37,6 +37,16 @@ class ReadingPaceRepository(context: Context) {
         return store.data.map { prefs -> prefs[key]?.let(::decode) }
     }
 
+    /**
+     * Drop the pace entry for [bookId]. Intended to be called when a book is
+     * deleted (TODO: wire from the watch's delete flow + the upload server's
+     * delete endpoint so deleted books don't leave orphaned pace data).
+     */
+    suspend fun clear(bookId: String) {
+        val key = stringPreferencesKey("pace:$bookId")
+        store.edit { it.remove(key) }
+    }
+
     suspend fun recordAdvance(bookId: String, deltaMs: Long) {
         if (deltaMs !in MIN_DELTA_MS..MAX_DELTA_MS) return
         val key = stringPreferencesKey("pace:$bookId")
@@ -71,8 +81,12 @@ class ReadingPaceRepository(context: Context) {
         /** Below this we treat the advance as an accidental double-tap. */
         const val MIN_DELTA_MS = 500L
 
-        /** Above this the user was probably idle (locked, called away, ...). */
-        const val MAX_DELTA_MS = 60_000L
+        /**
+         * Above this the user was probably idle (locked, called away, ...).
+         * Dense / technical reading on a small screen can legitimately spend
+         * 1–2 minutes on a single block, so the cap is generous.
+         */
+        const val MAX_DELTA_MS = 180_000L
 
         /** Need at least this many samples before the UI shows the estimate. */
         const val MIN_READY_SAMPLES = 3

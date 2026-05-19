@@ -29,6 +29,11 @@ data class StatsSummary(
  * Decoder for the JSON shape `:app`'s `StatsJson.encode` produces. Same hand-
  * rolled approach as [LibraryListJson]; encoder never emits `\uXXXX` so we
  * don't parse it here either.
+ *
+ * Each `readLong` / `readStr` re-scans the input from the beginning — O(N·M)
+ * over (input size · keys). Stays cheap while the payload is small (a 30-day
+ * stats blob is well under 10 KB). If the schema grows, swap for a streaming
+ * parser before this becomes a bottleneck.
  */
 object StatsJson {
     fun decode(bytes: ByteArray): StatsSummary {

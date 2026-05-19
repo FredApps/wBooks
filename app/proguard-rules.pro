@@ -26,6 +26,11 @@
 # --- Tile services are instantiated by the system from the manifest.
 -keep class * extends androidx.wear.tiles.TileService
 
+# --- Complication data sources: ditto. Defensive — AGP auto-keeps the
+# manifest-declared class names but R8 can strip abstract-method overrides
+# if it can't see the contract.
+-keep class * extends androidx.wear.watchface.complications.datasource.ComplicationDataSourceService
+
 # --- Document cache codec uses our model classes directly; the codec is hand
 # rolled (no reflection), so the regular minification is safe, but keep the
 # model classes' field names since they appear in cached binaries' field order.
