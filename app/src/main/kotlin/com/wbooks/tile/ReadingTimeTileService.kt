@@ -18,6 +18,7 @@ import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import com.google.common.util.concurrent.ListenableFuture
 import com.wbooks.WBooksApp
+import com.wbooks.data.stats.formatDurationMs
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -69,9 +70,7 @@ class ReadingTimeTileService : TileService() {
             )
             .build()
 
-        val totalMinutes = (todayMs / 60_000L).coerceAtLeast(0)
-        val display = if (totalMinutes < 60) "${totalMinutes}m"
-        else "${totalMinutes / 60}h ${totalMinutes % 60}m"
+        val display = formatDurationMs(todayMs)
 
         return PrimaryLayout.Builder(device)
             .setPrimaryLabelTextContent(

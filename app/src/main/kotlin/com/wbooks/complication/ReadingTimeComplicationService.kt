@@ -14,6 +14,7 @@ import androidx.wear.watchface.complications.datasource.ComplicationRequest
 import androidx.wear.watchface.complications.datasource.SuspendingComplicationDataSourceService
 import com.wbooks.R
 import com.wbooks.WBooksApp
+import com.wbooks.data.stats.formatMinutes
 
 /**
  * Watch-face complication that surfaces today's reading minutes. Supports
@@ -44,9 +45,8 @@ class ReadingTimeComplicationService : SuspendingComplicationDataSourceService()
     }
 
     private fun buildShortText(minutes: Int): ShortTextComplicationData {
-        val display = if (minutes < 60) "${minutes}m" else "${minutes / 60}h${(minutes % 60).takeIf { it > 0 }?.let { "${it}m" } ?: ""}"
         return ShortTextComplicationData.Builder(
-            text = PlainComplicationText.Builder(display).build(),
+            text = PlainComplicationText.Builder(formatMinutes(minutes.toLong())).build(),
             contentDescription = PlainComplicationText.Builder(
                 "$minutes minutes read today",
             ).build(),
@@ -66,7 +66,7 @@ class ReadingTimeComplicationService : SuspendingComplicationDataSourceService()
                 "$minutes of ${DAILY_GOAL_MINUTES} minutes read today",
             ).build(),
         )
-            .setText(PlainComplicationText.Builder("${minutes}m").build())
+            .setText(PlainComplicationText.Builder(formatMinutes(minutes.toLong())).build())
             .setMonochromaticImage(launcherIcon())
             .setTapAction(openAppIntent())
             .build()
@@ -74,7 +74,7 @@ class ReadingTimeComplicationService : SuspendingComplicationDataSourceService()
 
     private fun launcherIcon(): MonochromaticImage =
         MonochromaticImage.Builder(
-            image = android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_launcher_foreground),
+            image = android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_book),
         ).build()
 
     private fun openAppIntent(): PendingIntent {
