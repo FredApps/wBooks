@@ -45,6 +45,16 @@
             android:foregroundServiceType="dataSync" />
 
         <service
+            android:name=".transfer.BookReceiverService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <action android:name="com.google.android.gms.wearable.CHANNEL_EVENT" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/wbooks/" />
+            </intent-filter>
+        </service>
+
+        <service
             android:name=".tile.ResumeTileService"
             android:label="@string/tile_resume"
             android:exported="true"

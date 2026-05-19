@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Advertises the "wbooks_receiver" capability that the phone companion uses to
+  discover this watch via CapabilityClient. The id must match
+  WatchRepository.WBOOKS_CAPABILITY on the phone side.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@array/android_wear_capabilities">
+    <string-array name="android_wear_capabilities">
+        <item>wbooks_receiver</item>
+    </string-array>
+</resources>
