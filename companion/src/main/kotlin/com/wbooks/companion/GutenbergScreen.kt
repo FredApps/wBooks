@@ -96,13 +96,23 @@ private fun ResultsList(
             ListItem(
                 headlineContent = { Text(book.title, fontWeight = FontWeight.Medium) },
                 supportingContent = {
-                    val sub = book.author ?: ""
-                    Text(
-                        text = if (sub.isEmpty()) book.extension.uppercase()
-                        else "$sub  ·  ${book.extension.uppercase()}",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Column {
+                        val sub = book.author ?: ""
+                        Text(
+                            text = if (sub.isEmpty()) book.extension.uppercase()
+                            else "$sub  ·  ${book.extension.uppercase()}",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        book.summary?.let { s ->
+                            Text(
+                                text = s,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
                 },
                 trailingContent = {
                     if (downloadingId == book.id) {

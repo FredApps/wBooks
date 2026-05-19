@@ -51,6 +51,9 @@ android {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
         }
+        getByName("test") {
+            java.srcDirs("src/test/kotlin")
+        }
     }
 }
 
@@ -76,4 +79,7 @@ dependencies {
     implementation(libs.jsoup)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.jsoup)
 }
