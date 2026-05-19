@@ -10,6 +10,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 /**
  * Thin wrapper over the Wear Data Layer. The watch app advertises a
@@ -63,7 +64,7 @@ class WatchRepository(context: Context) {
             val node = bestNode() ?: run { input.close(); return@withContext Result.NoWatch }
             runCatching {
                 input.use { stream ->
-                    val path = WearProtocol.PATH_UPLOAD_PREFIX + URLEncoder.encode(filename, "UTF-8")
+                    val path = WearProtocol.PATH_UPLOAD_PREFIX + URLEncoder.encode(filename, StandardCharsets.UTF_8)
                     val channel = channelClient.openChannel(node.id, path).await()
                     try {
                         val out = channelClient.getOutputStream(channel).await()
