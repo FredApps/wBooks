@@ -1,7 +1,17 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+}
+
+fun localProperty(name: String): String {
+    val file = rootProject.file("local.properties")
+    if (!file.exists()) return ""
+    val props = Properties()
+    file.inputStream().use { props.load(it) }
+    return props.getProperty(name).orEmpty()
 }
 
 android {
@@ -14,6 +24,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.3.0"
+
+        manifestPlaceholders["sentryDsn"] = localProperty("sentry.dsn")
     }
 
     buildTypes {
@@ -60,6 +72,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.play.services.wearable)
+    implementation(libs.sentry.android)
+    implementation(libs.jsoup)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

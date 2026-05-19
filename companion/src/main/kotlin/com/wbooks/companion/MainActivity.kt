@@ -14,8 +14,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -25,14 +27,30 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: MainViewModel by viewModels { MainViewModel.Factory(application) }
+    private val mainViewModel: MainViewModel by viewModels { MainViewModel.Factory(application) }
+    private val gutenbergViewModel: GutenbergViewModel by viewModels { GutenbergViewModel.Factory(application) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
             MaterialTheme(colorScheme = colors) {
-                CompanionScreen(viewModel)
+                var showGutenberg by rememberSaveable { mutableStateOf(false) }
+                if (showGutenberg) {
+                    GutenbergScreen(
+                        vm = gutenbergViewModel,
+                        onBack = {
+                            showGutenberg = false
+                            // The library may have grown; refresh on return.
+                            mainViewModel.refresh()
+                        },
+                    )
+                } else {
+                    CompanionScreen(
+                        vm = mainViewModel,
+                        onBrowseGutenberg = { showGutenberg = true },
+                    )
+                }
             }
         }
     }
@@ -40,7 +58,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CompanionScreen(vm: MainViewModel) {
+private fun CompanionScreen(vm: MainViewModel, onBrowseGutenberg: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
 
     val pickFile = rememberLauncherForActivityResult(
@@ -54,6 +72,9 @@ private fun CompanionScreen(vm: MainViewModel) {
             TopAppBar(
                 title = { Text(stringResource(R.string.library_title)) },
                 actions = {
+                    IconButton(onClick = onBrowseGutenberg) {
+                        Icon(Icons.Default.Search, contentDescription = "Project Gutenberg")
+                    }
                     IconButton(onClick = vm::refresh) {
                         Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh))
                     }

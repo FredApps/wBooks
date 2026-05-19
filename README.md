@@ -132,6 +132,7 @@ A small Material 3 phone app (`:companion`, minSdk 24) that mirrors the watch's 
 - Tap **+** → SAF picker → file streams to the watch via `ChannelClient`.
 - Long-press on a book → delete from the watch.
 - Pull-down / Refresh → re-fetch the library.
+- **Project Gutenberg browser** (🔍 in the top app bar): search PG's OPDS catalogue, tap **Send** on a result to download + push to the watch in one step. Prefers EPUB, falls back to TXT.
 
 Requires both APKs installed on a paired Wear OS phone/watch pair. No account setup; the Wear Data Layer handles transport. The LAN upload server still works alongside the companion — pick whichever fits.
 
@@ -151,6 +152,16 @@ On first install, six Project Gutenberg public-domain editions are copied from `
 - *The Time Machine* — H. G. Wells (#35) · ODT
 
 A `.seed-version` marker prevents re-copying; user-deleted books stay deleted. Bumping `SEED_VERSION` in `WBooksApp` re-seeds on next launch.
+
+## Crash reporting
+
+Both apps ship the Sentry SDK with auto-init. To enable reporting, add your project's DSN to `local.properties` (gitignored):
+
+```properties
+sentry.dsn=https://<key>@<region>.sentry.io/<project-id>
+```
+
+Empty / missing = SDK no-ops (logs a warning, drops events). Events are tagged `environment=watch` from the watch APK and `environment=phone` from the companion so they can be filtered apart in the Sentry UI.
 
 ## Build
 
