@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -31,6 +32,15 @@ fun ReaderScreen(
     onExit: () -> Unit,
 ) {
     val settings by vm.settings.collectAsState()
+
+    // Count reading time while the Reader page is the active pager page and we
+    // have a loaded book. Pause when the user swipes to Tools / Settings or
+    // navigates away; resume on next entry.
+    val activeWithBook = isActive && state is DocumentState.Loaded
+    DisposableEffect(activeWithBook) {
+        if (activeWithBook) vm.startReadingSession()
+        onDispose { vm.endReadingSession() }
+    }
 
     Box(Modifier.fillMaxSize()) {
         when (state) {

@@ -7,8 +7,10 @@ import com.wbooks.data.book.Book
 import com.wbooks.data.bookmarks.Bookmark
 import com.wbooks.data.bookmarks.BookmarksRepository
 import com.wbooks.data.library.LibraryRepository
+import com.wbooks.data.pace.ReadingPaceRepository
 import com.wbooks.data.position.BookPosition
 import com.wbooks.data.position.PositionsRepository
+import com.wbooks.data.stats.ReadingStatsRepository
 import com.wbooks.data.settings.FontChoice
 import com.wbooks.data.settings.ReaderSettings
 import com.wbooks.data.settings.ReadingMode
@@ -32,6 +34,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -54,7 +57,14 @@ class ReaderViewModel(
     private val bookmarksRepo: BookmarksRepository,
     private val transferController: TransferController,
     private val documentCache: DocumentCache,
+    private val paceRepo: ReadingPaceRepository,
+    private val statsRepo: ReadingStatsRepository,
 ) : ViewModel() {
+
+    private var lastAdvanceMs: Long = 0L
+    private var lastAdvancePosition: BookPosition? = null
+    private var sessionStartMs: Long = 0L
+    private var lastWpmSampleMs: Long = 0L
 
     // ---- Settings ----
     val settings: StateFlow<ReaderSettings> = settingsRepo.flow.stateIn(
@@ -108,7 +118,99 @@ class ReaderViewModel(
     fun reportPosition(position: BookPosition) {
         val state = _document.value
         if (state !is DocumentState.Loaded) return
+        recordAdvanceIfNeeded(state.book.id, position)
+        maybeMarkFinished(state, position)
         viewModelScope.launch { positionsRepo.setPosition(state.book.id, position) }
+    }
+
+    /** When the user reaches the end of the last chapter, count this book as finished. */
+    private fun maybeMarkFinished(state: DocumentState.Loaded, position: BookPosition) {
+        val lastChapter = state.doc.chapters.lastIndex
+        if (position.chapterIndex < lastChapter) return
+        val chapter = state.doc.chapters.getOrNull(position.chapterIndex) ?: return
+        if (chapter.blocks.isEmpty()) return
+        if (position.blockIndex < chapter.blocks.lastIndex) return
+        viewModelScope.launch { statsRepo.markFinished(state.book.id) }
+    }
+
+    /** Reader screen entry — start counting reading time. */
+    fun startReadingSession() {
+        if (sessionStartMs != 0L) return  // already running
+        sessionStartMs = System.currentTimeMillis()
+    }
+
+    /** Reader screen exit / app background — flush accumulated time. */
+    fun endReadingSession() {
+        val start = sessionStartMs
+        if (start == 0L) return
+        sessionStartMs = 0L
+        val delta = System.currentTimeMillis() - start
+        viewModelScope.launch { statsRepo.recordSession(delta) }
+    }
+
+    /** Periodic WPM sample during RSVP, called from the speed-reading screen. */
+    fun recordWpmSample(wpm: Int) {
+        viewModelScope.launch { statsRepo.recordWpm(wpm) }
+    }
+
+    /**
+     * Feed the inter-position interval into [paceRepo] so the Tools page can
+     * compute time-to-finish. Skipped on the first position of a session and
+     * when the renderer reports the same position twice. Outlier deltas (idle
+     * pauses, double-fires) get filtered out by the repository.
+     */
+    private fun recordAdvanceIfNeeded(bookId: String, position: BookPosition) {
+        val now = System.currentTimeMillis()
+        val prior = lastAdvancePosition
+        if (prior != null && prior != position) {
+            val delta = now - lastAdvanceMs
+            viewModelScope.launch { paceRepo.recordAdvance(bookId, delta) }
+        }
+        lastAdvancePosition = position
+        lastAdvanceMs = now
+    }
+
+    // ---- Reading-pace ETA ----
+    data class ReadingEta(val chapterMs: Long, val bookMs: Long)
+
+    /**
+     * Time-to-finish estimate based on the per-book EMA of ms-per-block-advance
+     * (see [ReadingPaceRepository]) and the remaining-block counts derived from
+     * the parsed Document. Null until the user has read enough blocks to trust
+     * the pace estimate.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val readingEta: StateFlow<ReadingEta?> = _document
+        .flatMapLatest { state ->
+            if (state !is DocumentState.Loaded) flow { emit(null) }
+            else combine(paceRepo.paceFlow(state.book.id), positionsRepo.positionFlow(state.book.id)) { pace, pos ->
+                if (pace == null || !pace.isReady) null
+                else computeEta(state.doc, pos, pace.msPerBlock)
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = null,
+        )
+
+    private fun computeEta(
+        doc: Document,
+        position: BookPosition,
+        msPerBlock: Double,
+    ): ReadingEta? {
+        val ci = position.chapterIndex.coerceIn(0, doc.chapters.lastIndex)
+        val bi = position.blockIndex.coerceAtLeast(0)
+        val chapter = doc.chapters.getOrNull(ci) ?: return null
+        val blocksRemainingInChapter = (chapter.blocks.size - bi).coerceAtLeast(0)
+        var blocksRemainingInBook = blocksRemainingInChapter
+        for (i in (ci + 1)..doc.chapters.lastIndex) {
+            blocksRemainingInBook += doc.chapters[i].blocks.size
+        }
+        return ReadingEta(
+            chapterMs = (blocksRemainingInChapter * msPerBlock).toLong(),
+            bookMs = (blocksRemainingInBook * msPerBlock).toLong(),
+        )
     }
 
     // ---- Bookmarks ----
@@ -288,11 +390,24 @@ class ReaderViewModel(
     fun setSentenceTextSize(value: Int) = editSettings { it.copy(sentenceTextSizeSp = value.coerceIn(ReaderSettings.SENTENCE_TEXT_SIZE_RANGE)) }
     fun setAutoscrollSpeed(value: Int) = editSettings { it.copy(autoscrollSpeed = value.coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE)) }
     fun setScreenBrightness(value: Int) = editSettings { it.copy(screenBrightness = value.coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE)) }
-    fun setSpeedreadWpm(value: Int) = editSettings { it.copy(speedreadWpm = value.coerceIn(ReaderSettings.WPM_RANGE)) }
+    fun setSpeedreadWpm(value: Int) {
+        editSettings { it.copy(speedreadWpm = value.coerceIn(ReaderSettings.WPM_RANGE)) }
+        // Debounced sample of the user's preferred WPM. Avoids spamming the
+        // log while they fine-tune with the +/-25 chips or twist the bezel.
+        val now = System.currentTimeMillis()
+        if (now - lastWpmSampleMs > WPM_SAMPLE_DEBOUNCE_MS) {
+            lastWpmSampleMs = now
+            recordWpmSample(value.coerceIn(ReaderSettings.WPM_RANGE))
+        }
+    }
     fun setFont(font: FontChoice) = editSettings { it.copy(font = font) }
 
     private fun editSettings(transform: (ReaderSettings) -> ReaderSettings) {
         viewModelScope.launch { settingsRepo.update(transform) }
+    }
+
+    private companion object {
+        const val WPM_SAMPLE_DEBOUNCE_MS = 5_000L
     }
 
     class Factory(
@@ -302,12 +417,14 @@ class ReaderViewModel(
         private val bookmarksRepo: BookmarksRepository,
         private val transferController: TransferController,
         private val documentCache: DocumentCache,
+        private val paceRepo: ReadingPaceRepository,
+        private val statsRepo: ReadingStatsRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass == ReaderViewModel::class.java)
             return ReaderViewModel(
-                settingsRepo, libraryRepo, positionsRepo, bookmarksRepo, transferController, documentCache,
+                settingsRepo, libraryRepo, positionsRepo, bookmarksRepo, transferController, documentCache, paceRepo, statsRepo,
             ) as T
         }
     }

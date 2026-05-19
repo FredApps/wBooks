@@ -66,6 +66,7 @@ class BookReceiverService : WearableListenerService() {
                         if (id != null) deleteBook(id)
                         currentLibraryJson()
                     }
+                    WearProtocol.PATH_STATS -> currentStatsJson()
                     else -> ByteArray(0)
                 }
                 tcs.setResult(result)
@@ -74,6 +75,12 @@ class BookReceiverService : WearableListenerService() {
             }
         }
         return tcs.task
+    }
+
+    private suspend fun currentStatsJson(): ByteArray {
+        val app = application as WBooksApp
+        val snapshot = app.readingStatsRepository.snapshot()
+        return StatsJson.encode(snapshot).toByteArray(Charsets.UTF_8)
     }
 
     private suspend fun currentLibraryJson(): ByteArray {

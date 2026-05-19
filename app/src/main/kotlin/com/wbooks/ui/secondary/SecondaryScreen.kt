@@ -136,6 +136,7 @@ fun SecondaryScreen(
         }
 
         val bookmarks by vm.bookmarks.collectAsState()
+        val eta by vm.readingEta.collectAsState()
         var pendingDelete by remember { mutableStateOf<BookPosition?>(null) }
         val chapters = remember(state.doc) { chapterJumps(state.doc) }
 
@@ -166,6 +167,25 @@ fun SecondaryScreen(
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+
+            eta?.let { e ->
+                item { ListHeader { Text("Time left") } }
+                item {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            text = "~ ${formatDuration(e.chapterMs)} in chapter",
+                            style = MaterialTheme.typography.body2,
+                        )
+                        Text(
+                            text = "~ ${formatDuration(e.bookMs)} in book",
+                            style = MaterialTheme.typography.body2,
+                        )
+                    }
+                }
             }
 
             if (bookmarks.isNotEmpty()) {
@@ -338,6 +358,18 @@ private fun String.looksLikeBoilerplateHeading(): Boolean {
         lower == "table of contents" ||
         lower.contains("transcriber's note") ||
         lower.contains("transcriber’s note")
+}
+
+/** Format a duration as "Xm" / "Xh Ym" — the Tools page is tight on space. */
+internal fun formatDuration(ms: Long): String {
+    val totalMinutes = (ms / 60_000).coerceAtLeast(0)
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        hours <= 0 -> "${minutes}m"
+        minutes == 0L -> "${hours}h"
+        else -> "${hours}h ${minutes}m"
+    }
 }
 
 private fun buildSearchIntent(): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {

@@ -133,12 +133,21 @@ A small Material 3 phone app (`:companion`, minSdk 24) that mirrors the watch's 
 - Long-press on a book → delete from the watch.
 - Pull-down / Refresh → re-fetch the library.
 - **Project Gutenberg browser** (🔍 in the top app bar): search PG's OPDS catalogue, tap **Send** on a result to download + push to the watch in one step. Prefers EPUB, falls back to TXT.
+- **Reading-stats dashboard** (📅 in the top app bar): total / today / books-finished cards, plus a 30-day daily-minutes bar chart and a WPM-trend line chart. Data fetched from the watch via `MessageClient.sendRequest("/wbooks/stats")`.
 
 Requires both APKs installed on a paired Wear OS phone/watch pair. No account setup; the Wear Data Layer handles transport. The LAN upload server still works alongside the companion — pick whichever fits.
 
 ### Resume tile
 
 `ResumeTileService` shows the title of the last-opened book and a Resume chip; tapping launches `MainActivity`, which auto-resumes via the same path that runs on cold launch. No special intent extras — the "last opened" state is shared via DataStore.
+
+### Reading-time tile + complication
+
+`ReadingTimeTileService` is a sibling tile that surfaces today's accumulated reading minutes alongside a Resume chip. `ReadingTimeComplicationService` is a watch-face complication that supports `SHORT_TEXT` ("Xm") and `RANGED_VALUE` (progress toward a 30-minute daily goal). Both read from `ReadingStatsRepository`, which accumulates daily totals from the reader's `DisposableEffect` start/end pair.
+
+### Time-to-finish estimate
+
+`ReadingPaceRepository` keeps a per-book exponential moving average of ms-per-block-advance — every time the renderer reports a new position we feed it the inter-position interval (outliers above 60 s / below 0.5 s are dropped as idle / double-tap glitches). The Tools page shows `~12m in chapter / ~2h 40m in book` derived from remaining-block counts.
 
 ### Seed library
 

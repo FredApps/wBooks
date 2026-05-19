@@ -29,6 +29,8 @@ class MainActivity : ComponentActivity() {
                     bookmarksRepo = app.bookmarksRepository,
                     transferController = app.transferController,
                     documentCache = app.documentCache,
+                    paceRepo = app.readingPaceRepository,
+                    statsRepo = app.readingStatsRepository,
                 ),
             )
             val settings by vm.settings.collectAsState()
