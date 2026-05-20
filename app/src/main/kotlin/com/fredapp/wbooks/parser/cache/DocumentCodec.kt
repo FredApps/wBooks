@@ -45,7 +45,7 @@ internal object DocumentCodec {
     fun read(input: DataInputStream): Document {
         val title = readString(input)
         val author = readOptString(input)
-        val nChapters = input.readInt()
+        val nChapters = input.readCount("chapter", MAX_CHAPTERS)
         val chapters = ArrayList<Chapter>(nChapters)
         repeat(nChapters) { chapters += readChapter(input) }
         return Document(title = title, author = author, chapters = chapters)
@@ -59,7 +59,7 @@ internal object DocumentCodec {
 
     private fun readChapter(input: DataInputStream): Chapter {
         val title = readOptString(input)
-        val nBlocks = input.readInt()
+        val nBlocks = input.readCount("block", MAX_BLOCKS_PER_CHAPTER)
         val blocks = ArrayList<Block>(nBlocks)
         repeat(nBlocks) { blocks += readBlock(input) }
         return Chapter(title = title, blocks = blocks)
@@ -90,7 +90,7 @@ internal object DocumentCodec {
         return when (val kind = input.readByte().toInt()) {
             BLOCK_HEADING -> Block.Heading(level = input.readInt(), text = readString(input))
             BLOCK_PARAGRAPH -> {
-                val nRuns = input.readInt()
+                val nRuns = input.readCount("run", MAX_RUNS_PER_PARAGRAPH)
                 val runs = ArrayList<Run>(nRuns)
                 repeat(nRuns) { runs += readRun(input) }
                 Block.Paragraph(runs)
@@ -147,6 +147,14 @@ internal object DocumentCodec {
         return String(bytes, Charsets.UTF_8)
     }
 
+    private fun DataInputStream.readCount(label: String, max: Int): Int {
+        val n = readInt()
+        require(n in 0..max) {
+            "DocumentCodec: $label count $n out of valid range 0..$max - cache file corrupt?"
+        }
+        return n
+    }
+
     private fun writeOptString(out: DataOutputStream, s: String?) {
         if (s == null) {
             out.writeByte(0)
@@ -168,6 +176,10 @@ internal object DocumentCodec {
     private const val FLAG_BOLD = 1
     private const val FLAG_ITALIC = 2
     private const val FLAG_UNDERLINE = 4
+
+    private const val MAX_CHAPTERS = 10_000
+    private const val MAX_BLOCKS_PER_CHAPTER = 500_000
+    private const val MAX_RUNS_PER_PARAGRAPH = 10_000
 
     /** Guard against OOM on corrupt cache files. 8 MB is well above any realistic string. */
     private const val MAX_STRING_BYTES = 8 * 1024 * 1024
