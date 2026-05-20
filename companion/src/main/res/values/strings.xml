@@ -13,7 +13,7 @@
     <string name="new_folder">New folder</string>
     <string name="folder_name">Folder name</string>
     <string name="create">Create</string>
-    <string name="uncategorized">Uncategorized</string>
+    <string name="uncategorized">Root</string>
     <string name="move_to_folder">Move to folder</string>
     <string name="remove_from_folder">Remove from folder</string>
     <string name="confirm_delete_folder">Delete folder? Books will move to Uncategorized.</string>

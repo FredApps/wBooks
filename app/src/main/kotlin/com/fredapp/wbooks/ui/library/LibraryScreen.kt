@@ -5,11 +5,15 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.focusable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -32,6 +37,8 @@ import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.foundation.rotary.rotaryScrollable
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
+import androidx.wear.compose.material.CompactChip
+import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
@@ -40,18 +47,34 @@ import com.fredapp.wbooks.R
 import com.fredapp.wbooks.data.book.Book
 import kotlinx.coroutines.withTimeoutOrNull
 
+private val FolderYellow = Color(0xFFFFD54F)
+private val FolderYellowText = Color(0xFF3E2723)
+private val DeleteRed = Color(0xFFE53935)
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LibraryScreen(
     books: List<Book>,
     onBookOpen: (Book) -> Unit,
     onRefresh: () -> Unit,
     onMoveBook: (bookId: String, targetFolder: String) -> Unit,
+    onDeleteBook: (bookId: String) -> Unit,
     isActive: Boolean = true,
 ) {
     var bookToMove by remember { mutableStateOf<Book?>(null) }
+    var pendingDelete by remember { mutableStateOf<Book?>(null) }
 
     val grouped = books.groupBy { it.id.substringBeforeLast('/', "") }
     val folderNames = grouped.keys.filter { it.isNotEmpty() }.sorted()
+
+    pendingDelete?.let { book ->
+        ConfirmDeleteScreen(
+            bookTitle = book.title,
+            onConfirm = { onDeleteBook(book.id); pendingDelete = null; bookToMove = null },
+            onCancel = { pendingDelete = null },
+        )
+        return
+    }
 
     bookToMove?.let { book ->
         FolderPickerScreen(
@@ -59,6 +82,7 @@ fun LibraryScreen(
             folders = folderNames,
             currentFolder = book.id.substringBeforeLast('/', ""),
             onPick = { folder -> onMoveBook(book.id, folder); bookToMove = null },
+            onDelete = { pendingDelete = book },
             onCancel = { bookToMove = null },
         )
         return
@@ -75,7 +99,7 @@ fun LibraryScreen(
 
     val uncategorized = grouped[""] ?: emptyList()
     val hasFolders = folderNames.isNotEmpty()
-    var expandedFolders by rememberSaveable { mutableStateOf(emptySet<String>()) }
+    var selectedFolder by rememberSaveable { mutableStateOf<String?>(null) }
 
     Scaffold(timeText = { TimeText() }) {
         if (books.isEmpty()) {
@@ -95,40 +119,103 @@ fun LibraryScreen(
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            for (folder in folderNames) {
-                val folderBooks = grouped[folder] ?: emptyList()
-                val isExpanded = folder in expandedFolders
-                item(key = "fh_$folder") {
-                    FolderHeaderChip(
-                        name = folder,
-                        bookCount = folderBooks.size,
-                        expanded = isExpanded,
-                        onClick = {
-                            expandedFolders = if (isExpanded) expandedFolders - folder
-                                              else expandedFolders + folder
-                        },
-                    )
+            if (hasFolders) {
+                item(key = "folder_chips") {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        for (folder in folderNames) {
+                            val isSelected = folder == selectedFolder
+                            val bg = if (isSelected) FolderYellow.copy(alpha = 0.55f) else FolderYellow
+                            CompactChip(
+                                icon = { FolderIcon() },
+                                label = { Text(folder, color = FolderYellowText) },
+                                onClick = { selectedFolder = if (isSelected) null else folder },
+                                colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderYellowText),
+                            )
+                        }
+                    }
                 }
-                if (isExpanded) {
-                    items(folderBooks, key = { "b_${it.id}" }) { book ->
+                selectedFolder?.let { folder ->
+                    val folderBooks = grouped[folder] ?: emptyList()
+                    items(folderBooks, key = { "fb_${it.id}" }) { book ->
                         BookChip(book = book, onClick = { onBookOpen(book) }, onLongPress = { bookToMove = book })
                     }
                 }
             }
-            if (uncategorized.isNotEmpty()) {
-                if (hasFolders) {
-                    item(key = "uncategorized_header") {
-                        FolderHeaderChip(
-                            name = stringResource(R.string.uncategorized),
-                            bookCount = uncategorized.size,
-                            expanded = true,
-                            onClick = {},
+
+            item(key = "root_header") {
+                Chip(
+                    icon = { FolderIcon() },
+                    label = {
+                        Text(
+                            "${stringResource(R.string.uncategorized)} (${uncategorized.size})",
+                            color = FolderYellowText,
+                            fontWeight = FontWeight.Bold,
                         )
-                    }
-                }
-                items(uncategorized, key = { "b_${it.id}" }) { book ->
-                    BookChip(book = book, onClick = { onBookOpen(book) }, onLongPress = { bookToMove = book })
-                }
+                    },
+                    onClick = {},
+                    colors = ChipDefaults.chipColors(backgroundColor = FolderYellow, contentColor = FolderYellowText),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            items(uncategorized, key = { "ub_${it.id}" }) { book ->
+                BookChip(book = book, onClick = { onBookOpen(book) }, onLongPress = { bookToMove = book })
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConfirmDeleteScreen(bookTitle: String, onConfirm: () -> Unit, onCancel: () -> Unit) {
+    val listState = rememberScalingLazyListState()
+    val focusRequester = remember { FocusRequester() }
+    val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
+    LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
+
+    Scaffold(timeText = { TimeText() }) {
+        ScalingLazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .focusRequester(focusRequester)
+                .focusable()
+                .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
+            state = listState,
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            item(key = "title") {
+                Text(
+                    "Delete this book?",
+                    style = MaterialTheme.typography.title3,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                )
+            }
+            item(key = "subtitle") {
+                Text(
+                    bookTitle,
+                    style = MaterialTheme.typography.body2,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                )
+            }
+            item(key = "confirm") {
+                Chip(
+                    label = { Text("Delete", color = Color.White) },
+                    onClick = onConfirm,
+                    colors = ChipDefaults.chipColors(backgroundColor = DeleteRed, contentColor = Color.White),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item(key = "cancel") {
+                Chip(
+                    label = { Text("Cancel") },
+                    onClick = onCancel,
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
@@ -140,6 +227,7 @@ private fun FolderPickerScreen(
     folders: List<String>,
     currentFolder: String,
     onPick: (targetFolder: String) -> Unit,
+    onDelete: () -> Unit,
     onCancel: () -> Unit,
 ) {
     val listState = rememberScalingLazyListState()
@@ -166,20 +254,30 @@ private fun FolderPickerScreen(
                 )
             }
             item(key = "root") {
+                val bg = if (currentFolder.isEmpty()) FolderYellow.copy(alpha = 0.55f) else FolderYellow
                 Chip(
-                    label = { Text(stringResource(R.string.uncategorized)) },
+                    icon = { FolderIcon() },
+                    label = { Text(stringResource(R.string.uncategorized), color = FolderYellowText) },
                     onClick = { onPick("") },
-                    colors = if (currentFolder.isEmpty()) ChipDefaults.primaryChipColors()
-                             else ChipDefaults.secondaryChipColors(),
+                    colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderYellowText),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
             items(folders, key = { "f_$it" }) { folder ->
+                val bg = if (folder == currentFolder) FolderYellow.copy(alpha = 0.55f) else FolderYellow
                 Chip(
-                    label = { Text(folder) },
+                    icon = { FolderIcon() },
+                    label = { Text(folder, color = FolderYellowText) },
                     onClick = { onPick(folder) },
-                    colors = if (folder == currentFolder) ChipDefaults.primaryChipColors()
-                             else ChipDefaults.secondaryChipColors(),
+                    colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderYellowText),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item(key = "delete") {
+                Chip(
+                    label = { Text("Delete book", color = Color.White) },
+                    onClick = onDelete,
+                    colors = ChipDefaults.chipColors(backgroundColor = DeleteRed, contentColor = Color.White),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -196,13 +294,11 @@ private fun FolderPickerScreen(
 }
 
 @Composable
-private fun FolderHeaderChip(name: String, bookCount: Int, expanded: Boolean, onClick: () -> Unit) {
-    val chevron = if (expanded) "▼" else "▶"
-    Chip(
-        label = { Text("$chevron $name ($bookCount)", fontWeight = FontWeight.Bold) },
-        onClick = onClick,
-        colors = ChipDefaults.primaryChipColors(),
-        modifier = Modifier.fillMaxWidth(),
+private fun FolderIcon() {
+    Icon(
+        imageVector = Icons.Default.Folder,
+        contentDescription = null,
+        tint = FolderYellowText,
     )
 }
 

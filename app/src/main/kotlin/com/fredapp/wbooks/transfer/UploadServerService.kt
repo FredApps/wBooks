@@ -49,6 +49,8 @@ class UploadServerService : Service() {
             port = PORT,
             booksDir = app.booksDir,
             pin = pin,
+            settingsRepository = app.settingsRepository,
+            crashReportingPref = app.crashReportingPref,
             onBookDeleted = { bookId ->
                 // Clean up reading data for books deleted via the web UI.
                 serviceScope.launch {

@@ -1,8 +1,15 @@
 ﻿package com.fredapp.wbooks.transfer
 
 import com.fredapp.wbooks.data.book.BookFormat
+import com.fredapp.wbooks.data.settings.FontChoice
+import com.fredapp.wbooks.data.settings.ReaderSettings
+import com.fredapp.wbooks.data.settings.ReadingMode
+import com.fredapp.wbooks.data.settings.SettingsRepository
+import com.fredapp.wbooks.data.settings.ThemeChoice
+import com.fredapp.wbooks.data.telemetry.CrashReportingPref
 import com.fredapp.wbooks.util.uniqueFile
 import fi.iki.elonen.NanoHTTPD
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -31,6 +38,8 @@ class UploadServer(
     port: Int,
     private val booksDir: File,
     private val pin: String,
+    private val settingsRepository: SettingsRepository,
+    private val crashReportingPref: CrashReportingPref,
     private val onBookDeleted: (bookId: String) -> Unit = {},
 ) : NanoHTTPD(port) {
 
@@ -47,6 +56,7 @@ class UploadServer(
             "/delete" -> handleDelete(session)
             "/mkdir" -> handleMkdir(session)
             "/move" -> handleMove(session)
+            "/settings" -> handleSettings(session)
             else -> notFound()
         }
     } catch (e: Exception) {
@@ -75,64 +85,84 @@ class UploadServer(
                 .filter { it.isFile && it.parentFile?.canonicalPath == dir.canonicalPath && BookFormat.fromExtension(it.extension) != null }
                 .sortedBy { it.name.lowercase() }
             val tbId = "f$fIdx"; fIdx++
-            rows.append("""<tr class="folder-row" onclick="toggleFolder('$tbId')">""")
-            rows.append("""<td><span id="ch_$tbId" class="chevron">&#x25B6;</span> &#x1F4C1; $folderRelEsc/ <span class="cnt">(${folderBooks.size})</span></td>""")
+            rows.append("""<tr class="folder-row drop-zone" data-folder="$folderRelEsc" onclick="toggleFolder('$tbId')">""")
+            rows.append("""<td><span id="ch_$tbId" class="chevron">&#x25B6;</span> <span class="folder-icon">folder</span> $folderRelEsc/ <span class="cnt">(${folderBooks.size})</span><div class="drop-hint">Drop files here to upload to this folder</div></td>""")
             rows.append("""<td>folder</td><td><form method="post" action="/delete" class="inline" data-confirm="Delete folder $folderRelEsc and all its books?" onsubmit="event.stopPropagation();return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$folderRelEsc"><button>delete</button></form></td></tr>""")
             rows.append("""<tbody id="$tbId" style="display:none">""")
             for (book in folderBooks) {
                 val rel = book.relativeTo(booksDir).invariantSeparatorsPath
                 val relEsc = htmlEscape(rel)
                 val size = htmlEscape(humanBytes(book.length()))
-                rows.append("""<tr><td class="book-indent">$relEsc</td><td>$size</td><td><form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$relEsc"><button>delete</button></form></td></tr>""")
+                rows.append(bookRow(rel, relEsc, size, topFolders, folderRel))
             }
             rows.append("</tbody>")
         }
 
-        if (rootBooks.isNotEmpty()) {
-            if (topFolders.isNotEmpty()) {
-                val tbId = "unc"
-                rows.append("""<tr class="folder-row" onclick="toggleFolder('$tbId')">""")
-                rows.append("""<td><span id="ch_$tbId" class="chevron">&#x25B6;</span> Uncategorized <span class="cnt">(${rootBooks.size})</span></td>""")
-                rows.append("""<td></td><td></td></tr>""")
-                rows.append("""<tbody id="$tbId" style="display:none">""")
-                for (book in rootBooks) {
-                    val rel = book.relativeTo(booksDir).invariantSeparatorsPath
-                    val relEsc = htmlEscape(rel)
-                    val size = htmlEscape(humanBytes(book.length()))
-                    rows.append("""<tr><td>$relEsc</td><td>$size</td><td><form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$relEsc"><button>delete</button></form></td></tr>""")
-                }
-                rows.append("</tbody>")
-            } else {
-                for (book in rootBooks) {
-                    val rel = book.relativeTo(booksDir).invariantSeparatorsPath
-                    val relEsc = htmlEscape(rel)
-                    val size = htmlEscape(humanBytes(book.length()))
-                    rows.append("""<tr><td>$relEsc</td><td>$size</td><td><form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$relEsc"><button>delete</button></form></td></tr>""")
-                }
-            }
+        val rootId = "root"
+        rows.append("""<tr class="folder-row root-row drop-zone" data-folder="" onclick="toggleFolder('$rootId')">""")
+        rows.append("""<td><span id="ch_$rootId" class="chevron open">&#x25B6;</span> <span class="folder-icon">folder</span> Root <span class="cnt">(${rootBooks.size})</span><div class="drop-hint">Drop files here to upload to Root</div></td>""")
+        rows.append("""<td>root</td><td></td></tr>""")
+        rows.append("""<tbody id="$rootId">""")
+        for (book in rootBooks) {
+            val rel = book.relativeTo(booksDir).invariantSeparatorsPath
+            val relEsc = htmlEscape(rel)
+            val size = htmlEscape(humanBytes(book.length()))
+            rows.append(bookRow(rel, relEsc, size, topFolders, ""))
         }
+        if (rootBooks.isEmpty()) {
+            rows.append("""<tr><td class="empty-root" colspan="3">Root is empty. Drop files here to upload them at the top level.</td></tr>""")
+        }
+        rows.append("</tbody>")
 
         val flashHtml = if (flash.isNotEmpty())
             """<p class="flash">${htmlEscape(flash)}</p>""" else ""
+        val settingsHtml = renderSettingsPanel()
         val html = """
             <!doctype html>
             <html><head><meta charset="utf-8"><title>wBooks transfer</title>
             <style>
-              body{font-family:system-ui,sans-serif;max-width:640px;margin:24px auto;padding:0 12px;}
+              body{font-family:system-ui,sans-serif;max-width:760px;margin:24px auto;padding:0 12px;}
               table{width:100%;border-collapse:collapse;margin-top:12px}
               td{padding:6px 4px;border-bottom:1px solid #eee;vertical-align:middle}
               form.inline{display:inline}
+              form.move{display:inline-flex;gap:4px;align-items:center;margin-right:6px}
               .row{margin:12px 0}
-              input[type=text],input[type=password]{padding:6px}
+              input[type=text],input[type=password],input[type=number],select{padding:6px}
               button{padding:6px 12px}
               .note{color:#666;font-size:0.85em}
               .flash{background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:8px 12px;margin:8px 0;}
-              .folder-row{cursor:pointer;background:#f5f5f5;font-weight:600;}
-              .folder-row:hover{background:#ebebeb;}
+              .folder-row{cursor:pointer;background:#fff8d8;font-weight:650;box-shadow:inset 0 0 0 1px #ead278;}
+              .root-row{background:#fff2b7;}
+              .folder-row:hover,.folder-row.drag-over{background:#ffe58a;}
+              .folder-icon{display:inline-flex;align-items:center;justify-content:center;background:#e5ad22;color:#3e2a00;border-radius:5px;padding:2px 7px;margin-right:4px;font-size:0.72em;text-transform:uppercase;box-shadow:0 1px 3px rgba(0,0,0,0.22);}
+              .drop-hint{font-size:0.78em;color:#775b00;font-weight:500;margin:2px 0 0 26px;}
               .chevron{display:inline-block;transition:transform 0.15s;}
               .chevron.open{transform:rotate(90deg);}
               .cnt{font-weight:normal;color:#666;font-size:0.9em;}
               .book-indent{padding-left:28px;}
+              .empty-root{color:#777;font-style:italic;padding-left:28px;}
+              .settings{margin-top:24px;padding:14px;border:1px solid #ddd;border-radius:10px;background:#fafafa}
+              .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:10px}
+              .setting label{display:block;font-weight:650;margin-bottom:4px}
+              .setting small{display:block;color:#666;margin-top:3px}
+              .checkbox-row{display:flex;align-items:center;gap:8px;margin-top:22px}
+              .swatches{display:flex;gap:6px;flex-wrap:wrap}
+              .swatch{width:30px;height:30px;border-radius:50%;border:2px solid #777;cursor:pointer}
+              .swatch.selected{outline:3px solid #111}
+              @media (prefers-color-scheme: dark) {
+                body{background:#111;color:#eee}
+                td{border-bottom-color:#333}
+                .folder-row{background:#4a3a13;box-shadow:inset 0 0 0 1px #8b6a1b;}
+                .root-row{background:#5a4314;}
+                .folder-row:hover,.folder-row.drag-over{background:#6a5019;}
+                .folder-icon{background:#d1961b;color:#241700;box-shadow:0 1px 4px rgba(0,0,0,0.55);}
+                .drop-hint,.cnt,.note,.empty-root{color:#c9b783}
+                input,select,button{background:#222;color:#eee;border:1px solid #555}
+                .flash{background:#18351d;border-color:#426b45}
+                .settings{background:#181818;border-color:#3a3a3a}
+                .setting small{color:#b8b8b8}
+                .swatch.selected{outline-color:#fff}
+              }
             </style>
             <script>
               function toggleFolder(id) {
@@ -153,10 +183,10 @@ class UploadServer(
               }
               async function submitUpload(e) {
                 e.preventDefault();
+                await uploadFiles(e.target.querySelector('input[type=file]').files, e.target.querySelector('input[name=folder]').value.trim());
+              }
+              async function uploadFiles(files, folder) {
                 var pin = document.getElementById('pin').value;
-                var form = e.target;
-                var folder = form.querySelector('input[name=folder]').value.trim();
-                var files = form.querySelector('input[type=file]').files;
                 if (!files.length) return;
                 var fd = new FormData();
                 if (folder) fd.append('folder', folder);
@@ -168,6 +198,31 @@ class UploadServer(
                   if (!resp.ok) { alert('Upload failed: ' + resp.status); return; }
                 } catch(err) { alert('Upload error: ' + err); return; }
                 location.href = '/';
+              }
+              function installDropZones() {
+                document.querySelectorAll('.drop-zone').forEach(function(zone) {
+                  zone.addEventListener('dragover', function(e) {
+                    if (e.dataTransfer && e.dataTransfer.types && Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') >= 0) {
+                      e.preventDefault();
+                      zone.classList.add('drag-over');
+                    }
+                  });
+                  zone.addEventListener('dragleave', function() { zone.classList.remove('drag-over'); });
+                  zone.addEventListener('drop', function(e) {
+                    if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    zone.classList.remove('drag-over');
+                    uploadFiles(e.dataTransfer.files, zone.dataset.folder || '');
+                  });
+                });
+              }
+              window.addEventListener('DOMContentLoaded', installDropZones);
+              function setColor(value) {
+                document.getElementById('textColorArgb').value = value;
+                document.querySelectorAll('.swatch').forEach(function(s) {
+                  s.classList.toggle('selected', s.dataset.value === value);
+                });
               }
             </script>
             </head><body>
@@ -188,6 +243,7 @@ class UploadServer(
               <button>Create</button>
             </form>
             <table>$rows</table>
+            $settingsHtml
             </body></html>
         """.trimIndent()
         return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
@@ -281,7 +337,118 @@ class UploadServer(
         return redirectToIndex("Moved")
     }
 
+    private fun handleSettings(session: IHTTPSession): Response {
+        if (session.method != Method.POST) return methodNotAllowed()
+        gatePin(session)?.let { return it }
+        val params = parsedForm(session)
+        runBlocking {
+            settingsRepository.update { current ->
+                current.copy(
+                    mode = enumParam(params, "mode", current.mode),
+                    font = enumParam(params, "font", current.font),
+                    theme = enumParam(params, "theme", current.theme),
+                    textSizeSp = intParam(params, "textSizeSp", current.textSizeSp)
+                        .coerceIn(ReaderSettings.TEXT_SIZE_RANGE),
+                    sentenceTextSizeSp = intParam(params, "sentenceTextSizeSp", current.sentenceTextSizeSp)
+                        .coerceIn(ReaderSettings.SENTENCE_TEXT_SIZE_RANGE),
+                    textColorArgb = intParam(params, "textColorArgb", current.textColorArgb),
+                    autoscrollEnabled = params["autoscrollEnabled"]?.firstOrNull() == "on",
+                    autoscrollSpeed = intParam(params, "autoscrollSpeed", current.autoscrollSpeed)
+                        .coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE),
+                    screenBrightness = intParam(params, "screenBrightness", current.screenBrightness)
+                        .coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE),
+                    speedreadWpm = intParam(params, "speedreadWpm", current.speedreadWpm)
+                        .coerceIn(ReaderSettings.WPM_RANGE),
+                )
+            }
+        }
+        crashReportingPref.setEnabled(params["crashReportingEnabled"]?.firstOrNull() == "on")
+        return redirectToIndex("Settings saved")
+    }
+
     // --- helpers ---
+
+    private fun bookRow(
+        rel: String,
+        relEsc: String,
+        size: String,
+        topFolders: List<File>,
+        currentFolder: String,
+    ): String {
+        val options = buildString {
+            val rootSelected = if (currentFolder.isEmpty()) " selected" else ""
+            append("""<option value=""$rootSelected>Root</option>""")
+            for (dir in topFolders) {
+                val folder = dir.relativeTo(booksDir).invariantSeparatorsPath
+                val folderEsc = htmlEscape(folder)
+                val selected = if (folder == currentFolder) " selected" else ""
+                append("""<option value="$folderEsc"$selected>$folderEsc</option>""")
+            }
+        }
+        return """<tr><td class="book-indent">$relEsc</td><td>$size</td><td><form method="post" action="/move" class="move" onsubmit="return attachPin(this)"><input type="hidden" name="from" value="$relEsc"><select name="to">$options</select><button>move</button></form><form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$relEsc"><button>delete</button></form></td></tr>"""
+    }
+
+    private fun renderSettingsPanel(): String {
+        val s = runBlocking { settingsRepository.snapshot() }
+        val crash = crashReportingPref.enabled.value
+        val swatches = ReaderSettings.TEXT_COLOR_PALETTE.joinToString("") { color ->
+            val value = color.toString()
+            val selected = if (color == s.textColorArgb) " selected" else ""
+            """<button type="button" class="swatch$selected" data-value="$value" style="background:${argbCss(color)}" title="${argbHex(color)}" onclick="setColor('$value')"></button>"""
+        }
+        return """
+            <section class="settings">
+              <h2>Watch settings</h2>
+              <p class="note">These controls read from and save to the watch. The watch remains authoritative.</p>
+              <form method="post" action="/settings" onsubmit="return attachPin(this)">
+                <div class="settings-grid">
+                  ${selectSetting("Reading mode", "mode", ReadingMode.entries.map { it.name }, s.mode.name)}
+                  ${selectSetting("Theme", "theme", ThemeChoice.entries.map { it.name }, s.theme.name)}
+                  ${selectSetting("Font", "font", FontChoice.entries.map { it.name }, s.font.name)}
+                  ${numberSetting("Text size", "textSizeSp", s.textSizeSp, ReaderSettings.TEXT_SIZE_RANGE)}
+                  ${numberSetting("Sentence text size", "sentenceTextSizeSp", s.sentenceTextSizeSp, ReaderSettings.SENTENCE_TEXT_SIZE_RANGE)}
+                  <div class="setting">
+                    <label>Text color</label>
+                    <input id="textColorArgb" type="hidden" name="textColorArgb" value="${s.textColorArgb}">
+                    <div class="swatches">$swatches</div>
+                  </div>
+                  ${numberSetting("Autoscroll speed", "autoscrollSpeed", s.autoscrollSpeed, ReaderSettings.AUTOSCROLL_SPEED_RANGE)}
+                  ${numberSetting("Screen brightness", "screenBrightness", s.screenBrightness, ReaderSettings.SCREEN_BRIGHTNESS_RANGE, "%")}
+                  ${numberSetting("Speed-read WPM", "speedreadWpm", s.speedreadWpm, ReaderSettings.WPM_RANGE)}
+                  ${checkboxSetting("Autoscroll", "autoscrollEnabled", s.autoscrollEnabled)}
+                  ${checkboxSetting("Crash reports", "crashReportingEnabled", crash)}
+                </div>
+                <p><button>Save settings</button></p>
+              </form>
+            </section>
+        """.trimIndent()
+    }
+
+    private fun selectSetting(label: String, name: String, options: List<String>, selected: String): String {
+        val optionHtml = options.joinToString("") { value ->
+            val sel = if (value == selected) " selected" else ""
+            """<option value="$value"$sel>${htmlEscape(value.lowercase().replaceFirstChar { it.titlecase() })}</option>"""
+        }
+        return """<div class="setting"><label>$label</label><select name="$name">$optionHtml</select></div>"""
+    }
+
+    private fun numberSetting(label: String, name: String, value: Int, range: IntRange, suffix: String = ""): String =
+        """<div class="setting"><label>$label</label><input type="number" name="$name" value="$value" min="${range.first}" max="${range.last}"><small>${range.first}-${range.last}$suffix</small></div>"""
+
+    private fun checkboxSetting(label: String, name: String, checked: Boolean): String {
+        val attr = if (checked) " checked" else ""
+        return """<div class="setting checkbox-row"><input type="checkbox" name="$name"$attr><label>$label</label></div>"""
+    }
+
+    private inline fun <reified E : Enum<E>> enumParam(params: Map<String, List<String>>, name: String, fallback: E): E =
+        params[name]?.firstOrNull()?.let { raw -> runCatching { enumValueOf<E>(raw) }.getOrNull() } ?: fallback
+
+    private fun intParam(params: Map<String, List<String>>, name: String, fallback: Int): Int =
+        params[name]?.firstOrNull()?.toIntOrNull() ?: fallback
+
+    private fun argbCss(argb: Int): String = "#%06X".format(argb and 0x00FFFFFF)
+
+    private fun argbHex(argb: Int): String = "#%08X".format(argb)
 
     private fun parsedForm(session: IHTTPSession): Map<String, List<String>> {
         session.parseBody(HashMap())
@@ -350,6 +517,7 @@ class UploadServer(
         }
         return out.toString()
     }
+
 
     private fun redirectToIndex(flash: String): Response {
         // 303 See Other so the browser issues a fresh GET / instead of resubmitting the form.
