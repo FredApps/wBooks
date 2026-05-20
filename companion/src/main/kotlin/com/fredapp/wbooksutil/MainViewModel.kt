@@ -7,14 +7,18 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repo = WatchRepository(application)
+    private var watchPollingJob: Job? = null
 
     data class UiState(
         val books: List<BookSummary> = emptyList(),
@@ -32,9 +36,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refresh() = viewModelScope.launch {
-        _state.value = _state.value.copy(loading = true, errorMessage = null)
+        refreshLibrary(showLoading = true)
+    }
+
+    fun startForegroundWatchPolling() {
+        if (watchPollingJob?.isActive == true) return
+        watchPollingJob = viewModelScope.launch {
+            while (isActive) {
+                delay(WATCH_POLL_INTERVAL_MS)
+                pollWatchConnection()
+            }
+        }
+    }
+
+    fun stopForegroundWatchPolling() {
+        watchPollingJob?.cancel()
+        watchPollingJob = null
+    }
+
+    private suspend fun pollWatchConnection() {
+        if (_state.value.sending) return
+        val reachable = repo.hasReachableWatch()
+        val state = _state.value
+        when {
+            reachable && state.noWatch -> refreshLibrary(showLoading = false)
+            !reachable && !state.noWatch -> {
+                _state.value = state.copy(noWatch = true, books = emptyList(), loading = false)
+            }
+        }
+    }
+
+    private suspend fun refreshLibrary(showLoading: Boolean) {
+        if (showLoading) {
+            _state.value = _state.value.copy(loading = true, errorMessage = null)
+        }
         applyResult(repo.fetchLibrary())
-        _state.value = _state.value.copy(loading = false)
+        if (showLoading) {
+            _state.value = _state.value.copy(loading = false)
+        }
     }
 
     fun delete(id: String) = viewModelScope.launch {
@@ -85,5 +124,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
             MainViewModel(app) as T
+    }
+
+    companion object {
+        private const val WATCH_POLL_INTERVAL_MS = 5_000L
     }
 }
