@@ -1,0 +1,357 @@
+﻿package com.fredapp.wbooksutil
+
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    val saving by vm.saving.collectAsStateWithLifecycle()
+
+    // Per the watch-authoritative model, every entry into this screen pulls a
+    // fresh snapshot â€” UI is never edited against stale data.
+    LaunchedEffect(Unit) { vm.refresh() }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Watch settings") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = vm::refresh) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            when (val s = state) {
+                is SettingsViewModel.SyncState.Idle,
+                SettingsViewModel.SyncState.Loading -> CenteredProgress()
+                SettingsViewModel.SyncState.NoWatch -> CenteredText(
+                    "No watch connected. Connect your watch to view and edit settings.",
+                )
+                is SettingsViewModel.SyncState.Error -> CenteredText("Couldn't reach watch: ${s.message}")
+                is SettingsViewModel.SyncState.Refreshing -> Column(Modifier.fillMaxSize()) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    // Controls are disabled during the refresh â€” if the user managed to
+                    // edit between the LaunchedEffect firing and the fetch completing,
+                    // the SET would race the GET and the wrong snapshot could land last.
+                    SettingsList(snapshot = s.stale, enabled = false, vm = vm)
+                }
+                is SettingsViewModel.SyncState.Synced -> SettingsList(
+                    snapshot = s.snapshot,
+                    enabled = !saving,
+                    vm = vm,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsList(
+    snapshot: SettingsSnapshot,
+    enabled: Boolean,
+    vm: SettingsViewModel,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SectionHeader("Reading mode")
+        EnumPicker(
+            options = ReadingMode.entries,
+            selected = runCatching { ReadingMode.valueOf(snapshot.mode) }.getOrDefault(ReadingMode.NORMAL),
+            labelFor = { it.name.lowercase().replaceFirstChar { c -> c.titlecase() } },
+            enabled = enabled,
+            onSelect = vm::setMode,
+        )
+
+        SectionHeader("Theme")
+        EnumPicker(
+            options = ThemeChoice.entries,
+            selected = runCatching { ThemeChoice.valueOf(snapshot.theme) }.getOrDefault(ThemeChoice.DARK),
+            labelFor = { it.name.lowercase().replaceFirstChar { c -> c.titlecase() } },
+            enabled = enabled,
+            onSelect = vm::setTheme,
+        )
+
+        SectionHeader("Font")
+        EnumPicker(
+            options = FontChoice.entries,
+            selected = runCatching { FontChoice.valueOf(snapshot.font) }.getOrDefault(FontChoice.SERIF),
+            labelFor = { it.familyName },
+            enabled = enabled,
+            onSelect = vm::setFont,
+        )
+
+        SectionHeader("Text size")
+        SliderRow(
+            value = snapshot.textSizeSp,
+            range = SettingsRanges.TEXT_SIZE,
+            enabled = enabled,
+            onCommit = vm::setTextSize,
+        )
+
+        SectionHeader("Sentence-mode text size")
+        SliderRow(
+            value = snapshot.sentenceTextSizeSp,
+            range = SettingsRanges.SENTENCE_TEXT_SIZE,
+            enabled = enabled,
+            onCommit = vm::setSentenceTextSize,
+        )
+
+        SectionHeader("Text color")
+        ColorPalette(
+            selected = snapshot.textColorArgb,
+            enabled = enabled,
+            onSelect = vm::setTextColor,
+        )
+
+        SectionHeader("Autoscroll")
+        ToggleRow(
+            label = "Enabled",
+            checked = snapshot.autoscrollEnabled,
+            enabled = enabled,
+            onChange = vm::setAutoscrollEnabled,
+        )
+        SliderRow(
+            label = "Speed",
+            value = snapshot.autoscrollSpeed,
+            range = SettingsRanges.AUTOSCROLL_SPEED,
+            enabled = enabled && snapshot.autoscrollEnabled,
+            onCommit = vm::setAutoscrollSpeed,
+        )
+
+        SectionHeader("Screen brightness")
+        SliderRow(
+            value = snapshot.screenBrightness,
+            range = SettingsRanges.SCREEN_BRIGHTNESS,
+            step = 5,
+            suffix = "%",
+            enabled = enabled,
+            onCommit = vm::setScreenBrightness,
+        )
+
+        SectionHeader("Speed-read WPM")
+        SliderRow(
+            value = snapshot.speedreadWpm,
+            range = SettingsRanges.WPM,
+            step = 25,
+            enabled = enabled,
+            onCommit = vm::setSpeedreadWpm,
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        SectionHeader("Privacy")
+        ToggleRow(
+            label = "Crash reports",
+            secondary = "Send anonymous crash data from watch + phone",
+            checked = snapshot.crashReportingEnabled,
+            enabled = enabled,
+            onChange = vm::setCrashReportingEnabled,
+        )
+    }
+}
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun <T : Enum<T>> EnumPicker(
+    options: List<T>,
+    selected: T,
+    labelFor: (T) -> String,
+    enabled: Boolean,
+    onSelect: (T) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        options.forEach { opt ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(
+                    selected = opt == selected,
+                    onClick = { if (enabled && opt != selected) onSelect(opt) },
+                    enabled = enabled,
+                )
+                Spacer(Modifier.size(4.dp))
+                Text(labelFor(opt))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SliderRow(
+    label: String? = null,
+    value: Int,
+    range: IntRange,
+    step: Int = 1,
+    suffix: String = "",
+    enabled: Boolean,
+    onCommit: (Int) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Text(
+            text = (label?.let { "$it: " } ?: "") + "$value$suffix",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        // The slider produces a stream of values as the user drags. We only
+        // call into the watch on release (onValueChangeFinished) so we don't
+        // saturate the Wear transport with intermediate values.
+        var pending by remember(value) { mutableStateOf(value.toFloat()) }
+        Slider(
+            value = pending,
+            onValueChange = { pending = it },
+            onValueChangeFinished = {
+                val snapped = snap(pending.toInt(), range, step)
+                if (snapped != value) onCommit(snapped)
+            },
+            valueRange = range.first.toFloat()..range.last.toFloat(),
+            steps = ((range.last - range.first) / step) - 1,
+            enabled = enabled,
+        )
+    }
+}
+
+private fun snap(raw: Int, range: IntRange, step: Int): Int {
+    val clamped = raw.coerceIn(range)
+    val offset = clamped - range.first
+    val snapped = range.first + (offset / step) * step
+    return snapped.coerceIn(range)
+}
+
+@Composable
+private fun ColorPalette(
+    selected: Int,
+    enabled: Boolean,
+    onSelect: (Int) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SettingsRanges.TEXT_COLOR_PALETTE.forEach { argb ->
+            val isSelected = argb == selected
+            val size by animateDpAsState(
+                targetValue = if (isSelected) 36.dp else 28.dp,
+                label = "colorSwatchSize",
+            )
+            Box(
+                modifier = Modifier
+                    .size(size)
+                    .background(Color(argb), CircleShape)
+                    .clickable(enabled = enabled && !isSelected) { onSelect(argb) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToggleRow(
+    label: String,
+    secondary: String? = null,
+    checked: Boolean,
+    enabled: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+            if (secondary != null) {
+                Text(secondary, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = { if (enabled) onChange(it) },
+            enabled = enabled,
+        )
+    }
+}
+
+@Composable
+private fun CenteredProgress() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+private fun CenteredText(text: String) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text(text) }
+}
