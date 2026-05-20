@@ -66,7 +66,13 @@ fun NormalMode(
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
 
     LaunchedEffect(isActive) {
-        if (isActive) focusRequester.requestFocus()
+        if (isActive) {
+            // Small delay lets the pager finish its swipe animation before we claim
+            // focus — without it the InlineSlider in SettingsScreen can hold focus
+            // and the bezel stops working after returning from settings.
+            kotlinx.coroutines.delay(150)
+            focusRequester.requestFocus()
+        }
     }
 
     // ---- Restore last position when the document changes (i.e. a new book opens). ----
@@ -117,7 +123,7 @@ fun NormalMode(
 
     LazyColumn(
         state = listState,
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 24.dp),
+        contentPadding = PaddingValues(start = 14.dp, top = 48.dp, end = 14.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .fillMaxSize()

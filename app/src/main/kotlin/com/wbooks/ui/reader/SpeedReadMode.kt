@@ -78,7 +78,10 @@ fun SpeedReadMode(
     }
 
     LaunchedEffect(isActive) {
-        if (isActive) focusRequester.requestFocus()
+        if (isActive) {
+            delay(150)
+            focusRequester.requestFocus()
+        }
     }
 
     Box(

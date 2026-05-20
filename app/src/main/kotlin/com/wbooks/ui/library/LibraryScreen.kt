@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.focusable
 import androidx.compose.runtime.Composable
@@ -66,6 +67,7 @@ fun LibraryScreen(
                     secondaryLabel = book.author?.let { { Text(it) } },
                     onClick = { onBookOpen(book) },
                     colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }

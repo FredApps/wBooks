@@ -208,22 +208,6 @@ fun SettingsScreen(vm: ReaderViewModel) {
                 }
             }
             item {
-                val context = LocalContext.current
-                val pref = remember(context) {
-                    (context.applicationContext as WBooksApp).crashReportingPref
-                }
-                val enabled by pref.enabled.collectAsState()
-                ToggleChip(
-                    checked = enabled,
-                    onCheckedChange = { pref.setEnabled(it) },
-                    label = { Text(stringResource(R.string.settings_crash_reporting)) },
-                    secondaryLabel = { Text(stringResource(R.string.settings_crash_reporting_subtitle)) },
-                    toggleControl = { Switch(checked = enabled) },
-                    colors = ToggleChipDefaults.toggleChipColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            item {
                 Chip(
                     label = { Text(stringResource(R.string.settings_changelog)) },
                     onClick = { showChangelog = true },
@@ -236,6 +220,22 @@ fun SettingsScreen(vm: ReaderViewModel) {
                     label = { Text(stringResource(R.string.settings_about)) },
                     onClick = { showAbout = true },
                     colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
+                val context = LocalContext.current
+                val pref = remember(context) {
+                    (context.applicationContext as WBooksApp).crashReportingPref
+                }
+                val enabled by pref.enabled.collectAsState()
+                ToggleChip(
+                    checked = enabled,
+                    onCheckedChange = { pref.setEnabled(it) },
+                    label = { Text(stringResource(R.string.settings_crash_reporting)) },
+                    secondaryLabel = { Text(stringResource(R.string.settings_crash_reporting_subtitle)) },
+                    toggleControl = { Switch(checked = enabled) },
+                    colors = ToggleChipDefaults.toggleChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
