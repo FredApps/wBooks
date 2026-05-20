@@ -62,12 +62,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun createFolder(name: String) {
         if (name.isBlank()) return
         val trimmed = name.trim()
+        if (trimmed.contains('/') || trimmed.contains('\\')) {
+            _state.value = _state.value.copy(errorMessage = "Folder names cannot contain slashes")
+            return
+        }
         val newFolder = Folder(id = trimmed, name = trimmed)
         _state.value = _state.value.copy(
             folders = (_state.value.folders + newFolder).distinctBy { it.id },
             pendingFolders = _state.value.pendingFolders + trimmed,
         )
-        viewModelScope.launch { repo.mkdirBook(trimmed) }
+        viewModelScope.launch {
+            applyResult(repo.mkdirBook(trimmed))
+        }
     }
 
     fun deleteFolder(folderId: String) {
