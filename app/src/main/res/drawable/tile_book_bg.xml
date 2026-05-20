@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="192dp"
+    android:height="192dp"
+    android:viewportWidth="192"
+    android:viewportHeight="192">
+
+    <!-- Deep navy background -->
+    <path android:fillColor="#0C1829"
+        android:pathData="M0,0h192v192H0z" />
+
+    <!-- Warm atmospheric glow behind book -->
+    <path android:fillColor="#16263E"
+        android:pathData="M96,118 m-68,0 a68,44 0,1,1 136,0 a68,44 0,1,1,-136 0" />
+
+    <!-- Left page -->
+    <path android:fillColor="#C89050"
+        android:pathData="M90,70 L50,78 L46,148 L90,148 Z" />
+
+    <!-- Right page (slightly darker for depth) -->
+    <path android:fillColor="#A87038"
+        android:pathData="M102,70 L142,78 L146,148 L102,148 Z" />
+
+    <!-- Book spine / binding -->
+    <path android:fillColor="#E0B848"
+        android:pathData="M90,68 L102,68 L102,150 L90,150 Z" />
+
+    <!-- Spine highlight -->
+    <path android:fillColor="#F0D060"
+        android:pathData="M90,68 L95,68 L95,150 L90,150 Z" />
+
+    <!-- Far-right page edge shadow -->
+    <path android:fillColor="#845420"
+        android:pathData="M143,78 L147,79 L151,149 L147,148 Z" />
+
+    <!-- Text lines on left page (5 lines, angled with page perspective) -->
+    <path android:fillColor="#9A6C28" android:pathData="M56,93 L88,91 L88,94 L56,96 Z" />
+    <path android:fillColor="#9A6C28" android:pathData="M54,104 L88,102 L88,105 L54,107 Z" />
+    <path android:fillColor="#9A6C28" android:pathData="M52,115 L88,113 L88,116 L52,118 Z" />
+    <path android:fillColor="#9A6C28" android:pathData="M51,126 L88,124 L88,127 L51,129 Z" />
+    <path android:fillColor="#9A6C28" android:pathData="M51,137 L88,135 L88,138 L51,140 Z" />
+
+    <!-- Text lines on right page -->
+    <path android:fillColor="#7A5018" android:pathData="M104,91 L140,93 L140,96 L104,94 Z" />
+    <path android:fillColor="#7A5018" android:pathData="M104,102 L141,104 L141,107 L104,105 Z" />
+    <path android:fillColor="#7A5018" android:pathData="M104,113 L142,115 L142,118 L104,116 Z" />
+    <path android:fillColor="#7A5018" android:pathData="M104,124 L142,126 L142,129 L104,127 Z" />
+    <path android:fillColor="#7A5018" android:pathData="M104,135 L140,137 L140,140 L104,138 Z" />
+
+    <!-- Gold 4-point sparkle star, upper-left -->
+    <path android:fillColor="#F0C840"
+        android:pathData="M28,36 L30,28 L32,36 L40,38 L32,40 L30,48 L28,40 L20,38 Z" />
+
+    <!-- Smaller sparkle, upper-right -->
+    <path android:fillColor="#D4A830"
+        android:pathData="M158,25 L160,19 L162,25 L168,27 L162,29 L160,35 L158,29 L152,27 Z" />
+
+    <!-- Tiny gold dot above spine -->
+    <path android:fillColor="#F0D060"
+        android:pathData="M96,57 m-2.5,0 a2.5,2.5 0,1,1 5,0 a2.5,2.5 0,1,1,-5 0" />
+    <path android:fillColor="#D4B040"
+        android:pathData="M78,53 m-1.5,0 a1.5,1.5 0,1,1 3,0 a1.5,1.5 0,1,1,-3 0" />
+    <path android:fillColor="#D4B040"
+        android:pathData="M114,53 m-1.5,0 a1.5,1.5 0,1,1 3,0 a1.5,1.5 0,1,1,-3 0" />
+
+    <!-- Blue-grey ambient star dots -->
+    <path android:fillColor="#5890B8"
+        android:pathData="M168,58 m-2,0 a2,2 0,1,1 4,0 a2,2 0,1,1,-4 0" />
+    <path android:fillColor="#4878A0"
+        android:pathData="M22,64 m-1.5,0 a1.5,1.5 0,1,1 3,0 a1.5,1.5 0,1,1,-3 0" />
+    <path android:fillColor="#3A6088"
+        android:pathData="M172,136 m-1,0 a1,1 0,1,1 2,0 a1,1 0,1,1,-2 0" />
+    <path android:fillColor="#3A6088"
+        android:pathData="M18,144 m-1,0 a1,1 0,1,1 2,0 a1,1 0,1,1,-2 0" />
+
+    <!-- Dark gradient vignette at top so white text is always readable -->
+    <path android:fillColor="#CC0C1829"
+        android:pathData="M0,0 L192,0 L192,72 Q96,88 0,72 Z" />
+</vector>

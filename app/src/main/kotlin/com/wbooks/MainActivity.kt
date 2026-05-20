@@ -15,10 +15,16 @@ import com.wbooks.ui.WBooksRoot
 import com.wbooks.ui.theme.WBooksTheme
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        const val EXTRA_SHOW_LIBRARY = "show_library"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as WBooksApp
         val isFreshLaunch = savedInstanceState == null
+        val showLibrary = intent?.getBooleanExtra(EXTRA_SHOW_LIBRARY, false) == true
         setContent {
             val freshLaunch = remember { isFreshLaunch }
             val vm: ReaderViewModel = viewModel(
@@ -44,7 +50,7 @@ class MainActivity : ComponentActivity() {
             }
 
             LaunchedEffect(Unit) {
-                if (freshLaunch) vm.resumeLastBook()
+                if (freshLaunch && !showLibrary) vm.resumeLastBook()
             }
 
             WBooksTheme(choice = settings.theme) {

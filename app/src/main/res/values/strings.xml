@@ -31,9 +31,10 @@
     <string name="settings_crash_reporting">Crash reports</string>
     <string name="settings_crash_reporting_subtitle">Send anonymous crash data to help fix bugs</string>
 
-    <string name="tile_resume">Resume reading</string>
+    <string name="tile_books">wBooks</string>
+    <string name="tile_open">Open</string>
+    <string name="tile_resume">Resume</string>
     <string name="tile_no_book">No book open</string>
-    <string name="tile_reading_time">Reading today</string>
     <string name="complication_reading_time">Reading minutes today</string>
 
     <string name="mode_normal">Normal</string>
