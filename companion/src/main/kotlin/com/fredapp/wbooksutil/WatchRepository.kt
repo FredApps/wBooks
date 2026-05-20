@@ -109,6 +109,10 @@ class WatchRepository(context: Context) {
             }.getOrElse { Result.Error(it.message ?: "Upload failed") }
         }
 
+    suspend fun hasReachableWatch(): Boolean = withContext(Dispatchers.IO) {
+        bestNode() != null
+    }
+
     /** Find a connected node that has the wBooks watch app installed. */
     private suspend fun bestNode(): Node? {
         val info = runCatching {

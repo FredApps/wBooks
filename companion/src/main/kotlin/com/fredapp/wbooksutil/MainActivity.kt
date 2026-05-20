@@ -26,6 +26,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 
 class MainActivity : ComponentActivity() {
 
@@ -40,6 +42,21 @@ class MainActivity : ComponentActivity() {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
             MaterialTheme(colorScheme = colors) {
                 var screen by rememberSaveable { mutableStateOf(Screen.LIBRARY) }
+                DisposableEffect(mainViewModel) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        when (event) {
+                            Lifecycle.Event.ON_START -> mainViewModel.startForegroundWatchPolling()
+                            Lifecycle.Event.ON_STOP -> mainViewModel.stopForegroundWatchPolling()
+                            else -> Unit
+                        }
+                    }
+                    lifecycle.addObserver(observer)
+                    mainViewModel.startForegroundWatchPolling()
+                    onDispose {
+                        lifecycle.removeObserver(observer)
+                        mainViewModel.stopForegroundWatchPolling()
+                    }
+                }
                 when (screen) {
                     Screen.GUTENBERG -> GutenbergScreen(
                         vm = gutenbergViewModel,
