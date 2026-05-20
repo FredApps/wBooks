@@ -188,7 +188,7 @@ class BookReceiverService : WearableListenerService() {
         } else {
             // id may be a folder name — delete it and all books inside recursively
             val dir = java.io.File(app.booksDir, id)
-            if (dir.isDirectory) {
+            if (dir.isInside(app.booksDir) && dir.canonicalFile != app.booksDir.canonicalFile && dir.isDirectory) {
                 dir.walkTopDown().filter { it.isFile }.forEach { file ->
                     val bookId = file.relativeTo(app.booksDir).invariantSeparatorsPath
                     app.readingPaceRepository.clear(bookId)
@@ -204,13 +204,15 @@ class BookReceiverService : WearableListenerService() {
     private suspend fun mkdirBook(name: String) {
         if (name.isBlank() || name.contains('/') || name.contains('\\')) return
         val app = application as WBooksApp
-        java.io.File(app.booksDir, name).mkdirs()
+        val dir = java.io.File(app.booksDir, name)
+        if (dir.isInside(app.booksDir) && dir.canonicalFile != app.booksDir.canonicalFile) dir.mkdirs()
     }
 
     private suspend fun moveBook(id: String, targetFolder: String) {
         val app = application as WBooksApp
         val src = app.libraryRepository.books.value.firstOrNull { it.id == id }?.file ?: return
         val destDir = if (targetFolder.isEmpty()) app.booksDir else java.io.File(app.booksDir, targetFolder)
+        if (!destDir.isInside(app.booksDir)) return
         destDir.mkdirs()
         val dest = uniqueFile(destDir, src.name)
         if (src.renameTo(dest)) app.libraryRepository.refresh()
@@ -264,6 +266,9 @@ class BookReceiverService : WearableListenerService() {
         const val MAX_BOOK_BYTES = 50L * 1024 * 1024
     }
 }
+
+private fun File.isInside(root: File): Boolean =
+    canonicalFile.toPath().startsWith(root.canonicalFile.toPath())
 
 /**
  * Copy [this] stream to [out], throwing [IOException] if more than [limit] bytes are read.

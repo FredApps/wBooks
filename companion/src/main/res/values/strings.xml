@@ -16,6 +16,6 @@
     <string name="uncategorized">Root</string>
     <string name="move_to_folder">Move to folder</string>
     <string name="remove_from_folder">Remove from folder</string>
-    <string name="confirm_delete_folder">Delete folder? Books will move to Uncategorized.</string>
+    <string name="confirm_delete_folder">Delete folder and all books inside?</string>
     <string name="no_folders_hint">No folders yet. Use the folder button in the toolbar to create one.</string>
 </resources>

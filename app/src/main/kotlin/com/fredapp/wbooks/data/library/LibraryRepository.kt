@@ -43,9 +43,9 @@ class LibraryRepository(private val booksDir: File) {
 
     suspend fun move(bookId: String, targetFolder: String): Boolean = withContext(Dispatchers.IO) {
         val src = _books.value.firstOrNull { it.id == bookId }?.file ?: return@withContext false
-        val destDir = if (targetFolder.isEmpty()) booksDir
-                      else File(booksDir, targetFolder).apply { mkdirs() }
-        if (!destDir.canonicalPath.startsWith(booksDir.canonicalPath)) return@withContext false
+        val destDir = if (targetFolder.isEmpty()) booksDir else File(booksDir, targetFolder)
+        if (!destDir.isInsideBooksDir()) return@withContext false
+        destDir.mkdirs()
         val dest = uniqueFile(destDir, src.name)
         if (src.renameTo(dest)) { refresh(); true } else false
     }
@@ -60,4 +60,7 @@ class LibraryRepository(private val booksDir: File) {
             file = file,
         )
     }
+
+    private fun File.isInsideBooksDir(): Boolean =
+        canonicalFile.toPath().startsWith(booksDir.canonicalFile.toPath())
 }
