@@ -1,4 +1,4 @@
-﻿package com.fredapp.wbooksutil
+package com.fredapp.wbooksutil
 
 import android.app.Application
 import android.net.Uri
@@ -18,10 +18,13 @@ import kotlinx.coroutines.launch
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repo = WatchRepository(application)
+    private val folderRepo = FolderRepository(application)
     private var watchPollingJob: Job? = null
 
     data class UiState(
         val books: List<BookSummary> = emptyList(),
+        val folders: List<Folder> = emptyList(),
+        val bookFolders: Map<String, String> = emptyMap(),
         val loading: Boolean = false,
         val sending: Boolean = false,
         val noWatch: Boolean = false,
@@ -32,6 +35,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     init {
+        _state.value = _state.value.copy(
+            folders = folderRepo.getFolders(),
+            bookFolders = folderRepo.getAssignments(),
+        )
         refresh()
     }
 
@@ -52,6 +59,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun stopForegroundWatchPolling() {
         watchPollingJob?.cancel()
         watchPollingJob = null
+    }
+
+    fun createFolder(name: String) {
+        if (name.isBlank()) return
+        val folder = folderRepo.createFolder(name)
+        _state.value = _state.value.copy(folders = _state.value.folders + folder)
+    }
+
+    fun deleteFolder(folderId: String) {
+        folderRepo.deleteFolder(folderId)
+        _state.value = _state.value.copy(
+            folders = _state.value.folders.filter { it.id != folderId },
+            bookFolders = _state.value.bookFolders.filter { it.value != folderId },
+        )
+    }
+
+    fun assignBookToFolder(bookId: String, folderId: String?) {
+        folderRepo.assignBook(bookId, folderId)
+        val updated = _state.value.bookFolders.toMutableMap()
+        if (folderId == null) updated.remove(bookId) else updated[bookId] = folderId
+        _state.value = _state.value.copy(bookFolders = updated)
     }
 
     private suspend fun pollWatchConnection() {
@@ -100,8 +128,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun applyResult(result: WatchRepository.Result<List<BookSummary>>) {
         when (result) {
-            is WatchRepository.Result.Ok ->
-                _state.value = _state.value.copy(books = result.value, noWatch = false)
+            is WatchRepository.Result.Ok -> {
+                val bookIds = result.value.map { it.id }.toSet()
+                folderRepo.cleanupAssignments(bookIds)
+                val cleanedAssignments = _state.value.bookFolders.filter { it.key in bookIds }
+                _state.value = _state.value.copy(
+                    books = result.value,
+                    noWatch = false,
+                    bookFolders = cleanedAssignments,
+                )
+            }
             is WatchRepository.Result.NoWatch ->
                 _state.value = _state.value.copy(noWatch = true, books = emptyList())
             is WatchRepository.Result.Error ->
