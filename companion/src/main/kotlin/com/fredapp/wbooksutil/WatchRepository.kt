@@ -28,6 +28,7 @@ class WatchRepository(context: Context) {
     private val capabilityClient = Wearable.getCapabilityClient(appContext)
     private val messageClient = Wearable.getMessageClient(appContext)
     private val channelClient = Wearable.getChannelClient(appContext)
+    private val nodeClient = Wearable.getNodeClient(appContext)
 
     sealed class Result<out T> {
         data class Ok<T>(val value: T) : Result<T>()
@@ -119,8 +120,14 @@ class WatchRepository(context: Context) {
             capabilityClient
                 .getCapability(WBOOKS_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
                 .await()
-        }.getOrNull() ?: return null
-        return info.nodes.firstOrNull { it.isNearby } ?: info.nodes.firstOrNull()
+        }.getOrNull()
+        val capabilityNode = info
+            ?.nodes
+            ?.let { nodes -> nodes.firstOrNull { it.isNearby } ?: nodes.firstOrNull() }
+        if (capabilityNode != null) return capabilityNode
+
+        val connectedNodes = runCatching { nodeClient.connectedNodes.await() }.getOrNull().orEmpty()
+        return connectedNodes.firstOrNull { it.isNearby } ?: connectedNodes.firstOrNull()
     }
 
     companion object {
