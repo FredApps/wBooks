@@ -418,6 +418,16 @@ class ReaderViewModel(
         viewModelScope.launch { libraryRepo.move(bookId, targetFolder) }
     }
 
+    fun deleteBook(bookId: String) {
+        viewModelScope.launch {
+            if (libraryRepo.delete(bookId)) {
+                paceRepo.clear(bookId)
+                positionsRepo.clear(bookId)
+                bookmarksRepo.clear(bookId)
+            }
+        }
+    }
+
     fun openBook(book: Book) {
         loadJob?.cancel()
         // Reset pace baseline so the first reportPosition after the new book

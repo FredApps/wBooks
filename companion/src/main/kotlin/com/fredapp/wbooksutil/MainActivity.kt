@@ -15,7 +15,6 @@ import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -263,6 +262,7 @@ private fun CompanionScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BookList(
     books: List<BookSummary>,
@@ -273,53 +273,67 @@ private fun BookList(
     onAssignToFolder: (bookId: String, folderId: String?) -> Unit,
 ) {
     var expandedFolders by rememberSaveable { mutableStateOf(emptySet<String>()) }
-    var uncatExpanded by rememberSaveable { mutableStateOf(false) }
+    var rootExpanded by rememberSaveable { mutableStateOf(true) }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        for (folder in folders) {
-            val folderBooks = books.filter { bookFolders[it.id] == folder.id }
-            val isExpanded = folder.id in expandedFolders
-            item(key = "fh_${folder.id}") {
-                FolderHeader(
-                    folder = folder,
-                    bookCount = folderBooks.size,
-                    expanded = isExpanded,
-                    onToggle = {
-                        expandedFolders = if (isExpanded) expandedFolders - folder.id
-                                          else expandedFolders + folder.id
-                    },
-                    onDelete = { onDeleteFolder(folder) },
-                    onDrop = { bookId -> onAssignToFolder(bookId, folder.id) },
-                )
-            }
-            if (isExpanded) {
-                items(folderBooks, key = { "b_${it.id}" }) { book ->
-                    BookItem(book = book, onDelete = onDelete)
-                    HorizontalDivider()
+        if (folders.isNotEmpty()) {
+            item(key = "folder_chips") {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    for (folder in folders) {
+                        val folderBooks = books.filter { bookFolders[it.id] == folder.id }
+                        val isExpanded = folder.id in expandedFolders
+                        FolderChip(
+                            folder = folder,
+                            bookCount = folderBooks.size,
+                            selected = isExpanded,
+                            onToggle = {
+                                expandedFolders = if (isExpanded) expandedFolders - folder.id
+                                                  else expandedFolders + folder.id
+                            },
+                            onDelete = { onDeleteFolder(folder) },
+                            onDrop = { bookId -> onAssignToFolder(bookId, folder.id) },
+                        )
+                    }
                 }
             }
         }
 
-        val uncategorized = books.filter { it.id !in bookFolders }
-        if (folders.isNotEmpty()) {
-            item(key = "uncategorized_header") {
-                UncategorizedHeader(
-                    bookCount = uncategorized.size,
-                    expanded = uncatExpanded,
-                    onToggle = { uncatExpanded = !uncatExpanded },
-                    onDrop = { bookId -> onAssignToFolder(bookId, null) },
-                )
+        for (folder in folders.filter { it.id in expandedFolders }) {
+            val folderBooks = books.filter { bookFolders[it.id] == folder.id }
+            items(folderBooks, key = { "b_${folder.id}_${it.id}" }) { book ->
+                BookItem(book = book, onDelete = onDelete)
+                HorizontalDivider()
             }
-            if (uncatExpanded) {
-                items(uncategorized, key = { "b_${it.id}" }) { book ->
+        }
+
+        val rootBooks = books.filter { it.id !in bookFolders }
+        item(key = "root_header") {
+            RootHeader(
+                bookCount = rootBooks.size,
+                expanded = rootExpanded,
+                onToggle = { rootExpanded = !rootExpanded },
+                onDrop = { bookId -> onAssignToFolder(bookId, null) },
+            )
+        }
+        if (rootExpanded) {
+            if (rootBooks.isEmpty()) {
+                item(key = "root_empty") {
+                    Text(
+                        "Drop books here to move them to Root",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+                    )
+                }
+            } else {
+                items(rootBooks, key = { "b_root_${it.id}" }) { book ->
                     BookItem(book = book, onDelete = onDelete)
                     HorizontalDivider()
                 }
-            }
-        } else {
-            items(uncategorized, key = { "b_${it.id}" }) { book ->
-                BookItem(book = book, onDelete = onDelete)
-                HorizontalDivider()
             }
         }
     }
@@ -327,10 +341,10 @@ private fun BookList(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FolderHeader(
+private fun FolderChip(
     folder: Folder,
     bookCount: Int,
-    expanded: Boolean,
+    selected: Boolean,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     onDrop: (bookId: String) -> Unit,
@@ -351,44 +365,42 @@ private fun FolderHeader(
             override fun onEnded(event: DragAndDropEvent) { isDragOver.value = false }
         }
     }
-    ListItem(
-        leadingContent = {
-            Icon(
-                if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        },
-        headlineContent = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text("${folder.name} ($bookCount)", fontWeight = FontWeight.SemiBold)
-            }
-        },
-        trailingContent = {
+    val container = when {
+        isDragOver.value -> MaterialTheme.colorScheme.tertiaryContainer
+        selected -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceContainerHighest
+    }
+    Surface(
+        onClick = onToggle,
+        shape = MaterialTheme.shapes.medium,
+        color = container,
+        shadowElevation = if (isSystemInDarkTheme()) 0.dp else 3.dp,
+        tonalElevation = if (isSystemInDarkTheme()) 2.dp else 0.dp,
+        modifier = Modifier.dragAndDropTarget(
+            shouldStartDragAndDrop = { event ->
+                event.toAndroidDragEvent().clipDescription
+                    ?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true
+            },
+            target = target,
+        ),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+        ) {
+            Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+            Text("${folder.name} ($bookCount)", fontWeight = FontWeight.SemiBold)
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
             }
-        },
-        colors = ListItemDefaults.colors(
-            containerColor = if (isDragOver.value) MaterialTheme.colorScheme.primaryContainer
-                             else MaterialTheme.colorScheme.surfaceVariant,
-        ),
-        modifier = Modifier
-            .clickable(onClick = onToggle)
-            .dragAndDropTarget(
-                shouldStartDragAndDrop = { event ->
-                    event.toAndroidDragEvent().clipDescription
-                        ?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true
-                },
-                target = target,
-            ),
-    )
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun UncategorizedHeader(
+private fun RootHeader(
     bookCount: Int,
     expanded: Boolean,
     onToggle: () -> Unit,
@@ -415,21 +427,21 @@ private fun UncategorizedHeader(
             Icon(
                 if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = MaterialTheme.colorScheme.tertiary,
             )
         },
         headlineContent = {
-            Text(
-                "${stringResource(R.string.uncategorized)} ($bookCount)",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+                Text("${stringResource(R.string.uncategorized)} ($bookCount)", fontWeight = FontWeight.SemiBold)
+            }
         },
         colors = ListItemDefaults.colors(
-            containerColor = if (isDragOver.value) MaterialTheme.colorScheme.secondaryContainer
+            containerColor = if (isDragOver.value) MaterialTheme.colorScheme.tertiaryContainer
                              else MaterialTheme.colorScheme.surfaceVariant,
         ),
         modifier = Modifier
+            .fillMaxWidth()
             .clickable(onClick = onToggle)
             .dragAndDropTarget(
                 shouldStartDragAndDrop = { event ->

@@ -42,7 +42,7 @@
     <string name="mode_sentence">Sentence</string>
 
     <string name="empty_library">No books yet. Open Settings &gt; Start web interface to add some.</string>
-    <string name="uncategorized">Uncategorized</string>
+    <string name="uncategorized">Root</string>
     <string name="server_running">Upload server running</string>
     <string name="server_url">Open %1$s on a computer on the same Wi-Fi</string>
 </resources>
