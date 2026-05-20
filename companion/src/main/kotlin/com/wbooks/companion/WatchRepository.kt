@@ -78,7 +78,7 @@ class WatchRepository(context: Context) {
     suspend fun deleteBook(id: String): Result<List<BookSummary>> = withContext(Dispatchers.IO) {
         val node = bestNode() ?: return@withContext Result.NoWatch
         runCatching {
-            val payload = """{"id":"${escape(id)}"}""".toByteArray(Charsets.UTF_8)
+            val payload = org.json.JSONObject().put("id", id).toString().toByteArray(Charsets.UTF_8)
             val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_DELETE, payload).await()
             Result.Ok(LibraryListJson.decode(bytes))
         }.getOrElse { Result.Error(it.message ?: "Delete failed") }
@@ -118,9 +118,6 @@ class WatchRepository(context: Context) {
         }.getOrNull() ?: return null
         return info.nodes.firstOrNull { it.isNearby } ?: info.nodes.firstOrNull()
     }
-
-    private fun escape(s: String): String =
-        s.replace("\\", "\\\\").replace("\"", "\\\"")
 
     companion object {
         /** Must match the capability the watch app advertises in res/values/wear.xml. */

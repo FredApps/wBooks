@@ -82,15 +82,18 @@ class GutenbergRepository {
             setRequestProperty("Accept", "application/atom+xml, */*")
             instanceFollowRedirects = true
         }
+        // Check response status before registering the cancellation hook so that
+        // the hook isn't left pointing at a connection that was already disconnected
+        // by the error path.
+        val code = conn.responseCode
+        if (code !in 200..299) {
+            conn.disconnect()
+            error("Project Gutenberg returned HTTP $code")
+        }
         // disconnect() from another thread causes the blocking read on this
         // connection to throw IOException, which propagates back as the
         // CancellationException the coroutine expected.
         job?.invokeOnCompletion { if (it != null) conn.disconnect() }
-        if (conn.responseCode !in 200..299) {
-            val code = conn.responseCode
-            conn.disconnect()
-            error("Project Gutenberg returned HTTP $code")
-        }
         return conn
     }
 

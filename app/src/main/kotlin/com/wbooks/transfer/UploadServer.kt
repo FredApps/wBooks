@@ -1,9 +1,11 @@
 package com.wbooks.transfer
 
 import com.wbooks.data.book.BookFormat
+import com.wbooks.util.uniqueFile
 import fi.iki.elonen.NanoHTTPD
 import java.io.File
 import java.net.URLDecoder
+import java.net.URLEncoder
 import java.security.MessageDigest
 
 /**
@@ -21,11 +23,15 @@ import java.security.MessageDigest
  *
  * Books live under [booksDir]. Subdirectories are treated as folders for sorting;
  * arbitrary nesting is allowed but the UI flattens it for now.
+ *
+ * [onBookDeleted] is called (on the NanoHTTPD thread) with each book's ID after
+ * it is removed via the web UI so callers can clean up associated DataStore state.
  */
 class UploadServer(
     port: Int,
     private val booksDir: File,
     private val pin: String,
+    private val onBookDeleted: (bookId: String) -> Unit = {},
 ) : NanoHTTPD(port) {
 
     private val pinBytes = pin.toByteArray(Charsets.UTF_8)
@@ -34,7 +40,7 @@ class UploadServer(
     override fun serve(session: IHTTPSession): Response = try {
         when (session.uri.trimEnd('/').ifEmpty { "/" }) {
             "/" -> when (session.method) {
-                Method.GET -> renderIndex()
+                Method.GET -> renderIndex(queryParam(session, "msg"))
                 else -> methodNotAllowed()
             }
             "/upload" -> handleUpload(session)
@@ -50,7 +56,7 @@ class UploadServer(
 
     // --- handlers ---
 
-    private fun renderIndex(): Response {
+    private fun renderIndex(flash: String): Response {
         val rows = StringBuilder()
         val entries = booksDir.walkTopDown()
             .filter { it != booksDir }
@@ -86,6 +92,8 @@ class UploadServer(
                 )
             }
         }
+        val flashHtml = if (flash.isNotEmpty())
+            """<p class="flash">${htmlEscape(flash)}</p>""" else ""
         val html = """
             <!doctype html>
             <html><head><meta charset="utf-8"><title>wBooks transfer</title>
@@ -98,6 +106,7 @@ class UploadServer(
               input[type=text],input[type=password]{padding:6px}
               button{padding:6px 12px}
               .note{color:#666;font-size:0.85em}
+              .flash{background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:8px 12px;margin:8px 0;}
             </style>
             <script>
               function attachPin(form) {
@@ -109,15 +118,36 @@ class UploadServer(
                 if (!confirm(form.dataset.confirm)) return false;
                 return attachPin(form);
               }
+              // Upload via fetch so each file gets a unique field name, avoiding
+              // NanoHTTPD's HashMap overwrite when multiple files share the same field.
+              async function submitUpload(e) {
+                e.preventDefault();
+                var pin = document.getElementById('pin').value;
+                var form = e.target;
+                var folder = form.querySelector('input[name=folder]').value.trim();
+                var files = form.querySelector('input[type=file]').files;
+                if (!files.length) return;
+                var fd = new FormData();
+                if (folder) fd.append('folder', folder);
+                for (var i = 0; i < files.length; i++) {
+                  fd.append('file' + i, files[i], files[i].name);
+                }
+                try {
+                  var resp = await fetch('/upload?pin=' + encodeURIComponent(pin), {method:'POST', body: fd});
+                  if (!resp.ok) { alert('Upload failed: ' + resp.status); return; }
+                } catch(err) { alert('Upload error: ' + err); return; }
+                location.href = '/';
+              }
             </script>
             </head><body>
             <h1>wBooks transfer</h1>
+            $flashHtml
             <div class="row">
               <label>PIN: <input id="pin" type="password" autocomplete="off" inputmode="numeric"></label>
               <span class="note">Shown on the watch.</span>
             </div>
             <form method="post" action="/upload" enctype="multipart/form-data" class="row"
-                  onsubmit="return attachPin(this)">
+                  onsubmit="submitUpload(event)">
               <label>Folder (optional): <input type="text" name="folder" placeholder="e.g. fiction"></label>
               <input type="file" name="file" multiple accept=".epub,.txt,.fb2,.html,.htm,.xhtml,.docx,.odt">
               <button>Upload</button>
@@ -136,7 +166,9 @@ class UploadServer(
         if (session.method != Method.POST) return methodNotAllowed()
         gatePin(session)?.let { return it }
         // NanoHTTPD writes uploaded files to temp paths and populates this map keyed by the form field.
-        // Runs only after PIN passes so unauth peers can't fill storage by spamming uploads.
+        // The JS upload function uses unique field names (file0, file1, …) so all files survive in
+        // this map even when multiple are uploaded at once. Runs only after PIN passes so
+        // unauthenticated peers can't fill storage by spamming uploads.
         val tempFiles = HashMap<String, String>()
         session.parseBody(tempFiles)
         val params = session.parameters
@@ -158,7 +190,7 @@ class UploadServer(
             File(tempPath).copyTo(dest, overwrite = false)
             written++
         }
-        return redirectToIndex(if (written > 0) "Uploaded $written file(s)" else "No supported files")
+        return redirectToIndex(if (written > 0) "Uploaded $written file(s)" else "No supported files found in upload")
     }
 
     private fun handleDelete(session: IHTTPSession): Response {
@@ -170,7 +202,18 @@ class UploadServer(
         if (!target.canonicalPath.startsWith(booksDir.canonicalPath) || !target.exists()) {
             return notFound()
         }
-        if (target.isDirectory) target.deleteRecursively() else target.delete()
+        if (target.isDirectory) {
+            // Collect book IDs before deleting so we can clean up associated data.
+            val bookIds = target.walkTopDown()
+                .filter { it.isFile && BookFormat.fromExtension(it.extension) != null }
+                .map { it.relativeTo(booksDir).invariantSeparatorsPath }
+                .toList()
+            target.deleteRecursively()
+            bookIds.forEach { onBookDeleted(it) }
+        } else {
+            target.delete()
+            onBookDeleted(path)
+        }
         return redirectToIndex("Deleted $path")
     }
 
@@ -231,12 +274,14 @@ class UploadServer(
         }
     }
 
-    private fun pinFromQuery(session: IHTTPSession): String {
+    private fun pinFromQuery(session: IHTTPSession): String = queryParam(session, "pin")
+
+    private fun queryParam(session: IHTTPSession, name: String): String {
         val qs = session.queryParameterString ?: return ""
         for (kv in qs.split('&')) {
             val eq = kv.indexOf('=')
             val key = if (eq < 0) kv else kv.substring(0, eq)
-            if (key == "pin") {
+            if (key == name) {
                 val raw = if (eq < 0) "" else kv.substring(eq + 1)
                 return try {
                     URLDecoder.decode(raw, "UTF-8")
@@ -275,23 +320,10 @@ class UploadServer(
         return out.toString()
     }
 
-    private fun uniqueFile(dir: File, name: String): File {
-        var candidate = File(dir, name)
-        if (!candidate.exists()) return candidate
-        val base = name.substringBeforeLast('.', name)
-        val ext = name.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
-        var i = 2
-        while (true) {
-            candidate = File(dir, "$base ($i)$ext")
-            if (!candidate.exists()) return candidate
-            i++
-        }
-    }
-
-    private fun redirectToIndex(@Suppress("UNUSED_PARAMETER") flash: String): Response {
+    private fun redirectToIndex(flash: String): Response {
         // 303 See Other so the browser issues a fresh GET / instead of resubmitting the form.
         val resp = newFixedLengthResponse(Response.Status.REDIRECT_SEE_OTHER, "text/plain", "")
-        resp.addHeader("Location", "/")
+        resp.addHeader("Location", "/?msg=" + URLEncoder.encode(flash, "UTF-8"))
         return resp
     }
 

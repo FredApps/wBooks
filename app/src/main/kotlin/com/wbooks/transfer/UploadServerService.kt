@@ -10,6 +10,11 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.wbooks.WBooksApp
 import com.wbooks.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Foreground service that owns the live [UploadServer]. Started/stopped via
@@ -21,6 +26,8 @@ import com.wbooks.R
 class UploadServerService : Service() {
 
     private var server: UploadServer? = null
+    /** Scope used to dispatch post-delete DataStore cleanup from NanoHTTPD's thread pool. */
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -38,7 +45,19 @@ class UploadServerService : Service() {
         if (server != null) return
         val app = application as WBooksApp
         val pin = generatePin()
-        val s = UploadServer(port = PORT, booksDir = app.booksDir, pin = pin).also {
+        val s = UploadServer(
+            port = PORT,
+            booksDir = app.booksDir,
+            pin = pin,
+            onBookDeleted = { bookId ->
+                // Clean up reading data for books deleted via the web UI.
+                serviceScope.launch {
+                    app.readingPaceRepository.clear(bookId)
+                    app.positionsRepository.clear(bookId)
+                    app.bookmarksRepository.clear(bookId)
+                }
+            },
+        ).also {
             it.start(NANOHTTPD_TIMEOUT, /* daemon = */ true)
         }
         server = s
@@ -64,6 +83,7 @@ class UploadServerService : Service() {
 
     override fun onDestroy() {
         shutdown()
+        serviceScope.cancel()
         super.onDestroy()
     }
 

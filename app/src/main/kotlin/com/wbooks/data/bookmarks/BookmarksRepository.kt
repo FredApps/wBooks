@@ -39,11 +39,17 @@ class BookmarksRepository(context: Context) {
         edit(bookId) { it.filterNot { existing -> existing.position == position } }
     }
 
+    /** Remove all bookmarks for a deleted book. */
+    suspend fun clear(bookId: String) {
+        val key = stringPreferencesKey("bm:$bookId")
+        store.edit { it.remove(key) }
+    }
+
     private suspend fun edit(bookId: String, transform: (List<Bookmark>) -> List<Bookmark>) {
         val key = stringPreferencesKey("bm:$bookId")
         store.edit { prefs ->
             val current = decodeAll(prefs[key].orEmpty())
-            val next = transform(current).sortedBy { it.position.chapterIndex * 1_000_000 + it.position.blockIndex }
+            val next = transform(current).sortedBy { it.position.chapterIndex.toLong() * 1_000_000L + it.position.blockIndex }
             prefs[key] = encodeAll(next)
         }
     }
