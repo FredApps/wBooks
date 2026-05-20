@@ -23,3 +23,7 @@ dependencyResolutionManagement {
 rootProject.name = "wBooks"
 include(":app")
 include(":companion")
+// Standalone Wear OS tile + drawer shortcut that opens Developer options. Lives
+// here only to share this project's gradle wrapper / version catalog; it has
+// its own applicationId and ships as a separate APK.
+include(":devtools")
