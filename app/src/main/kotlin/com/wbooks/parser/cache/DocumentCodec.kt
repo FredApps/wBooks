@@ -139,6 +139,9 @@ internal object DocumentCodec {
 
     private fun readString(input: DataInputStream): String {
         val n = input.readInt()
+        require(n in 0..MAX_STRING_BYTES) {
+            "DocumentCodec: string length $n out of valid range 0..$MAX_STRING_BYTES — cache file corrupt?"
+        }
         val bytes = ByteArray(n)
         input.readFully(bytes)
         return String(bytes, Charsets.UTF_8)
@@ -165,4 +168,7 @@ internal object DocumentCodec {
     private const val FLAG_BOLD = 1
     private const val FLAG_ITALIC = 2
     private const val FLAG_UNDERLINE = 4
+
+    /** Guard against OOM on corrupt cache files. 8 MB is well above any realistic string. */
+    private const val MAX_STRING_BYTES = 8 * 1024 * 1024
 }

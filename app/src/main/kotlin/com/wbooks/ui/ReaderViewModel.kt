@@ -26,6 +26,7 @@ import com.wbooks.parser.parserFor
 import com.wbooks.transfer.TransferController
 import com.wbooks.transfer.TransferState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -61,6 +62,8 @@ class ReaderViewModel(
     private val documentCache: DocumentCache,
     private val paceRepo: ReadingPaceRepository,
     private val statsRepo: ReadingStatsRepository,
+    /** Application-level scope used for cache writes that must outlive this ViewModel. */
+    private val appScope: CoroutineScope,
 ) : ViewModel() {
 
     private var lastAdvanceMs: Long = 0L
@@ -407,7 +410,10 @@ class ReaderViewModel(
             )
             val result = runCatching {
                 documentCache.load(key) ?: parseBook(book).also { parsed ->
-                    viewModelScope.launch(Dispatchers.IO) {
+                    // Use appScope so the cache write isn't cancelled if the user
+                    // navigates away before it completes — a cancelled write would
+                    // force a full re-parse on the next open.
+                    appScope.launch(Dispatchers.IO) {
                         runCatching { documentCache.store(key, parsed) }
                     }
                 }
@@ -502,12 +508,13 @@ class ReaderViewModel(
         private val documentCache: DocumentCache,
         private val paceRepo: ReadingPaceRepository,
         private val statsRepo: ReadingStatsRepository,
+        private val appScope: CoroutineScope,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass == ReaderViewModel::class.java)
             return ReaderViewModel(
-                settingsRepo, libraryRepo, positionsRepo, bookmarksRepo, transferController, documentCache, paceRepo, statsRepo,
+                settingsRepo, libraryRepo, positionsRepo, bookmarksRepo, transferController, documentCache, paceRepo, statsRepo, appScope,
             ) as T
         }
     }

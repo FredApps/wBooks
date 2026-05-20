@@ -13,6 +13,7 @@ import com.google.android.gms.wearable.WearableListenerService
 import com.wbooks.R
 import com.wbooks.WBooksApp
 import com.wbooks.data.book.BookFormat
+import com.wbooks.util.uniqueFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,6 +21,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.io.File
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.URLDecoder
 
 /**
@@ -148,18 +152,29 @@ class BookReceiverService : WearableListenerService() {
         scope.launch {
             val client = Wearable.getChannelClient(this@BookReceiverService)
             val dest = uniqueFile(app.booksDir, safe)
-            client.getInputStream(channel).await().use { input ->
-                dest.outputStream().buffered().use { out -> input.copyTo(out) }
+            val ok = runCatching {
+                client.getInputStream(channel).await().use { input ->
+                    dest.outputStream().buffered().use { out ->
+                        input.copyToLimited(out, MAX_BOOK_BYTES)
+                    }
+                }
+            }.onFailure { dest.delete() }.isSuccess
+            if (ok) {
+                notifyReceived(dest.name)
+                app.libraryRepository.refresh()
             }
-            notifyReceived(dest.name)
-            app.libraryRepository.refresh()
         }
     }
 
-    private fun deleteBook(id: String) {
+    private suspend fun deleteBook(id: String) {
         val app = application as WBooksApp
         // LibraryRepository.delete is synchronous and idempotent.
-        app.libraryRepository.delete(id)
+        val removed = app.libraryRepository.delete(id)
+        if (removed) {
+            app.readingPaceRepository.clear(id)
+            app.positionsRepository.clear(id)
+            app.bookmarksRepository.clear(id)
+        }
     }
 
     /**
@@ -185,19 +200,6 @@ class BookReceiverService : WearableListenerService() {
             .replace("\\\\", "\\")
     }
 
-    private fun uniqueFile(dir: File, name: String): File {
-        var candidate = File(dir, name)
-        if (!candidate.exists()) return candidate
-        val base = name.substringBeforeLast('.', name)
-        val ext = name.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
-        var i = 2
-        while (true) {
-            candidate = File(dir, "$base ($i)$ext")
-            if (!candidate.exists()) return candidate
-            i++
-        }
-    }
-
     private fun notifyReceived(filename: String) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (nm.getNotificationChannel(CHANNEL_ID) == null) {
@@ -218,5 +220,23 @@ class BookReceiverService : WearableListenerService() {
 
     private companion object {
         const val CHANNEL_ID = "wbooks_received"
+
+        /** Cap incoming Wear channel uploads to prevent a paired device from filling storage. */
+        const val MAX_BOOK_BYTES = 50L * 1024 * 1024
+    }
+}
+
+/**
+ * Copy [this] stream to [out], throwing [IOException] if more than [limit] bytes are read.
+ * Cleans up gracefully: the caller is responsible for deleting any partially-written destination.
+ */
+private fun InputStream.copyToLimited(out: OutputStream, limit: Long) {
+    var total = 0L
+    val buf = ByteArray(DEFAULT_BUFFER_SIZE)
+    var n: Int
+    while (read(buf).also { n = it } != -1) {
+        total += n
+        if (total > limit) throw IOException("Book upload exceeds ${limit / 1_048_576} MB limit")
+        out.write(buf, 0, n)
     }
 }

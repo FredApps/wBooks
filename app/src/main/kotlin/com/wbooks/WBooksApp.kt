@@ -33,7 +33,7 @@ class WBooksApp : Application() {
     val crashReportingPref: CrashReportingPref by lazy { CrashReportingPref(this) }
 
     /** Application-scope coroutine scope for one-shot background work that needs to outlive any single screen. */
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()

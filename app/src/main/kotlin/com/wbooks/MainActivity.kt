@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
                     documentCache = app.documentCache,
                     paceRepo = app.readingPaceRepository,
                     statsRepo = app.readingStatsRepository,
+                    appScope = app.appScope,
                 ),
             )
             val settings by vm.settings.collectAsState()
