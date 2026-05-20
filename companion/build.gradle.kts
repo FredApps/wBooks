@@ -53,7 +53,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.fredapp.wbooksutil"
+        applicationId = "REDACTED"
         minSdk = 24
         targetSdk = 35
         versionCode = 2
