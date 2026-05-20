@@ -9,11 +9,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -22,6 +24,8 @@ import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -268,29 +272,51 @@ private fun BookList(
     onDeleteFolder: (Folder) -> Unit,
     onAssignToFolder: (bookId: String, folderId: String?) -> Unit,
 ) {
+    var expandedFolders by rememberSaveable { mutableStateOf(emptySet<String>()) }
+    var uncatExpanded by rememberSaveable { mutableStateOf(false) }
+
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         for (folder in folders) {
             val folderBooks = books.filter { bookFolders[it.id] == folder.id }
+            val isExpanded = folder.id in expandedFolders
             item(key = "fh_${folder.id}") {
                 FolderHeader(
                     folder = folder,
+                    bookCount = folderBooks.size,
+                    expanded = isExpanded,
+                    onToggle = {
+                        expandedFolders = if (isExpanded) expandedFolders - folder.id
+                                          else expandedFolders + folder.id
+                    },
                     onDelete = { onDeleteFolder(folder) },
                     onDrop = { bookId -> onAssignToFolder(bookId, folder.id) },
                 )
             }
-            items(folderBooks, key = { "b_${it.id}" }) { book ->
-                BookItem(book = book, onDelete = onDelete)
-                HorizontalDivider()
+            if (isExpanded) {
+                items(folderBooks, key = { "b_${it.id}" }) { book ->
+                    BookItem(book = book, onDelete = onDelete)
+                    HorizontalDivider()
+                }
             }
         }
 
         val uncategorized = books.filter { it.id !in bookFolders }
-        if (uncategorized.isNotEmpty()) {
-            if (folders.isNotEmpty()) {
-                item(key = "uncategorized_header") {
-                    UncategorizedHeader(onDrop = { bookId -> onAssignToFolder(bookId, null) })
+        if (folders.isNotEmpty()) {
+            item(key = "uncategorized_header") {
+                UncategorizedHeader(
+                    bookCount = uncategorized.size,
+                    expanded = uncatExpanded,
+                    onToggle = { uncatExpanded = !uncatExpanded },
+                    onDrop = { bookId -> onAssignToFolder(bookId, null) },
+                )
+            }
+            if (uncatExpanded) {
+                items(uncategorized, key = { "b_${it.id}" }) { book ->
+                    BookItem(book = book, onDelete = onDelete)
+                    HorizontalDivider()
                 }
             }
+        } else {
             items(uncategorized, key = { "b_${it.id}" }) { book ->
                 BookItem(book = book, onDelete = onDelete)
                 HorizontalDivider()
@@ -301,7 +327,14 @@ private fun BookList(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FolderHeader(folder: Folder, onDelete: () -> Unit, onDrop: (bookId: String) -> Unit) {
+private fun FolderHeader(
+    folder: Folder,
+    bookCount: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onDelete: () -> Unit,
+    onDrop: (bookId: String) -> Unit,
+) {
     val isDragOver = remember { mutableStateOf(false) }
     val onDropRef = rememberUpdatedState(onDrop)
     val target = remember(folder.id) {
@@ -320,9 +353,18 @@ private fun FolderHeader(folder: Folder, onDelete: () -> Unit, onDrop: (bookId: 
     }
     ListItem(
         leadingContent = {
-            Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Icon(
+                if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
         },
-        headlineContent = { Text(folder.name, fontWeight = FontWeight.SemiBold) },
+        headlineContent = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text("${folder.name} ($bookCount)", fontWeight = FontWeight.SemiBold)
+            }
+        },
         trailingContent = {
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
@@ -332,19 +374,26 @@ private fun FolderHeader(folder: Folder, onDelete: () -> Unit, onDrop: (bookId: 
             containerColor = if (isDragOver.value) MaterialTheme.colorScheme.primaryContainer
                              else MaterialTheme.colorScheme.surfaceVariant,
         ),
-        modifier = Modifier.dragAndDropTarget(
-            shouldStartDragAndDrop = { event ->
-                event.toAndroidDragEvent().clipDescription
-                    ?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true
-            },
-            target = target,
-        ),
+        modifier = Modifier
+            .clickable(onClick = onToggle)
+            .dragAndDropTarget(
+                shouldStartDragAndDrop = { event ->
+                    event.toAndroidDragEvent().clipDescription
+                        ?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true
+                },
+                target = target,
+            ),
     )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun UncategorizedHeader(onDrop: (bookId: String) -> Unit) {
+private fun UncategorizedHeader(
+    bookCount: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onDrop: (bookId: String) -> Unit,
+) {
     val isDragOver = remember { mutableStateOf(false) }
     val onDropRef = rememberUpdatedState(onDrop)
     val target = remember {
@@ -362,9 +411,16 @@ private fun UncategorizedHeader(onDrop: (bookId: String) -> Unit) {
         }
     }
     ListItem(
+        leadingContent = {
+            Icon(
+                if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
         headlineContent = {
             Text(
-                stringResource(R.string.uncategorized),
+                "${stringResource(R.string.uncategorized)} ($bookCount)",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -373,13 +429,15 @@ private fun UncategorizedHeader(onDrop: (bookId: String) -> Unit) {
             containerColor = if (isDragOver.value) MaterialTheme.colorScheme.secondaryContainer
                              else MaterialTheme.colorScheme.surfaceVariant,
         ),
-        modifier = Modifier.dragAndDropTarget(
-            shouldStartDragAndDrop = { event ->
-                event.toAndroidDragEvent().clipDescription
-                    ?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true
-            },
-            target = target,
-        ),
+        modifier = Modifier
+            .clickable(onClick = onToggle)
+            .dragAndDropTarget(
+                shouldStartDragAndDrop = { event ->
+                    event.toAndroidDragEvent().clipDescription
+                        ?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true
+                },
+                target = target,
+            ),
     )
 }
 

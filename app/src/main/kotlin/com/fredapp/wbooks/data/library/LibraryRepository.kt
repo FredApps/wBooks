@@ -2,6 +2,7 @@
 
 import com.fredapp.wbooks.data.book.Book
 import com.fredapp.wbooks.data.book.BookFormat
+import com.fredapp.wbooks.util.uniqueFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +39,15 @@ class LibraryRepository(private val booksDir: File) {
         val removed = target.file.delete()
         if (removed) _books.value = _books.value.filterNot { it.id == id }
         return removed
+    }
+
+    suspend fun move(bookId: String, targetFolder: String): Boolean = withContext(Dispatchers.IO) {
+        val src = _books.value.firstOrNull { it.id == bookId }?.file ?: return@withContext false
+        val destDir = if (targetFolder.isEmpty()) booksDir
+                      else File(booksDir, targetFolder).apply { mkdirs() }
+        if (!destDir.canonicalPath.startsWith(booksDir.canonicalPath)) return@withContext false
+        val dest = uniqueFile(destDir, src.name)
+        if (src.renameTo(dest)) { refresh(); true } else false
     }
 
     private fun toBook(file: File): Book? {

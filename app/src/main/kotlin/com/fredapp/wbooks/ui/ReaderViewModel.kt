@@ -414,6 +414,10 @@ class ReaderViewModel(
         viewModelScope.launch { libraryRepo.refresh() }
     }
 
+    fun moveBook(bookId: String, targetFolder: String) {
+        viewModelScope.launch { libraryRepo.move(bookId, targetFolder) }
+    }
+
     fun openBook(book: Book) {
         loadJob?.cancel()
         // Reset pace baseline so the first reportPosition after the new book

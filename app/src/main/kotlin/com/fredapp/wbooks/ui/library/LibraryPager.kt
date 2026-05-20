@@ -43,6 +43,7 @@ fun LibraryPager(vm: ReaderViewModel) {
                 isActive = libraryActive,
                 onBookOpen = { vm.openBook(it) },
                 onRefresh = { vm.refreshLibrary() },
+                onMoveBook = { bookId, folder -> vm.moveBook(bookId, folder) },
             )
             2 -> SettingsScreen(vm = vm, isActive = settingsActive)
         }
