@@ -57,41 +57,61 @@ class UploadServer(
     // --- handlers ---
 
     private fun renderIndex(flash: String): Response {
+        val allEntries = booksDir.walkTopDown().filter { it != booksDir }.toList()
+        val topFolders = allEntries
+            .filter { it.isDirectory && it.parentFile?.canonicalPath == booksDir.canonicalPath }
+            .sortedBy { it.name.lowercase() }
+        val rootBooks = allEntries
+            .filter { it.isFile && it.parentFile?.canonicalPath == booksDir.canonicalPath && BookFormat.fromExtension(it.extension) != null }
+            .sortedBy { it.name.lowercase() }
+
         val rows = StringBuilder()
-        val entries = booksDir.walkTopDown()
-            .filter { it != booksDir }
-            .sortedWith(compareBy({ !it.isDirectory }, { it.relativeTo(booksDir).invariantSeparatorsPath.lowercase() }))
-            .toList()
-        for (f in entries) {
-            val rel = f.relativeTo(booksDir).invariantSeparatorsPath
-            val relEsc = htmlEscape(rel)
-            // The `?pin=` query string is appended by the page's JS on submit so the
-            // server can gate before parseBody runs (multipart spool-to-disk would
-            // otherwise happen pre-auth). Confirm messages live in data-confirm so the
-            // filename never has to be escaped for a JS string context.
-            if (f.isDirectory) {
-                rows.append(
-                    """<tr><td>&#x1F4C1; $relEsc/</td><td>folder</td>
-                       <td><form method="post" action="/delete"
-                                 data-confirm="Delete folder $relEsc?"
-                                 onsubmit="return confirmAndAttachPin(this)">
-                           <input type="hidden" name="path" value="$relEsc">
-                           <button>delete</button>
-                       </form></td></tr>"""
-                )
-            } else if (BookFormat.fromExtension(f.extension) != null) {
-                val size = htmlEscape(humanBytes(f.length()))
-                rows.append(
-                    """<tr><td>$relEsc</td><td>$size</td>
-                       <td><form method="post" action="/delete"
-                                 data-confirm="Delete $relEsc?"
-                                 onsubmit="return confirmAndAttachPin(this)">
-                           <input type="hidden" name="path" value="$relEsc">
-                           <button>delete</button>
-                       </form></td></tr>"""
-                )
+        var fIdx = 0
+
+        for (dir in topFolders) {
+            val folderRel = dir.relativeTo(booksDir).invariantSeparatorsPath
+            val folderRelEsc = htmlEscape(folderRel)
+            val folderBooks = allEntries
+                .filter { it.isFile && it.parentFile?.canonicalPath == dir.canonicalPath && BookFormat.fromExtension(it.extension) != null }
+                .sortedBy { it.name.lowercase() }
+            val tbId = "f$fIdx"; fIdx++
+            rows.append("""<tr class="folder-row" onclick="toggleFolder('$tbId')">""")
+            rows.append("""<td><span id="ch_$tbId" class="chevron">&#x25B6;</span> &#x1F4C1; $folderRelEsc/ <span class="cnt">(${folderBooks.size})</span></td>""")
+            rows.append("""<td>folder</td><td><form method="post" action="/delete" class="inline" data-confirm="Delete folder $folderRelEsc and all its books?" onsubmit="event.stopPropagation();return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$folderRelEsc"><button>delete</button></form></td></tr>""")
+            rows.append("""<tbody id="$tbId" style="display:none">""")
+            for (book in folderBooks) {
+                val rel = book.relativeTo(booksDir).invariantSeparatorsPath
+                val relEsc = htmlEscape(rel)
+                val size = htmlEscape(humanBytes(book.length()))
+                rows.append("""<tr><td class="book-indent">$relEsc</td><td>$size</td><td><form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$relEsc"><button>delete</button></form></td></tr>""")
+            }
+            rows.append("</tbody>")
+        }
+
+        if (rootBooks.isNotEmpty()) {
+            if (topFolders.isNotEmpty()) {
+                val tbId = "unc"
+                rows.append("""<tr class="folder-row" onclick="toggleFolder('$tbId')">""")
+                rows.append("""<td><span id="ch_$tbId" class="chevron">&#x25B6;</span> Uncategorized <span class="cnt">(${rootBooks.size})</span></td>""")
+                rows.append("""<td></td><td></td></tr>""")
+                rows.append("""<tbody id="$tbId" style="display:none">""")
+                for (book in rootBooks) {
+                    val rel = book.relativeTo(booksDir).invariantSeparatorsPath
+                    val relEsc = htmlEscape(rel)
+                    val size = htmlEscape(humanBytes(book.length()))
+                    rows.append("""<tr><td>$relEsc</td><td>$size</td><td><form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$relEsc"><button>delete</button></form></td></tr>""")
+                }
+                rows.append("</tbody>")
+            } else {
+                for (book in rootBooks) {
+                    val rel = book.relativeTo(booksDir).invariantSeparatorsPath
+                    val relEsc = htmlEscape(rel)
+                    val size = htmlEscape(humanBytes(book.length()))
+                    rows.append("""<tr><td>$relEsc</td><td>$size</td><td><form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$relEsc"><button>delete</button></form></td></tr>""")
+                }
             }
         }
+
         val flashHtml = if (flash.isNotEmpty())
             """<p class="flash">${htmlEscape(flash)}</p>""" else ""
         val html = """
@@ -107,8 +127,21 @@ class UploadServer(
               button{padding:6px 12px}
               .note{color:#666;font-size:0.85em}
               .flash{background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:8px 12px;margin:8px 0;}
+              .folder-row{cursor:pointer;background:#f5f5f5;font-weight:600;}
+              .folder-row:hover{background:#ebebeb;}
+              .chevron{display:inline-block;transition:transform 0.15s;}
+              .chevron.open{transform:rotate(90deg);}
+              .cnt{font-weight:normal;color:#666;font-size:0.9em;}
+              .book-indent{padding-left:28px;}
             </style>
             <script>
+              function toggleFolder(id) {
+                var tb = document.getElementById(id);
+                var ch = document.getElementById('ch_' + id);
+                var open = tb.style.display === '';
+                tb.style.display = open ? 'none' : '';
+                if (ch) { if (open) ch.classList.remove('open'); else ch.classList.add('open'); }
+              }
               function attachPin(form) {
                 var p = document.getElementById('pin').value;
                 form.action = form.getAttribute('action').split('?')[0] + '?pin=' + encodeURIComponent(p);
@@ -118,8 +151,6 @@ class UploadServer(
                 if (!confirm(form.dataset.confirm)) return false;
                 return attachPin(form);
               }
-              // Upload via fetch so each file gets a unique field name, avoiding
-              // NanoHTTPD's HashMap overwrite when multiple files share the same field.
               async function submitUpload(e) {
                 e.preventDefault();
                 var pin = document.getElementById('pin').value;
