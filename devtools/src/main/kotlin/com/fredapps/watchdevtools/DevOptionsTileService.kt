@@ -20,7 +20,7 @@ import com.google.common.util.concurrent.ListenableFuture
 
 // Bump this string whenever the layout schema changes — it forces the Wear OS
 // renderer to discard cached visuals and re-fetch from us.
-private const val RESOURCES_VERSION = "3"
+private const val RESOURCES_VERSION = "4"
 private const val TAG = "DevOptionsTile"
 
 private const val BUTTON_BG = 0xFF1F4A8C.toInt()
@@ -68,11 +68,11 @@ class DevOptionsTileService : TileService() {
             .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
             .setWidth(expand())
             .addContent(title)
-            .addContent(verticalSpacer(8))
+            .addContent(verticalSpacer(10))
             .addContent(button("Dev options", Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS, "dev"))
-            .addContent(verticalSpacer(6))
+            .addContent(verticalSpacer(10))
             .addContent(button("Bluetooth", Settings.ACTION_BLUETOOTH_SETTINGS, "bt"))
-            .addContent(verticalSpacer(6))
+            .addContent(verticalSpacer(10))
             .addContent(button("Wi-Fi", Settings.ACTION_WIFI_SETTINGS, "wifi"))
             .build()
 
@@ -138,13 +138,14 @@ class DevOptionsTileService : TileService() {
             .setText(label)
             .setFontStyle(
                 FontStyle.Builder()
-                    .setSize(sp(14f))
+                    .setSize(sp(18f))
                     .setColor(argb(WHITE))
                     .build()
             )
             .build()
 
         return LayoutElementBuilders.Box.Builder()
+            .setWidth(expand())
             .setModifiers(
                 ModifiersBuilders.Modifiers.Builder()
                     .setClickable(clickable)
@@ -153,17 +154,17 @@ class DevOptionsTileService : TileService() {
                             .setColor(argb(BUTTON_BG))
                             .setCorner(
                                 ModifiersBuilders.Corner.Builder()
-                                    .setRadius(dp(18f))
+                                    .setRadius(dp(26f))
                                     .build()
                             )
                             .build()
                     )
                     .setPadding(
                         ModifiersBuilders.Padding.Builder()
-                            .setStart(dp(18f))
-                            .setEnd(dp(18f))
-                            .setTop(dp(6f))
-                            .setBottom(dp(6f))
+                            .setStart(dp(24f))
+                            .setEnd(dp(24f))
+                            .setTop(dp(12f))
+                            .setBottom(dp(12f))
                             .build()
                     )
                     .build()
