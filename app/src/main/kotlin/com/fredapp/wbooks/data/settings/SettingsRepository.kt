@@ -102,14 +102,18 @@ class SettingsRepository(context: Context) {
         return ReaderSettings(
             mode = this[Keys.MODE]?.let(::readMode) ?: defaults.mode,
             font = this[Keys.FONT]?.let(::readFont) ?: defaults.font,
-            textSizeSp = this[Keys.TEXT_SIZE] ?: defaults.textSizeSp,
-            sentenceTextSizeSp = this[Keys.SENTENCE_TEXT_SIZE] ?: defaults.sentenceTextSizeSp,
+            textSizeSp = (this[Keys.TEXT_SIZE] ?: defaults.textSizeSp)
+                .coerceIn(ReaderSettings.TEXT_SIZE_RANGE),
+            sentenceTextSizeSp = (this[Keys.SENTENCE_TEXT_SIZE] ?: defaults.sentenceTextSizeSp)
+                .coerceIn(ReaderSettings.SENTENCE_TEXT_SIZE_RANGE),
             textColorArgb = this[Keys.TEXT_COLOR] ?: defaults.textColorArgb,
             autoscrollEnabled = this[Keys.AUTOSCROLL_ENABLED] ?: defaults.autoscrollEnabled,
-            autoscrollSpeed = this[Keys.AUTOSCROLL_SPEED] ?: defaults.autoscrollSpeed,
+            autoscrollSpeed = (this[Keys.AUTOSCROLL_SPEED] ?: defaults.autoscrollSpeed)
+                .coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE),
             screenBrightness = (this[Keys.SCREEN_BRIGHTNESS] ?: defaults.screenBrightness)
                 .coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE),
-            speedreadWpm = this[Keys.SPEEDREAD_WPM] ?: defaults.speedreadWpm,
+            speedreadWpm = (this[Keys.SPEEDREAD_WPM] ?: defaults.speedreadWpm)
+                .coerceIn(ReaderSettings.WPM_RANGE),
             theme = this[Keys.THEME]?.let(::readTheme) ?: defaults.theme,
         )
     }
@@ -117,13 +121,13 @@ class SettingsRepository(context: Context) {
     private fun MutablePreferences.applySettings(s: ReaderSettings) {
         this[Keys.MODE] = s.mode.name
         this[Keys.FONT] = s.font.name
-        this[Keys.TEXT_SIZE] = s.textSizeSp
-        this[Keys.SENTENCE_TEXT_SIZE] = s.sentenceTextSizeSp
+        this[Keys.TEXT_SIZE] = s.textSizeSp.coerceIn(ReaderSettings.TEXT_SIZE_RANGE)
+        this[Keys.SENTENCE_TEXT_SIZE] = s.sentenceTextSizeSp.coerceIn(ReaderSettings.SENTENCE_TEXT_SIZE_RANGE)
         this[Keys.TEXT_COLOR] = s.textColorArgb
         this[Keys.AUTOSCROLL_ENABLED] = s.autoscrollEnabled
-        this[Keys.AUTOSCROLL_SPEED] = s.autoscrollSpeed
-        this[Keys.SCREEN_BRIGHTNESS] = s.screenBrightness
-        this[Keys.SPEEDREAD_WPM] = s.speedreadWpm
+        this[Keys.AUTOSCROLL_SPEED] = s.autoscrollSpeed.coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE)
+        this[Keys.SCREEN_BRIGHTNESS] = s.screenBrightness.coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE)
+        this[Keys.SPEEDREAD_WPM] = s.speedreadWpm.coerceIn(ReaderSettings.WPM_RANGE)
         this[Keys.THEME] = s.theme.name
     }
 
