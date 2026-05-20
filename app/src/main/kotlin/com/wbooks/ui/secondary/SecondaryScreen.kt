@@ -177,10 +177,14 @@ fun SecondaryScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                     ) {
-                        Text(
-                            text = "~ ${formatDurationMs(e.chapterMs)} in chapter",
-                            style = MaterialTheme.typography.body2,
-                        )
+                        // Only show "in chapter" when it differs from "in book" — a single-chapter
+                        // book (TXT, ODF) would otherwise show the same number on both lines.
+                        if (e.chapterMs != e.bookMs) {
+                            Text(
+                                text = "~ ${formatDurationMs(e.chapterMs)} in chapter",
+                                style = MaterialTheme.typography.body2,
+                            )
+                        }
                         Text(
                             text = "~ ${formatDurationMs(e.bookMs)} in book",
                             style = MaterialTheme.typography.body2,
@@ -210,7 +214,10 @@ fun SecondaryScreen(
             items(chapters, key = { "${it.position.chapterIndex}-${it.position.blockIndex}" }) { chapter ->
                 Chip(
                     label = { Text(chapter.title) },
-                    onClick = { vm.jumpTo(chapter.position) },
+                    onClick = {
+                        vm.jumpTo(chapter.position)
+                        onReaderPageRequested()
+                    },
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
