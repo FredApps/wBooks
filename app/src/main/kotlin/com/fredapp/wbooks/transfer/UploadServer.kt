@@ -261,10 +261,11 @@ class UploadServer(
         val params = session.parameters
 
         val folder = params["folder"]?.firstOrNull().orEmpty().trim().trim('/', '\\')
-        val targetDir = if (folder.isEmpty()) booksDir else File(booksDir, folder).apply { mkdirs() }
-        if (!targetDir.canonicalPath.startsWith(booksDir.canonicalPath)) {
+        val targetDir = if (folder.isEmpty()) booksDir else File(booksDir, folder)
+        if (!targetDir.isInsideBooksDir()) {
             return forbidden("folder escapes books dir")
         }
+        targetDir.mkdirs()
 
         var written = 0
         for ((field, tempPath) in tempFiles) {
@@ -285,8 +286,9 @@ class UploadServer(
         gatePin(session)?.let { return it }
         val params = parsedForm(session)
         val path = params["path"]?.firstOrNull().orEmpty()
+        if (path.isBlank()) return badRequest("path required")
         val target = File(booksDir, path)
-        if (!target.canonicalPath.startsWith(booksDir.canonicalPath) || !target.exists()) {
+        if (!target.isInsideBooksDir() || target.isBooksRoot() || !target.exists()) {
             return notFound()
         }
         if (target.isDirectory) {
@@ -311,7 +313,7 @@ class UploadServer(
         val name = params["name"]?.firstOrNull().orEmpty().trim().trim('/', '\\')
         if (name.isEmpty()) return badRequest("folder name required")
         val target = File(booksDir, name)
-        if (!target.canonicalPath.startsWith(booksDir.canonicalPath)) {
+        if (!target.isInsideBooksDir() || target.isBooksRoot()) {
             return forbidden("name escapes books dir")
         }
         target.mkdirs()
@@ -322,11 +324,15 @@ class UploadServer(
         if (session.method != Method.POST) return methodNotAllowed()
         gatePin(session)?.let { return it }
         val params = parsedForm(session)
-        val from = File(booksDir, params["from"]?.firstOrNull().orEmpty())
+        val fromPath = params["from"]?.firstOrNull().orEmpty()
+        if (fromPath.isBlank()) return badRequest("source path required")
+        val from = File(booksDir, fromPath)
         val toDir = File(booksDir, params["to"]?.firstOrNull().orEmpty().trim('/', '\\'))
-        if (!from.canonicalPath.startsWith(booksDir.canonicalPath) ||
-            !toDir.canonicalPath.startsWith(booksDir.canonicalPath) ||
-            !from.exists()) {
+        if (!from.isInsideBooksDir() ||
+            !toDir.isInsideBooksDir() ||
+            !from.exists() ||
+            !from.isFile ||
+            BookFormat.fromExtension(from.extension) == null) {
             return notFound()
         }
         toDir.mkdirs()
@@ -449,6 +455,12 @@ class UploadServer(
     private fun argbCss(argb: Int): String = "#%06X".format(argb and 0x00FFFFFF)
 
     private fun argbHex(argb: Int): String = "#%08X".format(argb)
+
+    private fun File.isInsideBooksDir(): Boolean =
+        canonicalFile.toPath().startsWith(booksDir.canonicalFile.toPath())
+
+    private fun File.isBooksRoot(): Boolean =
+        canonicalFile == booksDir.canonicalFile
 
     private fun parsedForm(session: IHTTPSession): Map<String, List<String>> {
         session.parseBody(HashMap())
