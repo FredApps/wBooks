@@ -134,10 +134,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.value = _state.value.copy(errorMessage = null)
     }
 
-    private fun applyResult(result: WatchRepository.Result<List<BookSummary>>) {
+    private fun applyResult(result: WatchRepository.Result<LibrarySnapshot>) {
         when (result) {
             is WatchRepository.Result.Ok -> {
-                val books = result.value
+                val snapshot = result.value
+                val books = snapshot.books
                 // Derive folder membership from book ID path prefixes.
                 // "Fiction/moby-dick.epub" -> folder "Fiction"; "moby-dick.epub" -> uncategorized.
                 val bookFolders = books
@@ -146,7 +147,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         if (folder.isNotEmpty()) book.id to folder else null
                     }
                     .toMap()
-                val derivedFolderNames = bookFolders.values.distinct().sorted().toSet()
+                val derivedFolderNames = (bookFolders.values + snapshot.folders).distinct().sorted().toSet()
                 val pending = _state.value.pendingFolders - derivedFolderNames
                 val allFolders = (derivedFolderNames + pending).sorted()
                     .map { Folder(id = it, name = it) }
