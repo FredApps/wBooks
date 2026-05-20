@@ -82,10 +82,13 @@ fun NormalMode(
     }
 
     // ---- Listen for explicit jumps (chapter list, bookmark tap). ----
+    // scrollToItem (not animateScrollToItem): chapter / bookmark / search jumps
+    // are intentional teleports, not a swipe — animating across thousands of
+    // blocks feels sluggish.
     LaunchedEffect(document) {
         vm.jumps.collect { target ->
             val flat = document.flatIndexOf(target)
-            if (flat in blocks.indices) listState.animateScrollToItem(flat)
+            if (flat in blocks.indices) listState.scrollToItem(flat)
         }
     }
 
@@ -93,7 +96,7 @@ fun NormalMode(
         vm.pendingNormalJump.collect { target ->
             if (target == null) return@collect
             val flat = document.flatIndexOf(target)
-            if (flat in blocks.indices) listState.animateScrollToItem(flat)
+            if (flat in blocks.indices) listState.scrollToItem(flat)
             vm.consumePendingNormalJump(target)
         }
     }

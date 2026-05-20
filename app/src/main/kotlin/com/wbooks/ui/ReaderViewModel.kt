@@ -274,8 +274,29 @@ class ReaderViewModel(
         val ci = position.chapterIndex.coerceIn(0, doc.chapters.lastIndex)
         val bi = position.blockIndex.coerceAtLeast(0)
         val chapter = doc.chapters.getOrNull(ci) ?: return null
-        val blocksRemainingInChapter = (chapter.blocks.size - bi).coerceAtLeast(0)
-        var blocksRemainingInBook = blocksRemainingInChapter
+
+        // Remaining-in-chapter is the distance to the next chapter boundary. A
+        // boundary is either the next doc.chapter or — for single-chapter TXT/ODF
+        // parses — the next in-block Heading. This mirrors what chapterJumps()
+        // shows in the Tools page, so the ETA's "chapter" matches the user's
+        // mental model.
+        var blocksRemainingInChapter = 0
+        var foundHeading = false
+        for (i in (bi + 1)..chapter.blocks.lastIndex) {
+            blocksRemainingInChapter++
+            if (chapter.blocks[i] is Block.Heading) {
+                foundHeading = true
+                break
+            }
+        }
+        if (!foundHeading) {
+            // No more headings in this doc.chapter; the next chapter boundary is
+            // the next doc.chapter (or end of book). Count the rest of this
+            // doc.chapter — the recipient adds whatever else it needs.
+            blocksRemainingInChapter = (chapter.blocks.size - bi).coerceAtLeast(0)
+        }
+
+        var blocksRemainingInBook = (chapter.blocks.size - bi).coerceAtLeast(0)
         for (i in (ci + 1)..doc.chapters.lastIndex) {
             blocksRemainingInBook += doc.chapters[i].blocks.size
         }
