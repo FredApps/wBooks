@@ -31,7 +31,7 @@ Using a watch with a bezel is recommended but not required for smooth scrolling.
 ## Architecture
 
 ```
-app/
+app/                             Watch app (Wear OS)
 └── src/main/kotlin/com/wbooks/
     ├── MainActivity.kt               Compose host; auto-resumes last book
     ├── WBooksApp.kt                  Application class; copies seed books on first run
@@ -71,7 +71,20 @@ app/
     │   ├── UploadServerService.kt    Foreground service holding the server
     │   └── TransferController.kt     App-scope state (running / url / pin)
     └── tile/
-        └── ResumeTileService.kt      "Resume reading" Wear tile
+        ├── ResumeTileService.kt      "Resume reading" Wear tile
+        ├── ReadingTimeTileService.kt Today's reading minutes Wear tile
+        ├── ReadingTimeComplicationService.kt Watch face complication
+        └── stats/                    Daily/30-day reading stats tracking
+
+companion/                       Phone app (Android 7.0+, optional)
+└── src/main/kotlin/com/wbooks/companion/
+    ├── MainActivity.kt               Book list + Gutenberg browser + stats dashboard
+    ├── transfer/                     Wear Data Layer (MessageClient / ChannelClient)
+    ├── stats/                        Reading statistics repository
+    └── ui/
+        ├── BookListScreen.kt         Mirror of watch library
+        ├── GutenbergBrowser.kt       OPDS search + download
+        └── StatsScreen.kt            Daily + 30-day trends
 ```
 
 ## Design decisions
@@ -133,7 +146,7 @@ A small Material 3 phone app (`:companion`, minSdk 24) that mirrors the watch's 
 - **Project Gutenberg browser** (🔍 in the top app bar): search PG's OPDS catalogue, tap **Send** on a result to download + push to the watch in one step. Prefers EPUB, falls back to TXT.
 - **Reading-stats dashboard** (📅 in the top app bar): total / today / books-finished cards, plus a 30-day daily-minutes bar chart and a WPM-trend line chart. Data fetched from the watch via `MessageClient.sendRequest("/wbooks/stats")`.
 
-Requires both APKs installed on a paired Wear OS phone/watch pair. No account setup; the Wear Data Layer handles transport. The LAN upload server still works alongside the companion — pick whichever fits.
+Both APKs are required only to use the companion transport. The watch app alone is fully functional via the LAN server.
 
 ### Resume tile
 
@@ -266,8 +279,6 @@ Then:
 
 The emulator is useful for quick iteration but doesn't fully replicate watch hardware (screen size, battery, screen-off behavior).
 
-## Build
-
 ## Install on the watch
 
 ### Pairing
@@ -296,6 +307,10 @@ Replace `<watch-ip>:<port>` with your watch's ADB connection details (e.g., `192
 ### PDF support: will not be implemented
 
 PDF is a rendering format, not a content format. It encodes exact pixel positions and fonts, not logical structure (chapters, paragraphs, sections). On a small round Wear OS screen with variable text sizes and reflow, PDF either requires shrinking to unreadable sizes or horizontal scrolling to see full lines — both worsen the reading experience. The supported formats (TXT, HTML, EPUB, FB2, DOCX, ODT) preserve semantic structure and reflow naturally to any screen size. Adding PDF would contradict the app's design principle that every text should be readable at any font size on any watch.
+
+## Support the project
+
+If you enjoy wBooks, consider supporting development via GitHub Sponsors or Ko-fi.
 
 ## Contributing
 
