@@ -4,15 +4,51 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Stylised open book on a transparent foreground; sits inside the adaptive icon safe zone. -->
+    <!-- Bright open-book mark sized for the adaptive icon safe zone. -->
     <path
-        android:fillColor="#E8E6E1"
-        android:pathData="M30,38 L52,42 L52,76 L30,72 Z" />
+        android:fillColor="#33000000"
+        android:pathData="M22,42 C33,37 43,38 54,44 C65,38 75,37 86,42 L86,79 C75,74 65,75 54,82 C43,75 33,74 22,79 Z" />
     <path
-        android:fillColor="#E8E6E1"
-        android:pathData="M78,38 L56,42 L56,76 L78,72 Z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M20,36 C32,31 43,33 53,40 L53,77 C43,70 32,68 20,73 Z" />
     <path
-        android:strokeColor="#9C9892"
-        android:strokeWidth="1.5"
-        android:pathData="M54,42 L54,76" />
+        android:fillColor="#FFF6D9"
+        android:pathData="M88,36 C76,31 65,33 55,40 L55,77 C65,70 76,68 88,73 Z" />
+    <path
+        android:fillColor="#156C7A"
+        android:pathData="M20,36 C32,31 43,33 53,40 L53,45 C43,38 32,36 20,41 Z" />
+    <path
+        android:fillColor="#B53A5B"
+        android:pathData="M88,36 C76,31 65,33 55,40 L55,45 C65,38 76,36 88,41 Z" />
+    <path
+        android:fillColor="#FFC857"
+        android:pathData="M57,42 L66,39 L66,67 L61.5,63 L57,69 Z" />
+    <path
+        android:strokeColor="#D9D3C2"
+        android:strokeLineCap="round"
+        android:strokeWidth="2"
+        android:pathData="M28,48 C35,46 42,47 48,51" />
+    <path
+        android:strokeColor="#D9D3C2"
+        android:strokeLineCap="round"
+        android:strokeWidth="2"
+        android:pathData="M28,57 C35,55 42,56 48,60" />
+    <path
+        android:strokeColor="#D9D3C2"
+        android:strokeLineCap="round"
+        android:strokeWidth="2"
+        android:pathData="M60,50 C67,46 74,46 81,48" />
+    <path
+        android:strokeColor="#D9D3C2"
+        android:strokeLineCap="round"
+        android:strokeWidth="2"
+        android:pathData="M60,59 C67,55 74,55 81,57" />
+    <path
+        android:strokeColor="#6E4660"
+        android:strokeLineCap="round"
+        android:strokeWidth="2"
+        android:pathData="M54,40 L54,80" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M78,24 L81,30 L87,33 L81,36 L78,42 L75,36 L69,33 L75,30 Z" />
 </vector>
