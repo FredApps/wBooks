@@ -1,10 +1,9 @@
-﻿package com.fredapp.wbooksutil
+package com.fredapp.wbooksutil
 
 import android.content.Context
 import android.net.Uri
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.Node
-import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -15,7 +14,7 @@ import java.nio.charset.StandardCharsets
 
 /**
  * Thin wrapper over the Wear Data Layer. The watch app advertises a
- * [WBOOKS_CAPABILITY] in res/values/wear.xml â€” picking the first node that
+ * [WBOOKS_CAPABILITY] in res/values/wear.xml â€" picking the first node that
  * declares it is enough for the typical 1 watch / 1 phone pairing.
  *
  * - [fetchLibrary] / [deleteBook] use [com.google.android.gms.wearable.MessageClient.sendRequest]
@@ -29,7 +28,6 @@ class WatchRepository(context: Context) {
     private val capabilityClient = Wearable.getCapabilityClient(appContext)
     private val messageClient = Wearable.getMessageClient(appContext)
     private val channelClient = Wearable.getChannelClient(appContext)
-    private val dataClient = Wearable.getDataClient(appContext)
     private val nodeClient = Wearable.getNodeClient(appContext)
 
     sealed class Result<out T> {
@@ -112,16 +110,24 @@ class WatchRepository(context: Context) {
             }.getOrElse { Result.Error(it.message ?: "Upload failed") }
         }
 
-    suspend fun pushFolders(folders: List<Folder>, assignments: Map<String, String>) =
+    suspend fun mkdirBook(name: String): Result<List<BookSummary>> = withContext(Dispatchers.IO) {
+        val node = bestNode() ?: return@withContext Result.NoWatch
+        runCatching {
+            val payload = """{"name":${jsonString(name)}}""".toByteArray(Charsets.UTF_8)
+            val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_MKDIR, payload).await()
+            Result.Ok(LibraryListJson.decode(bytes))
+        }.getOrElse { Result.Error(it.message ?: "mkdir failed") }
+    }
+
+    suspend fun moveBook(bookId: String, targetFolder: String): Result<List<BookSummary>> =
         withContext(Dispatchers.IO) {
-            val json = FoldersJson.encode(folders, assignments)
+            val node = bestNode() ?: return@withContext Result.NoWatch
             runCatching {
-                val request = PutDataMapRequest.create(WearProtocol.PATH_FOLDERS).apply {
-                    dataMap.putString("data", json)
-                    dataMap.putLong("ts", System.currentTimeMillis())
-                }.asPutDataRequest().setUrgent()
-                dataClient.putDataItem(request).await()
-            }
+                val payload = """{"id":${jsonString(bookId)},"folder":${jsonString(targetFolder)}}"""
+                    .toByteArray(Charsets.UTF_8)
+                val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_MOVE, payload).await()
+                Result.Ok(LibraryListJson.decode(bytes))
+            }.getOrElse { Result.Error(it.message ?: "move failed") }
         }
 
     suspend fun hasReachableWatch(): Boolean = withContext(Dispatchers.IO) {
@@ -147,5 +153,18 @@ class WatchRepository(context: Context) {
     companion object {
         /** Must match the capability the watch app advertises in res/values/wear.xml. */
         const val WBOOKS_CAPABILITY = "wbooks_receiver"
+
+        private fun jsonString(s: String): String {
+            val sb = StringBuilder(s.length + 2).append('"')
+            for (c in s) when (c) {
+                '\\' -> sb.append("\\\\")
+                '"' -> sb.append("\\\"")
+                '\n' -> sb.append("\\n")
+                '\r' -> sb.append("\\r")
+                '\t' -> sb.append("\\t")
+                else -> if (c < ' ') sb.append("\\u%04x".format(c.code)) else sb.append(c)
+            }
+            return sb.append('"').toString()
+        }
     }
 }

@@ -1,4 +1,4 @@
-﻿package com.fredapp.wbooks.ui
+package com.fredapp.wbooks.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -10,9 +10,7 @@ import com.fredapp.wbooks.data.library.LibraryRepository
 import com.fredapp.wbooks.data.pace.ReadingPaceRepository
 import com.fredapp.wbooks.data.position.BookPosition
 import com.fredapp.wbooks.data.position.PositionsRepository
-import com.fredapp.wbooks.data.folder.FolderSyncRepository
 import com.fredapp.wbooks.data.stats.ReadingStatsRepository
-import com.fredapp.wbooks.transfer.FoldersJson
 import com.fredapp.wbooks.data.settings.FontChoice
 import com.fredapp.wbooks.data.settings.ReaderSettings
 import com.fredapp.wbooks.data.settings.ReadingMode
@@ -66,7 +64,6 @@ class ReaderViewModel(
     private val statsRepo: ReadingStatsRepository,
     /** Application-level scope used for cache writes that must outlive this ViewModel. */
     private val appScope: CoroutineScope,
-    private val folderSyncRepo: FolderSyncRepository,
 ) : ViewModel() {
 
     private var lastAdvanceMs: Long = 0L
@@ -84,7 +81,6 @@ class ReaderViewModel(
 
     // ---- Library ----
     val books: StateFlow<List<Book>> = libraryRepo.books
-    val folderState: StateFlow<FoldersJson.State> = folderSyncRepo.state
 
     // ---- Currently-loaded document ----
     private val _document = MutableStateFlow<DocumentState>(DocumentState.Idle)
@@ -117,7 +113,7 @@ class ReaderViewModel(
     val pendingNormalJump: StateFlow<BookPosition?> = _pendingNormalJump.asStateFlow()
 
     fun jumpTo(position: BookPosition) {
-        // Invalidate the pace baseline â€” the next reportPosition is the jump
+        // Invalidate the pace baseline â€" the next reportPosition is the jump
         // target arriving, not a natural advance, and its near-instant delta
         // would otherwise pull the EMA artificially low.
         lastAdvancePosition = null
@@ -139,7 +135,7 @@ class ReaderViewModel(
 
     /**
      * Count the book as "finished" the first time the user lands on the last
-     * block of the last chapter. This means "reached the end at least once" â€”
+     * block of the last chapter. This means "reached the end at least once" â€"
      * not "actually read every word." Idempotent at the repository level so
      * scrolling back and re-reaching the end doesn't bump the counter twice.
      * RSVP zip-throughs and search-jump-to-end also trigger it, by design.
@@ -153,7 +149,7 @@ class ReaderViewModel(
         viewModelScope.launch { statsRepo.markFinished(state.book.id) }
     }
 
-    /** Reader screen entry â€” start counting reading time. */
+    /** Reader screen entry â€" start counting reading time. */
     fun startReadingSession() {
         if (sessionStartMs != 0L) return  // already running
         sessionStartMs = System.currentTimeMillis()
@@ -169,7 +165,7 @@ class ReaderViewModel(
         }
     }
 
-    /** Reader screen exit / app background â€” flush accumulated time. */
+    /** Reader screen exit / app background â€" flush accumulated time. */
     fun endReadingSession() {
         sessionFlushJob?.cancel()
         sessionFlushJob = null
@@ -179,7 +175,7 @@ class ReaderViewModel(
         recordSessionCapped(System.currentTimeMillis() - start)
     }
 
-    /** Mid-session flush â€” commits ms since [sessionStartMs] and rebases. */
+    /** Mid-session flush â€" commits ms since [sessionStartMs] and rebases. */
     private fun flushSessionPartial() {
         val start = sessionStartMs
         if (start == 0L) return
@@ -190,7 +186,7 @@ class ReaderViewModel(
 
     /**
      * Cap each recorded chunk to [SESSION_FLUSH_INTERVAL_MS] Ã— 2. A larger gap
-     * means the device was suspended (Doze, ambient, screen-off) â€” counting
+     * means the device was suspended (Doze, ambient, screen-off) â€" counting
      * suspended time as "reading" would be wrong. TODO: pause the session via
      * a real idle signal (screen-off receiver, no-reportPosition timeout).
      */
@@ -216,7 +212,7 @@ class ReaderViewModel(
      *    [lastAdvancePosition] to null in [jumpTo] / [openSearchResult] so the
      *    next reportPosition just re-baselines without computing a delta.
      * 3. **Non-natural advances** (chapter change, backwards, multi-block leap)
-     *    are treated like jumps even if no explicit jumpTo ran â€” defends
+     *    are treated like jumps even if no explicit jumpTo ran â€" defends
      *    against renderer quirks. See [isNaturalAdvance].
      *
      * Remaining outliers (long pauses, double-fires) are clamped at the
@@ -280,8 +276,8 @@ class ReaderViewModel(
         val chapter = doc.chapters.getOrNull(ci) ?: return null
 
         // Remaining-in-chapter is the distance to the next chapter boundary. A
-        // boundary is either the next doc.chapter or â€” for single-chapter TXT/ODF
-        // parses â€” the next in-block Heading. This mirrors what chapterJumps()
+        // boundary is either the next doc.chapter or â€" for single-chapter TXT/ODF
+        // parses â€" the next in-block Heading. This mirrors what chapterJumps()
         // shows in the Tools page, so the ETA's "chapter" matches the user's
         // mental model.
         var blocksRemainingInChapter = 0
@@ -296,7 +292,7 @@ class ReaderViewModel(
         if (!foundHeading) {
             // No more headings in this doc.chapter; the next chapter boundary is
             // the next doc.chapter (or end of book). Count the rest of this
-            // doc.chapter â€” the recipient adds whatever else it needs.
+            // doc.chapter â€" the recipient adds whatever else it needs.
             blocksRemainingInChapter = (chapter.blocks.size - bi).coerceAtLeast(0)
         }
 
@@ -369,7 +365,7 @@ class ReaderViewModel(
     }
 
     fun openSearchResult(result: SearchResult) {
-        // Search-result open is a jump too â€” see jumpTo for why we invalidate.
+        // Search-result open is a jump too â€" see jumpTo for why we invalidate.
         lastAdvancePosition = null
         viewModelScope.launch {
             // Search results open in Normal mode; keep the jump pending until that
@@ -436,7 +432,7 @@ class ReaderViewModel(
             val result = runCatching {
                 documentCache.load(key) ?: parseBook(book).also { parsed ->
                     // Use appScope so the cache write isn't cancelled if the user
-                    // navigates away before it completes â€” a cancelled write would
+                    // navigates away before it completes â€" a cancelled write would
                     // force a full re-parse on the next open.
                     appScope.launch(Dispatchers.IO) {
                         runCatching { documentCache.store(key, parsed) }
@@ -449,7 +445,7 @@ class ReaderViewModel(
             _document.value = result.fold(
                 onSuccess = { DocumentState.Loaded(book, it, initialPosition) },
                 onFailure = {
-                    // runCatching also catches CancellationException â€” re-throw so
+                    // runCatching also catches CancellationException â€" re-throw so
                     // coroutine cancellation (e.g. user navigates away mid-parse)
                     // doesn't get reported to Sentry as a parser bug.
                     if (it is kotlinx.coroutines.CancellationException) throw it
@@ -534,14 +530,13 @@ class ReaderViewModel(
         private val paceRepo: ReadingPaceRepository,
         private val statsRepo: ReadingStatsRepository,
         private val appScope: CoroutineScope,
-        private val folderSyncRepo: FolderSyncRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass == ReaderViewModel::class.java)
             return ReaderViewModel(
                 settingsRepo, libraryRepo, positionsRepo, bookmarksRepo, transferController,
-                documentCache, paceRepo, statsRepo, appScope, folderSyncRepo,
+                documentCache, paceRepo, statsRepo, appScope,
             ) as T
         }
     }

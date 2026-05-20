@@ -1,4 +1,4 @@
-﻿package com.fredapp.wbooksutil
+package com.fredapp.wbooksutil
 
 /**
  * Mirror of `app/src/main/kotlin/com/wbooks/transfer/WearProtocol.kt`. There's no
@@ -12,37 +12,8 @@ object WearProtocol {
     const val PATH_STATS = "/wbooks/stats"
     const val PATH_SETTINGS_GET = "/wbooks/settings/get"
     const val PATH_SETTINGS_SET = "/wbooks/settings/set"
-    /** DataClient.putDataItem path used to push folder state from phone to watch. */
-    const val PATH_FOLDERS = "/wbooks/folders"
-}
-
-object FoldersJson {
-    fun encode(folders: List<Folder>, assignments: Map<String, String>): String {
-        val sb = StringBuilder("{\"folders\":[")
-        folders.forEachIndexed { i, f ->
-            if (i > 0) sb.append(',')
-            sb.append("{\"id\":").append(q(f.id)).append(",\"name\":").append(q(f.name)).append('}')
-        }
-        sb.append("],\"assignments\":{")
-        var first = true
-        for ((k, v) in assignments) {
-            if (!first) sb.append(',')
-            sb.append(q(k)).append(':').append(q(v))
-            first = false
-        }
-        sb.append("}}")
-        return sb.toString()
-    }
-
-    private fun q(s: String): String {
-        val sb = StringBuilder().append('"')
-        for (c in s) when (c) {
-            '\\' -> sb.append("\\\\"); '"' -> sb.append("\\\"")
-            '\n' -> sb.append("\\n"); '\r' -> sb.append("\\r"); '\t' -> sb.append("\\t")
-            else -> if (c < ' ') sb.append("\\u%04x".format(c.code)) else sb.append(c)
-        }
-        return sb.append('"').toString()
-    }
+    const val PATH_MKDIR = "/wbooks/library/mkdir"
+    const val PATH_MOVE = "/wbooks/library/move"
 }
 
 /**
@@ -71,7 +42,7 @@ data class SettingsSnapshot(
  * its string form.
  *
  * Decode is strict: missing keys return null from the field readers and
- * propagate to a null snapshot. This is deliberate â€” silently defaulting a
+ * propagate to a null snapshot. This is deliberate â€" silently defaulting a
  * missing `crashReportingEnabled` to false would let a truncated reply flip
  * Sentry off on the phone without the user asking. Callers should treat a
  * null result as a wire-format error and refuse to apply.
@@ -196,7 +167,7 @@ data class StatsSummary(
  * rolled approach as [LibraryListJson]; encoder never emits `\uXXXX` so we
  * don't parse it here either.
  *
- * Each `readLong` / `readStr` re-scans the input from the beginning â€” O(NÂ·M)
+ * Each `readLong` / `readStr` re-scans the input from the beginning â€" O(NÂ·M)
  * over (input size Â· keys). Stays cheap while the payload is small (a 30-day
  * stats blob is well under 10 KB). If the schema grows, swap for a streaming
  * parser before this becomes a bottleneck.
@@ -307,10 +278,10 @@ object StatsJson {
 
 /**
  * Parser counterpart to `:app`'s `LibraryListJson.encode`. Minimal hand-rolled JSON
- * reader â€” handles only the shape the watch encoder emits.
+ * reader â€" handles only the shape the watch encoder emits.
  *
  * Decoding invariant (matches the encoder): we do **not** parse `\uXXXX` escapes,
- * because the encoder never emits them â€” it writes non-ASCII as raw UTF-8 and only
+ * because the encoder never emits them â€" it writes non-ASCII as raw UTF-8 and only
  * escapes control chars below 0x20. If you change the encoder, update this too.
  */
 object LibraryListJson {

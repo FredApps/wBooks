@@ -30,12 +30,10 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.R
 import com.fredapp.wbooks.data.book.Book
-import com.fredapp.wbooks.transfer.FoldersJson
 
 @Composable
 fun LibraryScreen(
     books: List<Book>,
-    folderState: FoldersJson.State,
     onBookOpen: (Book) -> Unit,
     onRefresh: () -> Unit,
     isActive: Boolean = true,
@@ -59,8 +57,13 @@ fun LibraryScreen(
             return@Scaffold
         }
 
-        val hasFolders = folderState.folders.isNotEmpty()
-        val assignments = folderState.assignments
+        // Derive folder groupings from book ID path prefixes.
+        // A book with id "Fiction/moby-dick.epub" belongs to folder "Fiction".
+        // A book with id "moby-dick.epub" is uncategorized.
+        val grouped = books.groupBy { it.id.substringBeforeLast('/', "") }
+        val folderNames = grouped.keys.filter { it.isNotEmpty() }.sorted()
+        val uncategorized = grouped[""] ?: emptyList()
+        val hasFolders = folderNames.isNotEmpty()
 
         ScalingLazyColumn(
             modifier = Modifier
@@ -72,28 +75,22 @@ fun LibraryScreen(
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            if (hasFolders) {
-                for (folder in folderState.folders) {
-                    val folderBooks = books.filter { assignments[it.id] == folder.id }
-                    if (folderBooks.isEmpty()) continue
-                    item(key = "fh_${folder.id}") {
-                        FolderHeaderChip(name = folder.name)
-                    }
-                    items(folderBooks, key = { "b_${it.id}" }) { book ->
-                        BookChip(book = book, onClick = { onBookOpen(book) })
-                    }
+            for (folder in folderNames) {
+                val folderBooks = grouped[folder] ?: emptyList()
+                item(key = "fh_$folder") {
+                    FolderHeaderChip(name = folder)
                 }
-                val uncategorized = books.filter { it.id !in assignments }
-                if (uncategorized.isNotEmpty()) {
+                items(folderBooks, key = { "b_${it.id}" }) { book ->
+                    BookChip(book = book, onClick = { onBookOpen(book) })
+                }
+            }
+            if (uncategorized.isNotEmpty()) {
+                if (hasFolders) {
                     item(key = "uncategorized_header") {
                         FolderHeaderChip(name = stringResource(R.string.uncategorized))
                     }
-                    items(uncategorized, key = { "b_${it.id}" }) { book ->
-                        BookChip(book = book, onClick = { onBookOpen(book) })
-                    }
                 }
-            } else {
-                items(books, key = { it.id }) { book ->
+                items(uncategorized, key = { "b_${it.id}" }) { book ->
                     BookChip(book = book, onClick = { onBookOpen(book) })
                 }
             }

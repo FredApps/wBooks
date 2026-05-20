@@ -1,4 +1,4 @@
-﻿package com.fredapp.wbooks.transfer
+package com.fredapp.wbooks.transfer
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -8,9 +8,6 @@ import androidx.core.app.NotificationCompat
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.wearable.ChannelClient
-import com.google.android.gms.wearable.DataEvent
-import com.google.android.gms.wearable.DataEventBuffer
-import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
 import com.fredapp.wbooks.R
@@ -31,7 +28,7 @@ import java.net.URLDecoder
 
 /**
  * Watch-side counterpart to the phone companion. Lives alongside the
- * [UploadServer] (which serves the LAN web UI) â€” the two transports are
+ * [UploadServer] (which serves the LAN web UI) â€" the two transports are
  * additive, not alternatives.
  *
  * Wire protocol: see [WearProtocol]. List/delete arrive as MessageClient
@@ -39,7 +36,7 @@ import java.net.URLDecoder
  * path encodes the filename. Replies for list/delete go back on the same
  * path to the sender's node.
  *
- * Service binding is automatic â€” declaring a subclass of WearableListenerService
+ * Service binding is automatic â€" declaring a subclass of WearableListenerService
  * in the manifest registers it with Google Play Services; we don't need
  * a separate IntentService or explicit startService call.
  */
@@ -69,8 +66,20 @@ class BookReceiverService : WearableListenerService() {
                 val result = when (path) {
                     WearProtocol.PATH_LIST -> currentLibraryJson()
                     WearProtocol.PATH_DELETE -> {
-                        val id = parseId(String(data, Charsets.UTF_8))
+                        val id = parseString(String(data, Charsets.UTF_8), "id")
                         if (id != null) deleteBook(id)
+                        currentLibraryJson()
+                    }
+                    WearProtocol.PATH_MKDIR -> {
+                        val name = parseString(String(data, Charsets.UTF_8), "name")
+                        if (name != null) mkdirBook(name)
+                        currentLibraryJson()
+                    }
+                    WearProtocol.PATH_MOVE -> {
+                        val json = String(data, Charsets.UTF_8)
+                        val id = parseString(json, "id")
+                        val folder = parseString(json, "folder") ?: ""
+                        if (id != null) moveBook(id, folder)
                         currentLibraryJson()
                     }
                     WearProtocol.PATH_STATS -> currentStatsJson()
@@ -140,19 +149,6 @@ class BookReceiverService : WearableListenerService() {
         }
     }
 
-    override fun onDataChanged(dataEvents: DataEventBuffer) {
-        for (event in dataEvents) {
-            if (event.type == DataEvent.TYPE_CHANGED &&
-                event.dataItem.uri.path == WearProtocol.PATH_FOLDERS
-            ) {
-                val json = DataMapItem.fromDataItem(event.dataItem).dataMap.getString("data")
-                    ?: continue
-                (application as WBooksApp).folderSyncRepository.applyJson(json)
-            }
-        }
-        dataEvents.release()
-    }
-
     override fun onChannelOpened(channel: ChannelClient.Channel) {
         if (!channel.path.startsWith(WearProtocol.PATH_UPLOAD_PREFIX)) return
         val filename = URLDecoder.decode(
@@ -184,36 +180,63 @@ class BookReceiverService : WearableListenerService() {
 
     private suspend fun deleteBook(id: String) {
         val app = application as WBooksApp
-        // LibraryRepository.delete is synchronous and idempotent.
         val removed = app.libraryRepository.delete(id)
         if (removed) {
             app.readingPaceRepository.clear(id)
             app.positionsRepository.clear(id)
             app.bookmarksRepository.clear(id)
+        } else {
+            // id may be a folder name — delete it and all books inside recursively
+            val dir = java.io.File(app.booksDir, id)
+            if (dir.isDirectory) {
+                dir.walkTopDown().filter { it.isFile }.forEach { file ->
+                    val bookId = file.relativeTo(app.booksDir).invariantSeparatorsPath
+                    app.readingPaceRepository.clear(bookId)
+                    app.positionsRepository.clear(bookId)
+                    app.bookmarksRepository.clear(bookId)
+                }
+                dir.deleteRecursively()
+                app.libraryRepository.refresh()
+            }
         }
     }
 
-    /**
-     * Extract the `"id":"..."` value from a small JSON payload without pulling in a JSON lib.
-     *
-     * Safe by virtue of [com.fredapp.wbooks.data.library.LibraryRepository.delete]: an id that doesn't
-     * exactly match an existing `Book.id` is a no-op, and book ids are derived from the file's
-     * relative path under `booksDir` â€” there's no path construction here that could escape.
-     * If a future caller starts treating ids as paths, tighten this with a stricter check.
-     */
-    private fun parseId(json: String): String? {
-        val key = "\"id\""
-        val ki = json.indexOf(key)
-        if (ki < 0) return null
-        val colon = json.indexOf(':', ki + key.length)
-        if (colon < 0) return null
-        val q1 = json.indexOf('"', colon + 1)
-        if (q1 < 0) return null
-        val q2 = json.indexOf('"', q1 + 1)
-        if (q2 < 0) return null
-        return json.substring(q1 + 1, q2)
-            .replace("\\\"", "\"")
-            .replace("\\\\", "\\")
+    private suspend fun mkdirBook(name: String) {
+        if (name.isBlank() || name.contains('/') || name.contains('\\')) return
+        val app = application as WBooksApp
+        java.io.File(app.booksDir, name).mkdirs()
+    }
+
+    private suspend fun moveBook(id: String, targetFolder: String) {
+        val app = application as WBooksApp
+        val src = app.libraryRepository.books.value.firstOrNull { it.id == id }?.file ?: return
+        val destDir = if (targetFolder.isEmpty()) app.booksDir else java.io.File(app.booksDir, targetFolder)
+        destDir.mkdirs()
+        val dest = uniqueFile(destDir, src.name)
+        if (src.renameTo(dest)) app.libraryRepository.refresh()
+    }
+
+    private fun parseString(json: String, key: String): String? {
+        val needle = "\"" + key + "\""
+        val ki = json.indexOf(needle); if (ki < 0) return null
+        val colon = json.indexOf(':', ki + needle.length); if (colon < 0) return null
+        val q1 = json.indexOf('"', colon + 1); if (q1 < 0) return null
+        val sb = StringBuilder(); var i = q1 + 1
+        while (i < json.length) {
+            val c = json[i]
+            if (c == '"') return sb.toString()
+            if (c == '\\' && i + 1 < json.length) {
+                when (val esc = json[i + 1]) {
+                    '"', '\\', '/' -> sb.append(esc)
+                    'n' -> sb.append('\n')
+                    'r' -> sb.append('\r')
+                    't' -> sb.append('\t')
+                    else -> sb.append(esc)
+                }
+                i += 2
+            } else { sb.append(c); i++ }
+        }
+        return null
     }
 
     private fun notifyReceived(filename: String) {

@@ -38,7 +38,6 @@ class MainActivity : ComponentActivity() {
                     paceRepo = app.readingPaceRepository,
                     statsRepo = app.readingStatsRepository,
                     appScope = app.appScope,
-                    folderSyncRepo = app.folderSyncRepository,
                 ),
             )
             val settings by vm.settings.collectAsState()

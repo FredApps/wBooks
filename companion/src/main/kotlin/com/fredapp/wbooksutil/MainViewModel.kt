@@ -18,7 +18,6 @@ import kotlinx.coroutines.launch
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repo = WatchRepository(application)
-    private val folderRepo = FolderRepository(application)
     private var watchPollingJob: Job? = null
 
     data class UiState(
@@ -29,16 +28,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val sending: Boolean = false,
         val noWatch: Boolean = false,
         val errorMessage: String? = null,
+        // Folders created locally but not yet confirmed by a book assignment.
+        // Kept so newly created folders remain visible until the user drags a book in.
+        val pendingFolders: Set<String> = emptySet(),
     )
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     init {
-        _state.value = _state.value.copy(
-            folders = folderRepo.getFolders(),
-            bookFolders = folderRepo.getAssignments(),
-        )
         refresh()
     }
 
@@ -63,30 +61,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun createFolder(name: String) {
         if (name.isBlank()) return
-        val folder = folderRepo.createFolder(name)
-        _state.value = _state.value.copy(folders = _state.value.folders + folder)
-        syncFolders()
+        val trimmed = name.trim()
+        val newFolder = Folder(id = trimmed, name = trimmed)
+        _state.value = _state.value.copy(
+            folders = (_state.value.folders + newFolder).distinctBy { it.id },
+            pendingFolders = _state.value.pendingFolders + trimmed,
+        )
+        viewModelScope.launch { repo.mkdirBook(trimmed) }
     }
 
     fun deleteFolder(folderId: String) {
-        folderRepo.deleteFolder(folderId)
         _state.value = _state.value.copy(
             folders = _state.value.folders.filter { it.id != folderId },
-            bookFolders = _state.value.bookFolders.filter { it.value != folderId },
+            pendingFolders = _state.value.pendingFolders - folderId,
         )
-        syncFolders()
+        viewModelScope.launch {
+            applyResult(repo.deleteBook(folderId))
+        }
     }
 
     fun assignBookToFolder(bookId: String, folderId: String?) {
-        folderRepo.assignBook(bookId, folderId)
-        val updated = _state.value.bookFolders.toMutableMap()
-        if (folderId == null) updated.remove(bookId) else updated[bookId] = folderId
-        _state.value = _state.value.copy(bookFolders = updated)
-        syncFolders()
-    }
-
-    private fun syncFolders() = viewModelScope.launch {
-        repo.pushFolders(_state.value.folders, _state.value.bookFolders)
+        val targetFolder = folderId ?: ""
+        viewModelScope.launch {
+            _state.value = _state.value.copy(sending = true)
+            val result = repo.moveBook(bookId, targetFolder)
+            _state.value = _state.value.copy(sending = false)
+            applyResult(result)
+        }
     }
 
     private suspend fun pollWatchConnection() {
@@ -136,15 +137,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun applyResult(result: WatchRepository.Result<List<BookSummary>>) {
         when (result) {
             is WatchRepository.Result.Ok -> {
-                val bookIds = result.value.map { it.id }.toSet()
-                folderRepo.cleanupAssignments(bookIds)
-                val cleanedAssignments = _state.value.bookFolders.filter { it.key in bookIds }
+                val books = result.value
+                // Derive folder membership from book ID path prefixes.
+                // "Fiction/moby-dick.epub" -> folder "Fiction"; "moby-dick.epub" -> uncategorized.
+                val bookFolders = books
+                    .mapNotNull { book ->
+                        val folder = book.id.substringBeforeLast('/', "")
+                        if (folder.isNotEmpty()) book.id to folder else null
+                    }
+                    .toMap()
+                val derivedFolderNames = bookFolders.values.distinct().sorted().toSet()
+                val pending = _state.value.pendingFolders - derivedFolderNames
+                val allFolders = (derivedFolderNames + pending).sorted()
+                    .map { Folder(id = it, name = it) }
                 _state.value = _state.value.copy(
-                    books = result.value,
+                    books = books,
+                    folders = allFolders,
+                    bookFolders = bookFolders,
                     noWatch = false,
-                    bookFolders = cleanedAssignments,
+                    pendingFolders = pending,
                 )
-                syncFolders()
             }
             is WatchRepository.Result.NoWatch ->
                 _state.value = _state.value.copy(noWatch = true, books = emptyList())
