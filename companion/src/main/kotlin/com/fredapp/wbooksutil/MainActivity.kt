@@ -158,7 +158,8 @@ private fun CompanionScreen(
             when {
                 state.loading && state.books.isEmpty() -> CenteredProgress()
                 state.noWatch -> CenteredText(stringResource(R.string.no_watch))
-                state.books.isEmpty() -> CenteredText(stringResource(R.string.empty_library))
+                state.books.isEmpty() && state.folders.isEmpty() ->
+                    CenteredText(stringResource(R.string.empty_library))
                 else -> BookList(
                     books = state.books,
                     folders = state.folders,
