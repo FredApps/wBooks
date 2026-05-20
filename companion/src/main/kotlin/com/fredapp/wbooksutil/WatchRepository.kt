@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.Node
+import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -28,6 +29,7 @@ class WatchRepository(context: Context) {
     private val capabilityClient = Wearable.getCapabilityClient(appContext)
     private val messageClient = Wearable.getMessageClient(appContext)
     private val channelClient = Wearable.getChannelClient(appContext)
+    private val dataClient = Wearable.getDataClient(appContext)
     private val nodeClient = Wearable.getNodeClient(appContext)
 
     sealed class Result<out T> {
@@ -108,6 +110,18 @@ class WatchRepository(context: Context) {
                 }
                 Result.Ok(Unit)
             }.getOrElse { Result.Error(it.message ?: "Upload failed") }
+        }
+
+    suspend fun pushFolders(folders: List<Folder>, assignments: Map<String, String>) =
+        withContext(Dispatchers.IO) {
+            val json = FoldersJson.encode(folders, assignments)
+            runCatching {
+                val request = PutDataMapRequest.create(WearProtocol.PATH_FOLDERS).apply {
+                    dataMap.putString("data", json)
+                    dataMap.putLong("ts", System.currentTimeMillis())
+                }.asPutDataRequest().setUrgent()
+                dataClient.putDataItem(request).await()
+            }
         }
 
     suspend fun hasReachableWatch(): Boolean = withContext(Dispatchers.IO) {

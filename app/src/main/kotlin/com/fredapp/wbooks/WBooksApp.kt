@@ -2,6 +2,7 @@
 
 import android.app.Application
 import com.fredapp.wbooks.data.bookmarks.BookmarksRepository
+import com.fredapp.wbooks.data.folder.FolderSyncRepository
 import com.fredapp.wbooks.data.library.LibraryRepository
 import com.fredapp.wbooks.data.pace.ReadingPaceRepository
 import com.fredapp.wbooks.data.position.PositionsRepository
@@ -31,6 +32,7 @@ class WBooksApp : Application() {
     val transferController: TransferController by lazy { TransferController(this) }
     val documentCache: DocumentCache by lazy { DocumentCache(File(cacheDir, "parsed")) }
     val crashReportingPref: CrashReportingPref by lazy { CrashReportingPref(this) }
+    val folderSyncRepository: FolderSyncRepository by lazy { FolderSyncRepository(this) }
 
     /** Application-scope coroutine scope for one-shot background work that needs to outlive any single screen. */
     internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -44,6 +46,7 @@ class WBooksApp : Application() {
         // isn't blocked by ~2 MB of asset I/O. The library refresh at the end
         // pushes the new books into the StateFlow the UI is already collecting.
         appScope.launch { seedLibraryIfFirstRun() }
+        appScope.launch { folderSyncRepository.loadInitial() }
     }
 
     /**

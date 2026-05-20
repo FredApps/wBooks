@@ -12,6 +12,37 @@ object WearProtocol {
     const val PATH_STATS = "/wbooks/stats"
     const val PATH_SETTINGS_GET = "/wbooks/settings/get"
     const val PATH_SETTINGS_SET = "/wbooks/settings/set"
+    /** DataClient.putDataItem path used to push folder state from phone to watch. */
+    const val PATH_FOLDERS = "/wbooks/folders"
+}
+
+object FoldersJson {
+    fun encode(folders: List<Folder>, assignments: Map<String, String>): String {
+        val sb = StringBuilder("{\"folders\":[")
+        folders.forEachIndexed { i, f ->
+            if (i > 0) sb.append(',')
+            sb.append("{\"id\":").append(q(f.id)).append(",\"name\":").append(q(f.name)).append('}')
+        }
+        sb.append("],\"assignments\":{")
+        var first = true
+        for ((k, v) in assignments) {
+            if (!first) sb.append(',')
+            sb.append(q(k)).append(':').append(q(v))
+            first = false
+        }
+        sb.append("}}")
+        return sb.toString()
+    }
+
+    private fun q(s: String): String {
+        val sb = StringBuilder().append('"')
+        for (c in s) when (c) {
+            '\\' -> sb.append("\\\\"); '"' -> sb.append("\\\"")
+            '\n' -> sb.append("\\n"); '\r' -> sb.append("\\r"); '\t' -> sb.append("\\t")
+            else -> if (c < ' ') sb.append("\\u%04x".format(c.code)) else sb.append(c)
+        }
+        return sb.append('"').toString()
+    }
 }
 
 /**

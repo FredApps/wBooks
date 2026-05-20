@@ -65,6 +65,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (name.isBlank()) return
         val folder = folderRepo.createFolder(name)
         _state.value = _state.value.copy(folders = _state.value.folders + folder)
+        syncFolders()
     }
 
     fun deleteFolder(folderId: String) {
@@ -73,6 +74,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             folders = _state.value.folders.filter { it.id != folderId },
             bookFolders = _state.value.bookFolders.filter { it.value != folderId },
         )
+        syncFolders()
     }
 
     fun assignBookToFolder(bookId: String, folderId: String?) {
@@ -80,6 +82,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val updated = _state.value.bookFolders.toMutableMap()
         if (folderId == null) updated.remove(bookId) else updated[bookId] = folderId
         _state.value = _state.value.copy(bookFolders = updated)
+        syncFolders()
+    }
+
+    private fun syncFolders() = viewModelScope.launch {
+        repo.pushFolders(_state.value.folders, _state.value.bookFolders)
     }
 
     private suspend fun pollWatchConnection() {
@@ -137,6 +144,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     noWatch = false,
                     bookFolders = cleanedAssignments,
                 )
+                syncFolders()
             }
             is WatchRepository.Result.NoWatch ->
                 _state.value = _state.value.copy(noWatch = true, books = emptyList())
