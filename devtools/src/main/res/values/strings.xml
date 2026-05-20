@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">DevTools</string>
+    <string name="launcher_label">Dev options</string>
+    <string name="tile_label">Dev options</string>
+</resources>
