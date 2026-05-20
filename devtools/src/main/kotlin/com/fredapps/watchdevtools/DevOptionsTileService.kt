@@ -1,5 +1,6 @@
 package com.fredapps.watchdevtools
 
+import androidx.concurrent.futures.ResolvableFuture
 import androidx.wear.protolayout.ActionBuilders
 import androidx.wear.protolayout.ColorBuilders.argb
 import androidx.wear.protolayout.LayoutElementBuilders
@@ -13,7 +14,6 @@ import androidx.wear.protolayout.material.Text
 import androidx.wear.protolayout.material.Typography
 import androidx.wear.protolayout.material.layouts.PrimaryLayout
 import androidx.wear.tiles.RequestBuilders
-import androidx.concurrent.futures.ResolvableFuture
 import androidx.wear.tiles.TileBuilders.Tile
 import androidx.wear.tiles.TileService
 import com.google.common.util.concurrent.ListenableFuture
@@ -22,9 +22,13 @@ private const val RESOURCES_VERSION = "1"
 
 /**
  * Tile that opens Developer options in one tap. The tile itself can't `startActivity`
- * directly (it runs in a sandboxed renderer); it declares a [ActionBuilders.LaunchAction]
- * that the system uses to launch [LaunchDevOptionsActivity], which then fires the
- * settings intent and finishes.
+ * directly (it runs in a sandboxed renderer); the CompactChip declares a
+ * [ActionBuilders.LaunchAction] which the system uses to launch
+ * [LaunchDevOptionsActivity], which then fires the settings intent and finishes.
+ *
+ * IMPORTANT: PrimaryLayout must be the root of the layout tree. Wrapping it in a
+ * Box (e.g. to make the whole tile tappable) breaks rendering — the tile shows
+ * up all-black. The chip is the only tap target, which is the standard tile UX.
  */
 class DevOptionsTileService : TileService() {
 
@@ -53,16 +57,29 @@ class DevOptionsTileService : TileService() {
             )
             .build()
 
-        // Wrap the whole layout in a Clickable so tapping anywhere on the tile
-        // launches the activity, not just the chip.
-        val tileClickable = ModifiersBuilders.Clickable.Builder()
-            .setId("tile_root")
+        val chipClickable = ModifiersBuilders.Clickable.Builder()
+            .setId("open_dev_options")
             .setOnClick(launchAction)
             .build()
 
-        val chipClickable = ModifiersBuilders.Clickable.Builder()
-            .setId("tile_chip")
-            .setOnClick(launchAction)
+        val titleText = Text.Builder(this, "Wireless")
+            .setTypography(Typography.TYPOGRAPHY_TITLE2)
+            .setColor(argb(0xFFFFFFFF.toInt()))
+            .build()
+
+        val subtitleText = Text.Builder(this, "debug")
+            .setTypography(Typography.TYPOGRAPHY_TITLE2)
+            .setColor(argb(0xFFFFFFFF.toInt()))
+            .build()
+
+        val centerColumn = LayoutElementBuilders.Column.Builder()
+            .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
+            .addContent(titleText)
+            .addContent(subtitleText)
+            .build()
+
+        val chip = CompactChip.Builder(this, "Open", chipClickable, deviceParams)
+            .setChipColors(ChipColors.primaryChipColors(Colors.DEFAULT))
             .build()
 
         val layout = PrimaryLayout.Builder(deviceParams)
@@ -73,29 +90,8 @@ class DevOptionsTileService : TileService() {
                     .setColor(argb(0xFFAAAAAA.toInt()))
                     .build()
             )
-            .setContent(
-                Text.Builder(this, "Wireless\ndebug")
-                    .setTypography(Typography.TYPOGRAPHY_TITLE2)
-                    .setColor(argb(0xFFFFFFFF.toInt()))
-                    .setMaxLines(2)
-                    .build()
-            )
-            .setPrimaryChipContent(
-                CompactChip.Builder(this, "Open", chipClickable, deviceParams)
-                    .setChipColors(ChipColors.primaryChipColors(Colors.DEFAULT))
-                    .build()
-            )
-            .build()
-
-        // Make the whole tile tappable by wrapping it in a Box with a clickable
-        // modifier. PrimaryLayout itself doesn't expose a click modifier.
-        val tappableRoot = LayoutElementBuilders.Box.Builder()
-            .setModifiers(
-                ModifiersBuilders.Modifiers.Builder()
-                    .setClickable(tileClickable)
-                    .build()
-            )
-            .addContent(layout)
+            .setContent(centerColumn)
+            .setPrimaryChipContent(chip)
             .build()
 
         val tile = Tile.Builder()
@@ -106,7 +102,7 @@ class DevOptionsTileService : TileService() {
                         TimelineBuilders.TimelineEntry.Builder()
                             .setLayout(
                                 LayoutElementBuilders.Layout.Builder()
-                                    .setRoot(tappableRoot)
+                                    .setRoot(layout)
                                     .build()
                             )
                             .build()
