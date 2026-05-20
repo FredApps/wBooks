@@ -10,6 +10,141 @@ object WearProtocol {
     const val PATH_DELETE = "/wbooks/library/delete"
     const val PATH_UPLOAD_PREFIX = "/wbooks/upload/"
     const val PATH_STATS = "/wbooks/stats"
+    const val PATH_SETTINGS_GET = "/wbooks/settings/get"
+    const val PATH_SETTINGS_SET = "/wbooks/settings/set"
+}
+
+/**
+ * Mirror of `:app`'s [com.wbooks.transfer.SettingsSnapshot]. Enum-valued fields
+ * are kept as their `.name` strings on the wire; the companion's own enum
+ * duplicates (see SettingsModel.kt) handle interpretation.
+ */
+data class SettingsSnapshot(
+    val mode: String,
+    val font: String,
+    val textSizeSp: Int,
+    val sentenceTextSizeSp: Int,
+    val textColorArgb: Int,
+    val autoscrollEnabled: Boolean,
+    val autoscrollSpeed: Int,
+    val screenBrightness: Int,
+    val speedreadWpm: Int,
+    val theme: String,
+    val crashReportingEnabled: Boolean,
+)
+
+/**
+ * Decoder for the watch's settings snapshot and encoder for the partial-update
+ * requests the phone sends back. Values are always strings on the wire
+ * regardless of the underlying type, so the encoder converts everything to
+ * its string form.
+ *
+ * Decode is strict: missing keys return null from the field readers and
+ * propagate to a null snapshot. This is deliberate — silently defaulting a
+ * missing `crashReportingEnabled` to false would let a truncated reply flip
+ * Sentry off on the phone without the user asking. Callers should treat a
+ * null result as a wire-format error and refuse to apply.
+ */
+object SettingsJson {
+    fun decode(bytes: ByteArray): SettingsSnapshot? {
+        val json = String(bytes, Charsets.UTF_8)
+        if (json.isBlank()) return null
+        return SettingsSnapshot(
+            mode = readString(json, "mode") ?: return null,
+            font = readString(json, "font") ?: return null,
+            textSizeSp = (readLong(json, "textSizeSp") ?: return null).toInt(),
+            sentenceTextSizeSp = (readLong(json, "sentenceTextSizeSp") ?: return null).toInt(),
+            textColorArgb = (readLong(json, "textColorArgb") ?: return null).toInt(),
+            autoscrollEnabled = readBool(json, "autoscrollEnabled") ?: return null,
+            autoscrollSpeed = (readLong(json, "autoscrollSpeed") ?: return null).toInt(),
+            screenBrightness = (readLong(json, "screenBrightness") ?: return null).toInt(),
+            speedreadWpm = (readLong(json, "speedreadWpm") ?: return null).toInt(),
+            theme = readString(json, "theme") ?: return null,
+            crashReportingEnabled = readBool(json, "crashReportingEnabled") ?: return null,
+        )
+    }
+
+    fun encodeSetRequest(key: String, value: Any): ByteArray {
+        val sb = StringBuilder()
+        sb.append("""{"key":""").append(jsonString(key))
+        sb.append(""","value":""").append(jsonString(value.toString())).append('}')
+        return sb.toString().toByteArray(Charsets.UTF_8)
+    }
+
+    private fun readString(json: String, key: String): String? {
+        val needle = "\"$key\""
+        val k = json.indexOf(needle)
+        if (k < 0) return null
+        val colon = json.indexOf(':', k + needle.length)
+        if (colon < 0) return null
+        val q1 = json.indexOf('"', colon + 1)
+        if (q1 < 0) return null
+        val sb = StringBuilder()
+        var i = q1 + 1
+        while (i < json.length) {
+            val c = json[i]
+            if (c == '"') return sb.toString()
+            if (c == '\\' && i + 1 < json.length) {
+                when (val esc = json[i + 1]) {
+                    '"', '\\', '/' -> sb.append(esc)
+                    'n' -> sb.append('\n')
+                    'r' -> sb.append('\r')
+                    't' -> sb.append('\t')
+                    else -> sb.append(esc)
+                }
+                i += 2
+                continue
+            }
+            sb.append(c)
+            i++
+        }
+        return null
+    }
+
+    private fun readLong(s: String, key: String): Long? {
+        val needle = "\"$key\""
+        val k = s.indexOf(needle)
+        if (k < 0) return null
+        val colon = s.indexOf(':', k + needle.length)
+        if (colon < 0) return null
+        var i = colon + 1
+        while (i < s.length && s[i].isWhitespace()) i++
+        val sb = StringBuilder()
+        if (i < s.length && (s[i] == '-' || s[i].isDigit())) {
+            sb.append(s[i]); i++
+            while (i < s.length && s[i].isDigit()) { sb.append(s[i]); i++ }
+        }
+        return sb.toString().toLongOrNull()
+    }
+
+    private fun readBool(s: String, key: String): Boolean? {
+        val needle = "\"$key\""
+        val k = s.indexOf(needle)
+        if (k < 0) return null
+        val colon = s.indexOf(':', k + needle.length)
+        if (colon < 0) return null
+        var i = colon + 1
+        while (i < s.length && s[i].isWhitespace()) i++
+        return when {
+            i + 4 <= s.length && s.substring(i, i + 4) == "true" -> true
+            i + 5 <= s.length && s.substring(i, i + 5) == "false" -> false
+            else -> null
+        }
+    }
+
+    private fun jsonString(s: String): String {
+        val sb = StringBuilder(s.length + 2).append('"')
+        for (c in s) when (c) {
+            '\\' -> sb.append("\\\\")
+            '"' -> sb.append("\\\"")
+            '\n' -> sb.append("\\n")
+            '\r' -> sb.append("\\r")
+            '\t' -> sb.append("\\t")
+            else -> if (c < ' ') sb.append("\\u%04x".format(c.code)) else sb.append(c)
+        }
+        sb.append('"')
+        return sb.toString()
+    }
 }
 
 data class BookSummary(val id: String, val title: String, val format: String)

@@ -44,6 +44,7 @@ class UploadServer(
             else -> notFound()
         }
     } catch (e: Exception) {
+        io.sentry.Sentry.captureException(e)
         newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Server error: ${e.message}")
     }
 

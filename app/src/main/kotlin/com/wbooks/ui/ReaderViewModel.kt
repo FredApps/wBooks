@@ -417,7 +417,14 @@ class ReaderViewModel(
             } ?: BookPosition.START
             _document.value = result.fold(
                 onSuccess = { DocumentState.Loaded(book, it, initialPosition) },
-                onFailure = { DocumentState.Failed(book, it.message ?: it::class.simpleName ?: "unknown error") },
+                onFailure = {
+                    // runCatching also catches CancellationException — re-throw so
+                    // coroutine cancellation (e.g. user navigates away mid-parse)
+                    // doesn't get reported to Sentry as a parser bug.
+                    if (it is kotlinx.coroutines.CancellationException) throw it
+                    io.sentry.Sentry.captureException(it)
+                    DocumentState.Failed(book, it.message ?: it::class.simpleName ?: "unknown error")
+                },
             )
         }
     }

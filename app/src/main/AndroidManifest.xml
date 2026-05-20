@@ -28,12 +28,13 @@
             android:value="true" />
 
         <!--
-          Sentry auto-init. DSN comes from local.properties via manifestPlaceholders;
-          empty value = no-op (SDK logs a warning and drops events). Configure by
-          adding `sentry.dsn=https://...` to local.properties.
+          Sentry config. DSN comes from local.properties via manifestPlaceholders
+          (empty = SDK no-ops). auto-init is disabled so WBooksApp.onCreate can
+          gate initialization on the user's "Crash reports" settings toggle; see
+          CrashReportingPref.
         -->
         <meta-data android:name="io.sentry.dsn" android:value="${sentryDsn}" />
-        <meta-data android:name="io.sentry.auto-init" android:value="true" />
+        <meta-data android:name="io.sentry.auto-init" android:value="false" />
         <meta-data android:name="io.sentry.environment" android:value="watch" />
 
         <activity
