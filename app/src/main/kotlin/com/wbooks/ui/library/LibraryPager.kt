@@ -5,7 +5,9 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.wbooks.ui.ReaderViewModel
 import com.wbooks.ui.settings.SettingsScreen
@@ -19,6 +21,13 @@ fun LibraryPager(vm: ReaderViewModel) {
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
     val books by vm.books.collectAsState()
 
+    val settledPage by remember {
+        derivedStateOf { if (pagerState.isScrollInProgress) -1 else pagerState.currentPage }
+    }
+    val searchActive by remember { derivedStateOf { settledPage == 0 } }
+    val libraryActive by remember { derivedStateOf { settledPage == 1 } }
+    val settingsActive by remember { derivedStateOf { settledPage == 2 } }
+
     HorizontalPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),
@@ -26,14 +35,16 @@ fun LibraryPager(vm: ReaderViewModel) {
         when (page) {
             0 -> LibrarySearchScreen(
                 books = books,
+                isActive = searchActive,
                 onBookOpen = { vm.openBook(it) },
             )
             1 -> LibraryScreen(
                 books = books,
+                isActive = libraryActive,
                 onBookOpen = { vm.openBook(it) },
                 onRefresh = { vm.refreshLibrary() },
             )
-            2 -> SettingsScreen(vm = vm)
+            2 -> SettingsScreen(vm = vm, isActive = settingsActive)
         }
     }
 }
