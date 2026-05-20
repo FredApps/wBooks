@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.sentry.android)
 }
 
 /**
@@ -72,6 +73,22 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+}
+
+sentry {
+    org.set("fredapps")
+    projectName.set("wbooks")
+    authToken.set(localProperty("sentry.auth.token"))
+
+    // Upload ProGuard/R8 mapping so minified release stack traces are readable.
+    // Only runs on release variants where minify is on; debug builds are untouched.
+    autoUploadProguardMapping.set(true)
+    includeSourceContext.set(true)
+    autoUploadSourceContext.set(true)
+
+    // We don't want the plugin to bytecode-rewrite for performance tracing —
+    // we're using Sentry for crashes only.
+    tracingInstrumentation { enabled.set(false) }
 }
 
 dependencies {

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -31,6 +32,7 @@ class MainActivity : ComponentActivity() {
     private val mainViewModel: MainViewModel by viewModels { MainViewModel.Factory(application) }
     private val gutenbergViewModel: GutenbergViewModel by viewModels { GutenbergViewModel.Factory(application) }
     private val statsViewModel: StatsViewModel by viewModels { StatsViewModel.Factory(application) }
+    private val settingsViewModel: SettingsViewModel by viewModels { SettingsViewModel.Factory(application) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,6 +53,10 @@ class MainActivity : ComponentActivity() {
                         vm = statsViewModel,
                         onBack = { screen = Screen.LIBRARY },
                     )
+                    Screen.SETTINGS -> SettingsScreen(
+                        vm = settingsViewModel,
+                        onBack = { screen = Screen.LIBRARY },
+                    )
                     Screen.LIBRARY -> CompanionScreen(
                         vm = mainViewModel,
                         onBrowseGutenberg = { screen = Screen.GUTENBERG },
@@ -58,13 +64,14 @@ class MainActivity : ComponentActivity() {
                             screen = Screen.STATS
                             statsViewModel.refresh()
                         },
+                        onOpenSettings = { screen = Screen.SETTINGS },
                     )
                 }
             }
         }
     }
 
-    private enum class Screen { LIBRARY, GUTENBERG, STATS }
+    private enum class Screen { LIBRARY, GUTENBERG, STATS, SETTINGS }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,6 +80,7 @@ private fun CompanionScreen(
     vm: MainViewModel,
     onBrowseGutenberg: () -> Unit,
     onShowStats: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
 
@@ -92,6 +100,9 @@ private fun CompanionScreen(
                     }
                     IconButton(onClick = onBrowseGutenberg) {
                         Icon(Icons.Default.Search, contentDescription = "Project Gutenberg")
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Watch settings")
                     }
                     IconButton(onClick = vm::refresh) {
                         Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh))

@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
+        android:name=".CompanionApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -15,12 +16,12 @@
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <!--
-          Sentry auto-init. DSN comes from local.properties via manifestPlaceholders;
-          empty value = no-op (SDK logs a warning and drops events). Configure by
-          adding `sentry.dsn=https://...` to local.properties.
+          Sentry config. DSN comes from local.properties via manifestPlaceholders
+          (empty = SDK no-ops). auto-init is disabled so CompanionApp.onCreate can
+          gate init on the user's "Crash reports" opt-out (mirrored from the watch).
         -->
         <meta-data android:name="io.sentry.dsn" android:value="${sentryDsn}" />
-        <meta-data android:name="io.sentry.auto-init" android:value="true" />
+        <meta-data android:name="io.sentry.auto-init" android:value="false" />
         <meta-data android:name="io.sentry.environment" android:value="phone" />
 
         <activity

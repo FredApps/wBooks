@@ -67,6 +67,11 @@ class BookReceiverService : WearableListenerService() {
                         currentLibraryJson()
                     }
                     WearProtocol.PATH_STATS -> currentStatsJson()
+                    WearProtocol.PATH_SETTINGS_GET -> currentSettingsJson()
+                    WearProtocol.PATH_SETTINGS_SET -> {
+                        applySettingsUpdate(data)
+                        currentSettingsJson()
+                    }
                     else -> ByteArray(0)
                 }
                 tcs.setResult(result)
@@ -90,6 +95,42 @@ class BookReceiverService : WearableListenerService() {
             BookSummary(id = b.id, title = b.title, format = b.format.name)
         }
         return LibraryListJson.encode(books).toByteArray(Charsets.UTF_8)
+    }
+
+    private suspend fun currentSettingsJson(): ByteArray {
+        val app = application as WBooksApp
+        val s = app.settingsRepository.snapshot()
+        val snapshot = SettingsSnapshot(
+            mode = s.mode.name,
+            font = s.font.name,
+            textSizeSp = s.textSizeSp,
+            sentenceTextSizeSp = s.sentenceTextSizeSp,
+            textColorArgb = s.textColorArgb,
+            autoscrollEnabled = s.autoscrollEnabled,
+            autoscrollSpeed = s.autoscrollSpeed,
+            screenBrightness = s.screenBrightness,
+            speedreadWpm = s.speedreadWpm,
+            theme = s.theme.name,
+            crashReportingEnabled = app.crashReportingPref.enabled.value,
+        )
+        return SettingsJson.encode(snapshot).toByteArray(Charsets.UTF_8)
+    }
+
+    /**
+     * Parse the `{"key","value"}` payload and route it: the crash-reporting
+     * opt-out is held in [com.wbooks.data.telemetry.CrashReportingPref] (separate
+     * from DataStore so it can be read synchronously at app start), everything
+     * else lives in `SettingsRepository`.
+     */
+    private suspend fun applySettingsUpdate(data: ByteArray) {
+        val (key, value) = SettingsJson.decodeSetRequest(data) ?: return
+        val app = application as WBooksApp
+        if (key == "crashReportingEnabled") {
+            val b = value.equals("true", ignoreCase = true)
+            app.crashReportingPref.setEnabled(b)
+        } else {
+            app.settingsRepository.applyWireKey(key, value)
+        }
     }
 
     override fun onChannelOpened(channel: ChannelClient.Channel) {

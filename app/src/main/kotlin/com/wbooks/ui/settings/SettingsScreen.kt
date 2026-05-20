@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
@@ -36,6 +37,7 @@ import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.ToggleChip
 import androidx.wear.compose.material.ToggleChipDefaults
 import com.wbooks.R
+import com.wbooks.WBooksApp
 import com.wbooks.data.settings.FontChoice
 import com.wbooks.data.settings.ReaderSettings
 import com.wbooks.ui.ReaderViewModel
@@ -204,6 +206,22 @@ fun SettingsScreen(vm: ReaderViewModel) {
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                 }
+            }
+            item {
+                val context = LocalContext.current
+                val pref = remember(context) {
+                    (context.applicationContext as WBooksApp).crashReportingPref
+                }
+                val enabled by pref.enabled.collectAsState()
+                ToggleChip(
+                    checked = enabled,
+                    onCheckedChange = { pref.setEnabled(it) },
+                    label = { Text(stringResource(R.string.settings_crash_reporting)) },
+                    secondaryLabel = { Text(stringResource(R.string.settings_crash_reporting_subtitle)) },
+                    toggleControl = { Switch(checked = enabled) },
+                    colors = ToggleChipDefaults.toggleChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             item {
                 Chip(

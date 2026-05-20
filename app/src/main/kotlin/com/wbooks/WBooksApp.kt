@@ -7,6 +7,7 @@ import com.wbooks.data.pace.ReadingPaceRepository
 import com.wbooks.data.position.PositionsRepository
 import com.wbooks.data.stats.ReadingStatsRepository
 import com.wbooks.data.settings.SettingsRepository
+import com.wbooks.data.telemetry.CrashReportingPref
 import com.wbooks.parser.cache.DocumentCache
 import com.wbooks.transfer.TransferController
 import kotlinx.coroutines.CoroutineScope
@@ -29,12 +30,16 @@ class WBooksApp : Application() {
     val readingStatsRepository: ReadingStatsRepository by lazy { ReadingStatsRepository(this) }
     val transferController: TransferController by lazy { TransferController(this) }
     val documentCache: DocumentCache by lazy { DocumentCache(File(cacheDir, "parsed")) }
+    val crashReportingPref: CrashReportingPref by lazy { CrashReportingPref(this) }
 
     /** Application-scope coroutine scope for one-shot background work that needs to outlive any single screen. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
+        // Gated on the user-facing "Crash reports" toggle. Manifest auto-init is
+        // disabled so this is the only path that brings Sentry up.
+        crashReportingPref.initIfEnabled()
         // Run the seed copy off the main thread so first-launch startup latency
         // isn't blocked by ~2 MB of asset I/O. The library refresh at the end
         // pushes the new books into the StateFlow the UI is already collecting.
@@ -66,6 +71,9 @@ class WBooksApp : Application() {
                     dest.outputStream().use { output -> input.copyTo(output) }
                 }
                 copied++
+            }.onFailure {
+                if (it is kotlinx.coroutines.CancellationException) throw it
+                io.sentry.Sentry.captureException(it)
             }
         }
         marker.writeText(SEED_VERSION)

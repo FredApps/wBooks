@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.sentry.android)
 }
 
 fun localProperty(name: String): String {
@@ -60,6 +61,18 @@ android {
             java.srcDirs("src/test/kotlin")
         }
     }
+}
+
+sentry {
+    org.set("fredapps")
+    projectName.set("wbooks")
+    authToken.set(localProperty("sentry.auth.token"))
+
+    autoUploadProguardMapping.set(true)
+    includeSourceContext.set(true)
+    autoUploadSourceContext.set(true)
+
+    tracingInstrumentation { enabled.set(false) }
 }
 
 dependencies {
