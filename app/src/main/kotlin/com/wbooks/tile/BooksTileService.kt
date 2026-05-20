@@ -19,7 +19,6 @@ import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import com.google.common.util.concurrent.ListenableFuture
-import com.wbooks.MainActivity
 import com.wbooks.R
 import com.wbooks.WBooksApp
 import com.wbooks.data.stats.formatDurationMs
@@ -111,14 +110,6 @@ class BooksTileService : TileService() {
                         ActionBuilders.AndroidActivity.Builder()
                             .setPackageName(packageName)
                             .setClassName("com.wbooks.MainActivity")
-                            .setKeyValuePairs(
-                                mapOf(
-                                    MainActivity.EXTRA_SHOW_LIBRARY to
-                                        ActionBuilders.AndroidIntentExtra.Builder()
-                                            .setBoolValue(true)
-                                            .build()
-                                )
-                            )
                             .build()
                     )
                     .build()
