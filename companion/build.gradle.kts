@@ -1,4 +1,4 @@
-import java.util.Properties
+﻿import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -15,12 +15,45 @@ fun localProperty(name: String): String {
     return props.getProperty(name).orEmpty()
 }
 
+val wBooksSigningProperties by lazy {
+    val file = rootProject.projectDir.parentFile.resolve(".secrets/wBooks-signing.properties")
+    if (!file.isFile) {
+        error("Missing signing properties: ${file.absolutePath}")
+    }
+    Properties().apply {
+        file.inputStream().use { load(it) }
+    }
+}
+
+fun wBooksSigningProperty(name: String): String =
+    wBooksSigningProperties.getProperty(name)
+        ?: error("Missing signing property '$name' in wBooks-signing.properties")
+
+val wBooksKeystoreFile by lazy {
+    val file = rootProject.projectDir.parentFile
+        .resolve(".secrets")
+        .resolve(wBooksSigningProperty("storeFile"))
+    if (!file.isFile) {
+        error("Missing signing keystore: ${file.absolutePath}")
+    }
+    file
+}
+
 android {
-    namespace = "com.wbooks.companion"
+    namespace = "com.fredapp.wbooksutil"
     compileSdk = 36
 
+    signingConfigs {
+        create("wBooks") {
+            storeFile = wBooksKeystoreFile
+            storePassword = wBooksSigningProperty("storePassword")
+            keyAlias = wBooksSigningProperty("keyAlias")
+            keyPassword = wBooksSigningProperty("keyPassword")
+        }
+    }
+
     defaultConfig {
-        applicationId = "com.wbooks.companion"
+        applicationId = "com.fredapp.wbooksutil"
         minSdk = 24
         targetSdk = 35
         versionCode = 2
@@ -30,7 +63,12 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("wBooks")
+        }
+
         release {
+            signingConfig = signingConfigs.getByName("wBooks")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
