@@ -1,97 +1,87 @@
 package com.fredapps.watchdevtools
 
+import android.provider.Settings
+import android.util.Log
 import androidx.concurrent.futures.ResolvableFuture
 import androidx.wear.protolayout.ActionBuilders
 import androidx.wear.protolayout.ColorBuilders.argb
+import androidx.wear.protolayout.DimensionBuilders.dp
+import androidx.wear.protolayout.DimensionBuilders.expand
+import androidx.wear.protolayout.DimensionBuilders.sp
 import androidx.wear.protolayout.LayoutElementBuilders
+import androidx.wear.protolayout.LayoutElementBuilders.FontStyle
 import androidx.wear.protolayout.ModifiersBuilders
 import androidx.wear.protolayout.ResourceBuilders
 import androidx.wear.protolayout.TimelineBuilders
-import androidx.wear.protolayout.material.ChipColors
-import androidx.wear.protolayout.material.Colors
-import androidx.wear.protolayout.material.CompactChip
-import androidx.wear.protolayout.material.Text
-import androidx.wear.protolayout.material.Typography
-import androidx.wear.protolayout.material.layouts.PrimaryLayout
 import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders.Tile
 import androidx.wear.tiles.TileService
 import com.google.common.util.concurrent.ListenableFuture
 
-private const val RESOURCES_VERSION = "1"
+// Bump this string whenever the layout schema changes — it forces the Wear OS
+// renderer to discard cached visuals and re-fetch from us.
+private const val RESOURCES_VERSION = "3"
+private const val TAG = "DevOptionsTile"
+
+private const val BUTTON_BG = 0xFF1F4A8C.toInt()
+private const val TITLE_COLOR = 0xFFAAAAAA.toInt()
+private const val WHITE = 0xFFFFFFFF.toInt()
 
 /**
- * Tile that opens Developer options in one tap. The tile itself can't `startActivity`
- * directly (it runs in a sandboxed renderer); the CompactChip declares a
- * [ActionBuilders.LaunchAction] which the system uses to launch
- * [LaunchDevOptionsActivity], which then fires the settings intent and finishes.
+ * Tile with three quick-toggle shortcuts: Dev options (for wireless debugging),
+ * Bluetooth settings, and Wi-Fi settings. None of these can actually flip the
+ * toggle from a third-party app on modern Android — Bluetooth and Wi-Fi both
+ * require user consent — but landing on the right settings page is one tap
+ * away from the toggle.
  *
- * IMPORTANT: PrimaryLayout must be the root of the layout tree. Wrapping it in a
- * Box (e.g. to make the whole tile tappable) breaks rendering — the tile shows
- * up all-black. The chip is the only tap target, which is the standard tile UX.
+ * Each button's [ActionBuilders.LaunchAction] points at the same
+ * [LaunchDevOptionsActivity] with a string extra carrying the settings action;
+ * that activity reads the extra and fires the matching Settings.ACTION_*.
  */
 class DevOptionsTileService : TileService() {
 
     override fun onTileResourcesRequest(
         requestParams: RequestBuilders.ResourcesRequest
-    ): ListenableFuture<ResourceBuilders.Resources> =
-        ResolvableFuture.create<ResourceBuilders.Resources>().apply {
-            set(
-                ResourceBuilders.Resources.Builder()
-                    .setVersion(RESOURCES_VERSION)
-                    .build()
-            )
+    ): ListenableFuture<ResourceBuilders.Resources> {
+        Log.i(TAG, "onTileResourcesRequest version=${requestParams.version}")
+        return ResolvableFuture.create<ResourceBuilders.Resources>().apply {
+            set(ResourceBuilders.Resources.Builder().setVersion(RESOURCES_VERSION).build())
         }
+    }
 
     override fun onTileRequest(
         requestParams: RequestBuilders.TileRequest
     ): ListenableFuture<Tile> {
-        val deviceParams = requestParams.deviceConfiguration
+        Log.i(TAG, "onTileRequest tileId=${requestParams.tileId}")
 
-        val launchAction = ActionBuilders.LaunchAction.Builder()
-            .setAndroidActivity(
-                ActionBuilders.AndroidActivity.Builder()
-                    .setPackageName(packageName)
-                    .setClassName("com.fredapps.watchdevtools.LaunchDevOptionsActivity")
+        val title = LayoutElementBuilders.Text.Builder()
+            .setText("Quick toggles")
+            .setFontStyle(
+                FontStyle.Builder()
+                    .setSize(sp(12f))
+                    .setColor(argb(TITLE_COLOR))
                     .build()
             )
             .build()
 
-        val chipClickable = ModifiersBuilders.Clickable.Builder()
-            .setId("open_dev_options")
-            .setOnClick(launchAction)
-            .build()
-
-        val titleText = Text.Builder(this, "Wireless")
-            .setTypography(Typography.TYPOGRAPHY_TITLE2)
-            .setColor(argb(0xFFFFFFFF.toInt()))
-            .build()
-
-        val subtitleText = Text.Builder(this, "debug")
-            .setTypography(Typography.TYPOGRAPHY_TITLE2)
-            .setColor(argb(0xFFFFFFFF.toInt()))
-            .build()
-
-        val centerColumn = LayoutElementBuilders.Column.Builder()
+        val column = LayoutElementBuilders.Column.Builder()
             .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
-            .addContent(titleText)
-            .addContent(subtitleText)
+            .setWidth(expand())
+            .addContent(title)
+            .addContent(verticalSpacer(8))
+            .addContent(button("Dev options", Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS, "dev"))
+            .addContent(verticalSpacer(6))
+            .addContent(button("Bluetooth", Settings.ACTION_BLUETOOTH_SETTINGS, "bt"))
+            .addContent(verticalSpacer(6))
+            .addContent(button("Wi-Fi", Settings.ACTION_WIFI_SETTINGS, "wifi"))
             .build()
 
-        val chip = CompactChip.Builder(this, "Open", chipClickable, deviceParams)
-            .setChipColors(ChipColors.primaryChipColors(Colors.DEFAULT))
-            .build()
-
-        val layout = PrimaryLayout.Builder(deviceParams)
-            .setResponsiveContentInsetEnabled(true)
-            .setPrimaryLabelTextContent(
-                Text.Builder(this, "Dev tools")
-                    .setTypography(Typography.TYPOGRAPHY_CAPTION1)
-                    .setColor(argb(0xFFAAAAAA.toInt()))
-                    .build()
-            )
-            .setContent(centerColumn)
-            .setPrimaryChipContent(chip)
+        val root = LayoutElementBuilders.Box.Builder()
+            .setWidth(expand())
+            .setHeight(expand())
+            .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
+            .setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
+            .addContent(column)
             .build()
 
         val tile = Tile.Builder()
@@ -102,7 +92,7 @@ class DevOptionsTileService : TileService() {
                         TimelineBuilders.TimelineEntry.Builder()
                             .setLayout(
                                 LayoutElementBuilders.Layout.Builder()
-                                    .setRoot(layout)
+                                    .setRoot(root)
                                     .build()
                             )
                             .build()
@@ -113,4 +103,77 @@ class DevOptionsTileService : TileService() {
 
         return ResolvableFuture.create<Tile>().apply { set(tile) }
     }
+
+    /**
+     * Build a pill-shaped clickable button. Each button launches
+     * [LaunchDevOptionsActivity] with the [settingsAction] passed through as a
+     * string extra; that activity does the actual `startActivity(Intent(action))`.
+     */
+    private fun button(
+        label: String,
+        settingsAction: String,
+        clickId: String,
+    ): LayoutElementBuilders.LayoutElement {
+        val launchAction = ActionBuilders.LaunchAction.Builder()
+            .setAndroidActivity(
+                ActionBuilders.AndroidActivity.Builder()
+                    .setPackageName(packageName)
+                    .setClassName("com.fredapps.watchdevtools.LaunchDevOptionsActivity")
+                    .addKeyToExtraMapping(
+                        LaunchDevOptionsActivity.EXTRA_SETTINGS_ACTION,
+                        ActionBuilders.AndroidStringExtra.Builder()
+                            .setValue(settingsAction)
+                            .build()
+                    )
+                    .build()
+            )
+            .build()
+
+        val clickable = ModifiersBuilders.Clickable.Builder()
+            .setId(clickId)
+            .setOnClick(launchAction)
+            .build()
+
+        val text = LayoutElementBuilders.Text.Builder()
+            .setText(label)
+            .setFontStyle(
+                FontStyle.Builder()
+                    .setSize(sp(14f))
+                    .setColor(argb(WHITE))
+                    .build()
+            )
+            .build()
+
+        return LayoutElementBuilders.Box.Builder()
+            .setModifiers(
+                ModifiersBuilders.Modifiers.Builder()
+                    .setClickable(clickable)
+                    .setBackground(
+                        ModifiersBuilders.Background.Builder()
+                            .setColor(argb(BUTTON_BG))
+                            .setCorner(
+                                ModifiersBuilders.Corner.Builder()
+                                    .setRadius(dp(18f))
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .setPadding(
+                        ModifiersBuilders.Padding.Builder()
+                            .setStart(dp(18f))
+                            .setEnd(dp(18f))
+                            .setTop(dp(6f))
+                            .setBottom(dp(6f))
+                            .build()
+                    )
+                    .build()
+            )
+            .addContent(text)
+            .build()
+    }
+
+    private fun verticalSpacer(heightDp: Int): LayoutElementBuilders.LayoutElement =
+        LayoutElementBuilders.Spacer.Builder()
+            .setHeight(dp(heightDp.toFloat()))
+            .build()
 }
