@@ -56,6 +56,25 @@ class PositionsRepository(context: Context) {
         store.edit { it.remove(key) }
     }
 
+    suspend fun moveBookId(fromBookId: String, toBookId: String) {
+        if (fromBookId == toBookId) return
+        store.edit { prefs ->
+            val fromPos = stringPreferencesKey("pos:$fromBookId")
+            val toPos = stringPreferencesKey("pos:$toBookId")
+            prefs[fromPos]?.let { prefs[toPos] = it }
+            prefs.remove(fromPos)
+
+            val fromOpened = stringPreferencesKey("opened:$fromBookId")
+            val toOpened = stringPreferencesKey("opened:$toBookId")
+            prefs[fromOpened]?.let { prefs[toOpened] = it }
+            prefs.remove(fromOpened)
+
+            if (prefs[LAST_OPENED_KEY] == fromBookId) {
+                prefs[LAST_OPENED_KEY] = toBookId
+            }
+        }
+    }
+
     // ---- Last-opened book (for the Resume tile + app auto-resume). ----
 
     val lastOpenedBookId: Flow<String?> = store.data.map { it[LAST_OPENED_KEY] }

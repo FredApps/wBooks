@@ -47,6 +47,16 @@ class ReadingPaceRepository(context: Context) {
         store.edit { it.remove(key) }
     }
 
+    suspend fun moveBookId(fromBookId: String, toBookId: String) {
+        if (fromBookId == toBookId) return
+        val from = stringPreferencesKey("pace:$fromBookId")
+        val to = stringPreferencesKey("pace:$toBookId")
+        store.edit { prefs ->
+            prefs[from]?.let { prefs[to] = it }
+            prefs.remove(from)
+        }
+    }
+
     suspend fun recordAdvance(bookId: String, deltaMs: Long) {
         if (deltaMs !in MIN_DELTA_MS..MAX_DELTA_MS) return
         val key = stringPreferencesKey("pace:$bookId")

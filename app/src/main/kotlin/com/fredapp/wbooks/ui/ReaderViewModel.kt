@@ -415,7 +415,10 @@ class ReaderViewModel(
     }
 
     fun moveBook(bookId: String, targetFolder: String) {
-        viewModelScope.launch { libraryRepo.move(bookId, targetFolder) }
+        viewModelScope.launch {
+            val newId = libraryRepo.move(bookId, targetFolder) ?: return@launch
+            migrateBookState(bookId, newId)
+        }
     }
 
     fun deleteBook(bookId: String) {
@@ -424,8 +427,17 @@ class ReaderViewModel(
                 paceRepo.clear(bookId)
                 positionsRepo.clear(bookId)
                 bookmarksRepo.clear(bookId)
+                documentCache.invalidate(bookId)
             }
         }
+    }
+
+    private suspend fun migrateBookState(oldId: String, newId: String) {
+        if (oldId == newId) return
+        paceRepo.moveBookId(oldId, newId)
+        positionsRepo.moveBookId(oldId, newId)
+        bookmarksRepo.moveBookId(oldId, newId)
+        documentCache.moveBookId(oldId, newId)
     }
 
     fun openBook(book: Book) {

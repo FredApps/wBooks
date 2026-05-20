@@ -185,6 +185,7 @@ class BookReceiverService : WearableListenerService() {
             app.readingPaceRepository.clear(id)
             app.positionsRepository.clear(id)
             app.bookmarksRepository.clear(id)
+            app.documentCache.invalidate(id)
         } else {
             // id may be a folder name — delete it and all books inside recursively
             val dir = java.io.File(app.booksDir, id)
@@ -194,6 +195,7 @@ class BookReceiverService : WearableListenerService() {
                     app.readingPaceRepository.clear(bookId)
                     app.positionsRepository.clear(bookId)
                     app.bookmarksRepository.clear(bookId)
+                    app.documentCache.invalidate(bookId)
                 }
                 dir.deleteRecursively()
                 app.libraryRepository.refresh()
@@ -210,12 +212,12 @@ class BookReceiverService : WearableListenerService() {
 
     private suspend fun moveBook(id: String, targetFolder: String) {
         val app = application as WBooksApp
-        val src = app.libraryRepository.books.value.firstOrNull { it.id == id }?.file ?: return
-        val destDir = if (targetFolder.isEmpty()) app.booksDir else java.io.File(app.booksDir, targetFolder)
-        if (!destDir.isInside(app.booksDir)) return
-        destDir.mkdirs()
-        val dest = uniqueFile(destDir, src.name)
-        if (src.renameTo(dest)) app.libraryRepository.refresh()
+        val newId = app.libraryRepository.move(id, targetFolder) ?: return
+        if (newId == id) return
+        app.readingPaceRepository.moveBookId(id, newId)
+        app.positionsRepository.moveBookId(id, newId)
+        app.bookmarksRepository.moveBookId(id, newId)
+        app.documentCache.moveBookId(id, newId)
     }
 
     private fun parseString(json: String, key: String): String? {

@@ -41,13 +41,19 @@ class LibraryRepository(private val booksDir: File) {
         return removed
     }
 
-    suspend fun move(bookId: String, targetFolder: String): Boolean = withContext(Dispatchers.IO) {
-        val src = _books.value.firstOrNull { it.id == bookId }?.file ?: return@withContext false
+    suspend fun move(bookId: String, targetFolder: String): String? = withContext(Dispatchers.IO) {
+        val src = _books.value.firstOrNull { it.id == bookId }?.file ?: return@withContext null
         val destDir = if (targetFolder.isEmpty()) booksDir else File(booksDir, targetFolder)
-        if (!destDir.isInsideBooksDir()) return@withContext false
+        if (!destDir.isInsideBooksDir()) return@withContext null
         destDir.mkdirs()
+        if (src.parentFile?.canonicalFile == destDir.canonicalFile) return@withContext bookId
         val dest = uniqueFile(destDir, src.name)
-        if (src.renameTo(dest)) { refresh(); true } else false
+        if (src.renameTo(dest)) {
+            refresh()
+            dest.relativeTo(booksDir).invariantSeparatorsPath
+        } else {
+            null
+        }
     }
 
     private fun toBook(file: File): Book? {

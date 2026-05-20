@@ -74,6 +74,16 @@ class DocumentCache(private val dir: File) {
         pathFor(bookId).delete()
     }
 
+    fun moveBookId(fromBookId: String, toBookId: String) {
+        if (fromBookId == toBookId) return
+        val from = pathFor(fromBookId)
+        if (!from.exists()) return
+        val to = pathFor(toBookId)
+        to.parentFile?.mkdirs()
+        if (to.exists()) to.delete()
+        from.renameTo(to)
+    }
+
     private fun pathFor(bookId: String): File {
         val sha = MessageDigest.getInstance("SHA-1")
             .digest(bookId.toByteArray(Charsets.UTF_8))

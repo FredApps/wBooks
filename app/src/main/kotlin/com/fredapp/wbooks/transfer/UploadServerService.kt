@@ -57,6 +57,15 @@ class UploadServerService : Service() {
                     app.readingPaceRepository.clear(bookId)
                     app.positionsRepository.clear(bookId)
                     app.bookmarksRepository.clear(bookId)
+                    app.documentCache.invalidate(bookId)
+                }
+            },
+            onBookMoved = { fromBookId, toBookId ->
+                serviceScope.launch {
+                    app.readingPaceRepository.moveBookId(fromBookId, toBookId)
+                    app.positionsRepository.moveBookId(fromBookId, toBookId)
+                    app.bookmarksRepository.moveBookId(fromBookId, toBookId)
+                    app.documentCache.moveBookId(fromBookId, toBookId)
                 }
             },
         ).also {
