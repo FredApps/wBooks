@@ -102,6 +102,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val state = _state.value
         when {
             reachable && state.noWatch -> refreshLibrary(showLoading = false)
+            reachable && !state.noWatch -> refreshLibrary(showLoading = false)
             !reachable && !state.noWatch -> {
                 _state.value = state.copy(noWatch = true, books = emptyList(), loading = false)
             }
