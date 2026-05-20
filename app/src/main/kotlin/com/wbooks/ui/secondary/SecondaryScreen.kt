@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -44,6 +47,8 @@ import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
+import androidx.wear.compose.foundation.rotary.rotaryScrollable
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.Icon
@@ -75,8 +80,11 @@ fun SecondaryScreen(
     vm: ReaderViewModel,
     onSearchActiveChanged: (Boolean) -> Unit,
     onReaderPageRequested: () -> Unit,
+    isActive: Boolean = true,
 ) {
     val listState = rememberScalingLazyListState()
+    val focusRequester = remember { FocusRequester() }
+    val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
 
     Scaffold(timeText = { TimeText() }) {
         if (state !is DocumentState.Loaded) {
@@ -141,8 +149,21 @@ fun SecondaryScreen(
         var pendingDelete by remember { mutableStateOf<BookPosition?>(null) }
         val chapters = remember(state.doc) { chapterJumps(state.doc) }
 
+        // Swiping into Tools resets the list to the top (per UX spec) and
+        // reclaims rotary focus from whatever was holding it before.
+        LaunchedEffect(isActive) {
+            if (isActive) {
+                listState.scrollToItem(0)
+                runCatching { focusRequester.requestFocus() }
+            }
+        }
+
         ScalingLazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .focusRequester(focusRequester)
+                .focusable()
+                .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -196,10 +217,21 @@ fun SecondaryScreen(
             if (bookmarks.isNotEmpty()) {
                 item { ListHeader { Text(stringResource(R.string.tools_bookmarks)) } }
                 items(bookmarks, key = { "bm:${it.position.chapterIndex}-${it.position.blockIndex}" }) { bm ->
+                    // Resolve label from the same heading-derived chapter list the
+                    // user sees in the chapter section — using bm.position.chapterIndex
+                    // directly would say "Chapter 2" for a Ch. 6 heading inside the
+                    // single doc.chapter that an EPUB parser sometimes produces.
+                    val resolvedLabel = bm.label
+                        ?: chapterTitleAt(chapters, bm.position)
+                        ?: "Start"
                     BookmarkRow(
                         bookmark = bm,
+                        displayLabel = resolvedLabel,
                         pendingDelete = pendingDelete,
-                        onJump = { vm.jumpTo(bm.position) },
+                        onJump = {
+                            vm.jumpTo(bm.position)
+                            onReaderPageRequested()
+                        },
                         onRequestDelete = { pendingDelete = bm.position },
                         onConfirmDelete = {
                             vm.deleteBookmark(bm.position)
@@ -274,6 +306,7 @@ private fun SearchResultsList(
 @Composable
 private fun BookmarkRow(
     bookmark: Bookmark,
+    displayLabel: String,
     pendingDelete: BookPosition?,
     onJump: () -> Unit,
     onRequestDelete: () -> Unit,
@@ -281,8 +314,7 @@ private fun BookmarkRow(
     onCancelDelete: () -> Unit,
 ) {
     val isPending = pendingDelete == bookmark.position
-    val label = bookmark.label
-        ?: "Chapter ${bookmark.position.chapterIndex + 1} · §${bookmark.position.blockIndex + 1}"
+    val label = displayLabel
     val subtitle = remember(bookmark.savedAtMs) {
         DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(bookmark.savedAtMs))
     }
@@ -347,6 +379,22 @@ private fun chapterJumps(doc: Document): List<ChapterJump> {
     return (explicitChapters.ifEmpty { meaningfulHeadings }).ifEmpty {
         doc.chapters.mapIndexed { idx, _ -> ChapterJump("Chapter ${idx + 1}", BookPosition(idx, 0)) }
     }
+}
+
+/**
+ * Find the title of the heading-derived chapter that contains [position]. Returns
+ * null if [position] is before the first chapter start. Chapters are assumed to be
+ * in document order (which [chapterJumps] guarantees).
+ */
+private fun chapterTitleAt(chapters: List<ChapterJump>, position: BookPosition): String? {
+    var best: String? = null
+    for (c in chapters) {
+        val cp = c.position
+        val atOrBefore = cp.chapterIndex < position.chapterIndex ||
+            (cp.chapterIndex == position.chapterIndex && cp.blockIndex <= position.blockIndex)
+        if (atOrBefore) best = c.title else break
+    }
+    return best
 }
 
 private fun String.looksLikeChapterHeading(): Boolean {

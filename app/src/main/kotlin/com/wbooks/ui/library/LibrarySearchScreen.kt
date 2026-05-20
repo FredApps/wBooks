@@ -1,6 +1,7 @@
 package com.wbooks.ui.library
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -34,6 +38,8 @@ import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
+import androidx.wear.compose.foundation.rotary.rotaryScrollable
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.Icon
@@ -54,6 +60,7 @@ import com.wbooks.data.book.Book
 fun LibrarySearchScreen(
     books: List<Book>,
     onBookOpen: (Book) -> Unit,
+    isActive: Boolean = true,
 ) {
     var query by remember { mutableStateOf("") }
     var panelOpen by remember { mutableStateOf(false) }
@@ -62,6 +69,15 @@ fun LibrarySearchScreen(
         else books.filter { it.title.contains(query, ignoreCase = true) }
     }
     val listState = rememberScalingLazyListState()
+    val focusRequester = remember { FocusRequester() }
+    val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
+
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            listState.scrollToItem(0)
+            runCatching { focusRequester.requestFocus() }
+        }
+    }
 
     Scaffold(timeText = { TimeText() }) {
         if (panelOpen) {
@@ -76,7 +92,11 @@ fun LibrarySearchScreen(
         }
 
         ScalingLazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .focusRequester(focusRequester)
+                .focusable()
+                .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),

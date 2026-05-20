@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,18 +12,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
+import androidx.wear.compose.foundation.rotary.rotaryScrollable
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.Icon
@@ -43,7 +49,7 @@ import com.wbooks.data.settings.ReaderSettings
 import com.wbooks.ui.ReaderViewModel
 
 @Composable
-fun SettingsScreen(vm: ReaderViewModel) {
+fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true) {
     var showChangelog by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     if (showChangelog) {
@@ -55,7 +61,19 @@ fun SettingsScreen(vm: ReaderViewModel) {
         return
     }
     val state = rememberScalingLazyListState()
+    val focusRequester = remember { FocusRequester() }
+    val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = state)
     val settings by vm.settings.collectAsState()
+
+    // When the user swipes into Settings, reset the scroll to the top and
+    // reclaim rotary focus from whatever was holding it (a reader-mode focusable
+    // or — going the other direction — an InlineSlider in this very list).
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            state.scrollToItem(0)
+            runCatching { focusRequester.requestFocus() }
+        }
+    }
 
     // Hoisted out of the lazy item so it survives the row scrolling off-screen between
     // the user tapping the toggle and the system permission dialog returning.
@@ -70,7 +88,11 @@ fun SettingsScreen(vm: ReaderViewModel) {
 
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .focusRequester(focusRequester)
+                .focusable()
+                .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = state,
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),

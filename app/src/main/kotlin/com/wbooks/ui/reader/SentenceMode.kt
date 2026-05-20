@@ -77,10 +77,7 @@ fun SentenceMode(
     var autoscrollPaused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(isActive) {
-        if (isActive) {
-            delay(150)
-            focusRequester.requestFocus()
-        }
+        if (isActive) runCatching { focusRequester.requestFocus() }
     }
 
     // Handle external jumps (chapter list, bookmark tap).

@@ -34,14 +34,20 @@ fun LibraryScreen(
     books: List<Book>,
     onBookOpen: (Book) -> Unit,
     onRefresh: () -> Unit,
+    isActive: Boolean = true,
 ) {
     LaunchedEffect(Unit) { onRefresh() }
 
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
-    LaunchedEffect(books.isNotEmpty()) {
-        if (books.isNotEmpty()) focusRequester.requestFocus()
+    LaunchedEffect(isActive, books.isNotEmpty()) {
+        // Re-claim rotary focus when we become the active page (returning from
+        // the search panel or the settings page). Do NOT reset scroll — the
+        // user's library position should persist across swipes.
+        if (isActive && books.isNotEmpty()) {
+            runCatching { focusRequester.requestFocus() }
+        }
     }
 
     Scaffold(timeText = { TimeText() }) {

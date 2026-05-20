@@ -66,13 +66,10 @@ fun NormalMode(
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
 
     LaunchedEffect(isActive) {
-        if (isActive) {
-            // Small delay lets the pager finish its swipe animation before we claim
-            // focus — without it the InlineSlider in SettingsScreen can hold focus
-            // and the bezel stops working after returning from settings.
-            kotlinx.coroutines.delay(150)
-            focusRequester.requestFocus()
-        }
+        // isActive is gated on pagerState.settledPage in ReaderPager, so by the
+        // time this fires the swipe is done and whatever InlineSlider held focus
+        // in settings is no longer animating. Claim focus immediately.
+        if (isActive) runCatching { focusRequester.requestFocus() }
     }
 
     // ---- Restore last position when the document changes (i.e. a new book opens). ----

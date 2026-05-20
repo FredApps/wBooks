@@ -20,6 +20,11 @@ import kotlinx.coroutines.launch
 
 /**
  * Three-page horizontal pager. Tools | Reader | Settings, opens on Reader.
+ *
+ * "Active" is keyed on the settled page, not currentPage — currentPage flips
+ * to the new page partway through a swipe, before the InlineSlider in settings
+ * has released focus. Using the settled page ensures the reader only tries to
+ * reclaim bezel focus once the pager has fully come to rest.
  */
 @Composable
 fun ReaderPager(
@@ -28,7 +33,12 @@ fun ReaderPager(
     onExit: () -> Unit,
 ) {
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
-    val readerActive by remember { derivedStateOf { pagerState.currentPage == 1 } }
+    val settledPage by remember {
+        derivedStateOf { if (pagerState.isScrollInProgress) -1 else pagerState.currentPage }
+    }
+    val toolsActive by remember { derivedStateOf { settledPage == 0 } }
+    val readerActive by remember { derivedStateOf { settledPage == 1 } }
+    val settingsActive by remember { derivedStateOf { settledPage == 2 } }
     val scope = rememberCoroutineScope()
     var toolsSearchActive by remember { mutableStateOf(false) }
     BackHandler(onBack = onExit)
@@ -41,11 +51,12 @@ fun ReaderPager(
             0 -> SecondaryScreen(
                 state = state,
                 vm = vm,
+                isActive = toolsActive,
                 onSearchActiveChanged = { toolsSearchActive = it },
                 onReaderPageRequested = { scope.launch { pagerState.animateScrollToPage(1) } },
             )
             1 -> ReaderScreen(state = state, vm = vm, isActive = readerActive, onExit = onExit)
-            2 -> SettingsScreen(vm = vm)
+            2 -> SettingsScreen(vm = vm, isActive = settingsActive)
         }
     }
 }
