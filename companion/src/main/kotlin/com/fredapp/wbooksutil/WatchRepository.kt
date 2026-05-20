@@ -36,7 +36,7 @@ class WatchRepository(context: Context) {
         data class Error(val message: String) : Result<Nothing>()
     }
 
-    suspend fun fetchLibrary(): Result<List<BookSummary>> = withContext(Dispatchers.IO) {
+    suspend fun fetchLibrary(): Result<LibrarySnapshot> = withContext(Dispatchers.IO) {
         val node = bestNode() ?: return@withContext Result.NoWatch
         runCatching {
             val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_LIST, ByteArray(0)).await()
@@ -76,7 +76,7 @@ class WatchRepository(context: Context) {
         }.getOrElse { Result.Error(it.message ?: "Failed to update setting") }
     }
 
-    suspend fun deleteBook(id: String): Result<List<BookSummary>> = withContext(Dispatchers.IO) {
+    suspend fun deleteBook(id: String): Result<LibrarySnapshot> = withContext(Dispatchers.IO) {
         val node = bestNode() ?: return@withContext Result.NoWatch
         runCatching {
             val payload = org.json.JSONObject().put("id", id).toString().toByteArray(Charsets.UTF_8)
@@ -110,7 +110,7 @@ class WatchRepository(context: Context) {
             }.getOrElse { Result.Error(it.message ?: "Upload failed") }
         }
 
-    suspend fun mkdirBook(name: String): Result<List<BookSummary>> = withContext(Dispatchers.IO) {
+    suspend fun mkdirBook(name: String): Result<LibrarySnapshot> = withContext(Dispatchers.IO) {
         val node = bestNode() ?: return@withContext Result.NoWatch
         runCatching {
             val payload = """{"name":${jsonString(name)}}""".toByteArray(Charsets.UTF_8)
@@ -119,7 +119,7 @@ class WatchRepository(context: Context) {
         }.getOrElse { Result.Error(it.message ?: "mkdir failed") }
     }
 
-    suspend fun moveBook(bookId: String, targetFolder: String): Result<List<BookSummary>> =
+    suspend fun moveBook(bookId: String, targetFolder: String): Result<LibrarySnapshot> =
         withContext(Dispatchers.IO) {
             val node = bestNode() ?: return@withContext Result.NoWatch
             runCatching {

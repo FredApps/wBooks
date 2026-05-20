@@ -151,6 +151,8 @@ object SettingsJson {
 
 data class BookSummary(val id: String, val title: String, val format: String)
 
+data class LibrarySnapshot(val books: List<BookSummary>, val folders: List<String>)
+
 data class StatsSummary(
     val totalMs: Long,
     val todayMs: Long,
@@ -285,10 +287,18 @@ object StatsJson {
  * escapes control chars below 0x20. If you change the encoder, update this too.
  */
 object LibraryListJson {
-    fun decode(bytes: ByteArray): List<BookSummary> {
+    fun decode(bytes: ByteArray): LibrarySnapshot {
         val json = String(bytes, Charsets.UTF_8)
-        val arrStart = json.indexOf('[')
-        val arrEnd = json.lastIndexOf(']')
+        return LibrarySnapshot(
+            books = decodeBooks(json),
+            folders = readStringArray(json, "folders"),
+        )
+    }
+
+    private fun decodeBooks(json: String): List<BookSummary> {
+        val arrStart = arrayStart(json, "books")
+        if (arrStart < 0) return emptyList()
+        val arrEnd = matchBracket(json, arrStart)
         if (arrStart < 0 || arrEnd <= arrStart) return emptyList()
         val body = json.substring(arrStart + 1, arrEnd).trim()
         if (body.isEmpty()) return emptyList()
@@ -310,6 +320,32 @@ object LibraryListJson {
         return out
     }
 
+    private fun readStringArray(json: String, key: String): List<String> {
+        val arrStart = arrayStart(json, key)
+        if (arrStart < 0) return emptyList()
+        val arrEnd = matchBracket(json, arrStart)
+        if (arrEnd <= arrStart) return emptyList()
+        val body = json.substring(arrStart + 1, arrEnd)
+        val out = mutableListOf<String>()
+        var i = 0
+        while (i < body.length) {
+            while (i < body.length && (body[i].isWhitespace() || body[i] == ',')) i++
+            if (i >= body.length) break
+            if (body[i] != '"') break
+            val parsed = readQuotedString(body, i) ?: break
+            out += parsed.first
+            i = parsed.second + 1
+        }
+        return out
+    }
+
+    private fun arrayStart(json: String, key: String): Int {
+        val needle = "\"$key\""
+        val k = json.indexOf(needle)
+        if (k < 0) return -1
+        return json.indexOf('[', k + needle.length)
+    }
+
     private fun findMatchingBrace(s: String, openIdx: Int): Int {
         var depth = 0
         var i = openIdx
@@ -317,6 +353,20 @@ object LibraryListJson {
             when (s[i]) {
                 '{' -> depth++
                 '}' -> { depth--; if (depth == 0) return i }
+                '"' -> i = skipString(s, i)
+            }
+            i++
+        }
+        return -1
+    }
+
+    private fun matchBracket(s: String, openIdx: Int): Int {
+        var depth = 0
+        var i = openIdx
+        while (i < s.length) {
+            when (s[i]) {
+                '[' -> depth++
+                ']' -> { depth--; if (depth == 0) return i }
                 '"' -> i = skipString(s, i)
             }
             i++
@@ -344,13 +394,17 @@ object LibraryListJson {
         if (colon < 0) return ""
         val q1 = obj.indexOf('"', colon + 1)
         if (q1 < 0) return ""
+        return readQuotedString(obj, q1)?.first.orEmpty()
+    }
+
+    private fun readQuotedString(s: String, quoteIdx: Int): Pair<String, Int>? {
         val sb = StringBuilder()
-        var i = q1 + 1
-        while (i < obj.length) {
-            val c = obj[i]
-            if (c == '"') return sb.toString()
-            if (c == '\\' && i + 1 < obj.length) {
-                when (val esc = obj[i + 1]) {
+        var i = quoteIdx + 1
+        while (i < s.length) {
+            val c = s[i]
+            if (c == '"') return sb.toString() to i
+            if (c == '\\' && i + 1 < s.length) {
+                when (val esc = s[i + 1]) {
                     '"', '\\', '/' -> sb.append(esc)
                     'n' -> sb.append('\n')
                     'r' -> sb.append('\r')
@@ -363,6 +417,6 @@ object LibraryListJson {
             sb.append(c)
             i++
         }
-        return sb.toString()
+        return null
     }
 }

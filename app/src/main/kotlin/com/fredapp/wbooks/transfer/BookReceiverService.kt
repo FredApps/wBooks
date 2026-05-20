@@ -110,7 +110,12 @@ class BookReceiverService : WearableListenerService() {
         val books = app.libraryRepository.books.value.map { b ->
             BookSummary(id = b.id, title = b.title, format = b.format.name)
         }
-        return LibraryListJson.encode(books).toByteArray(Charsets.UTF_8)
+        val folders = app.booksDir.walkTopDown()
+            .filter { it.isDirectory && it != app.booksDir }
+            .map { it.relativeTo(app.booksDir).invariantSeparatorsPath }
+            .sorted()
+            .toList()
+        return LibraryListJson.encode(books, folders).toByteArray(Charsets.UTF_8)
     }
 
     private suspend fun currentSettingsJson(): ByteArray {

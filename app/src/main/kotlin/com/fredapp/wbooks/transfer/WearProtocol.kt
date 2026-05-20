@@ -54,8 +54,8 @@ internal object WearProtocol {
  * `\uXXXX`, so if you change the encoder to emit them, update the decoder too.
  */
 internal object LibraryListJson {
-    /** Build `{"books":[{"id":"...","title":"...","format":"EPUB"},...]}`. */
-    fun encode(books: List<BookSummary>): String {
+    /** Build `{"books":[{"id":"...","title":"...","format":"EPUB"},...],"folders":["..."]}`. */
+    fun encode(books: List<BookSummary>, folders: List<String> = emptyList()): String {
         val sb = StringBuilder("""{"books":[""")
         books.forEachIndexed { i, b ->
             if (i > 0) sb.append(',')
@@ -63,6 +63,11 @@ internal object LibraryListJson {
               .append(""","title":""").append(jsonString(b.title))
               .append(""","format":""").append(jsonString(b.format))
               .append('}')
+        }
+        sb.append("""],"folders":[""")
+        folders.forEachIndexed { i, folder ->
+            if (i > 0) sb.append(',')
+            sb.append(jsonString(folder))
         }
         sb.append("]}")
         return sb.toString()
