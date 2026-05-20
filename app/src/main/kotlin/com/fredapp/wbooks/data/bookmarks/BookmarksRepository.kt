@@ -45,6 +45,16 @@ class BookmarksRepository(context: Context) {
         store.edit { it.remove(key) }
     }
 
+    suspend fun moveBookId(fromBookId: String, toBookId: String) {
+        if (fromBookId == toBookId) return
+        val from = stringPreferencesKey("bm:$fromBookId")
+        val to = stringPreferencesKey("bm:$toBookId")
+        store.edit { prefs ->
+            prefs[from]?.let { prefs[to] = it }
+            prefs.remove(from)
+        }
+    }
+
     private suspend fun edit(bookId: String, transform: (List<Bookmark>) -> List<Bookmark>) {
         val key = stringPreferencesKey("bm:$bookId")
         store.edit { prefs ->

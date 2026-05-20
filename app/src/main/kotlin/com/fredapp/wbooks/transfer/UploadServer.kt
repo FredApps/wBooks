@@ -41,6 +41,7 @@ class UploadServer(
     private val settingsRepository: SettingsRepository,
     private val crashReportingPref: CrashReportingPref,
     private val onBookDeleted: (bookId: String) -> Unit = {},
+    private val onBookMoved: (fromBookId: String, toBookId: String) -> Unit = { _, _ -> },
 ) : NanoHTTPD(port) {
 
     private val pinBytes = pin.toByteArray(Charsets.UTF_8)
@@ -336,10 +337,14 @@ class UploadServer(
             return notFound()
         }
         toDir.mkdirs()
+        if (from.parentFile?.canonicalFile == toDir.canonicalFile) {
+            return redirectToIndex("Moved")
+        }
         val dest = uniqueFile(toDir, from.name)
         if (!from.renameTo(dest)) {
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Move failed")
         }
+        onBookMoved(from.relativeTo(booksDir).invariantSeparatorsPath, dest.relativeTo(booksDir).invariantSeparatorsPath)
         return redirectToIndex("Moved")
     }
 
