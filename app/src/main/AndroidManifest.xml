@@ -66,8 +66,8 @@
         </service>
 
         <service
-            android:name=".tile.ResumeTileService"
-            android:label="@string/tile_resume"
+            android:name=".tile.BooksTileService"
+            android:label="@string/tile_books"
             android:exported="true"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter>
@@ -75,20 +75,7 @@
             </intent-filter>
             <meta-data
                 android:name="androidx.wear.tiles.PREVIEW"
-                android:resource="@drawable/tile_preview" />
-        </service>
-
-        <service
-            android:name=".tile.ReadingTimeTileService"
-            android:label="@string/tile_reading_time"
-            android:exported="true"
-            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
-            <intent-filter>
-                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
-            </intent-filter>
-            <meta-data
-                android:name="androidx.wear.tiles.PREVIEW"
-                android:resource="@drawable/tile_preview" />
+                android:resource="@drawable/tile_book_bg" />
         </service>
 
         <service
