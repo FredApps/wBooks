@@ -9,6 +9,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import com.fredapp.wbooks.transfer.FoldersJson
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.settings.SettingsScreen
 
@@ -20,6 +21,7 @@ import com.fredapp.wbooks.ui.settings.SettingsScreen
 fun LibraryPager(vm: ReaderViewModel) {
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
     val books by vm.books.collectAsState()
+    val folderState by vm.folderState.collectAsState()
 
     val settledPage by remember {
         derivedStateOf { if (pagerState.isScrollInProgress) -1 else pagerState.currentPage }
@@ -40,6 +42,7 @@ fun LibraryPager(vm: ReaderViewModel) {
             )
             1 -> LibraryScreen(
                 books = books,
+                folderState = folderState,
                 isActive = libraryActive,
                 onBookOpen = { vm.openBook(it) },
                 onRefresh = { vm.refreshLibrary() },

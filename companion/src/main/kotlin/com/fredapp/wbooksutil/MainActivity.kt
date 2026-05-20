@@ -1,18 +1,21 @@
 package com.fredapp.wbooksutil
 
+import android.content.ClipData
+import android.content.ClipDescription
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.draganddrop.dragAndDropSource
+import androidx.compose.foundation.draganddrop.dragAndDropTarget
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -27,7 +30,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.draganddrop.DragAndDropTransferData
+import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -112,7 +118,6 @@ private fun CompanionScreen(
 
     var pendingDelete by remember { mutableStateOf<BookSummary?>(null) }
     var pendingDeleteFolder by remember { mutableStateOf<Folder?>(null) }
-    var pendingAssign by remember { mutableStateOf<BookSummary?>(null) }
     var showNewFolderDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -156,8 +161,8 @@ private fun CompanionScreen(
                     folders = state.folders,
                     bookFolders = state.bookFolders,
                     onDelete = { pendingDelete = it },
-                    onAssignFolder = { pendingAssign = it },
                     onDeleteFolder = { pendingDeleteFolder = it },
+                    onAssignToFolder = vm::assignBookToFolder,
                 )
             }
             if (state.sending) {
@@ -193,9 +198,7 @@ private fun CompanionScreen(
                 }) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) {
-                    Text(stringResource(R.string.cancel))
-                }
+                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -213,68 +216,7 @@ private fun CompanionScreen(
                 }) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDeleteFolder = null }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-
-    // Assign book to folder
-    pendingAssign?.let { book ->
-        val currentFolderId = state.bookFolders[book.id]
-        AlertDialog(
-            onDismissRequest = { pendingAssign = null },
-            title = { Text(stringResource(R.string.move_to_folder)) },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    if (currentFolderId != null) {
-                        ListItem(
-                            headlineContent = { Text(stringResource(R.string.remove_from_folder)) },
-                            modifier = Modifier.clickable {
-                                vm.assignBookToFolder(book.id, null)
-                                pendingAssign = null
-                            },
-                        )
-                        HorizontalDivider()
-                    }
-                    if (state.folders.isEmpty()) {
-                        Text(
-                            stringResource(R.string.no_folders_hint),
-                            modifier = Modifier.padding(8.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    } else {
-                        state.folders.forEach { folder ->
-                            val isCurrent = folder.id == currentFolderId
-                            ListItem(
-                                leadingContent = {
-                                    Icon(
-                                        Icons.Default.Folder,
-                                        contentDescription = null,
-                                        tint = if (isCurrent) MaterialTheme.colorScheme.primary
-                                               else LocalContentColor.current,
-                                    )
-                                },
-                                headlineContent = {
-                                    Text(
-                                        folder.name,
-                                        color = if (isCurrent) MaterialTheme.colorScheme.primary
-                                                else Color.Unspecified,
-                                    )
-                                },
-                                modifier = if (!isCurrent) Modifier.clickable {
-                                    vm.assignBookToFolder(book.id, folder.id)
-                                    pendingAssign = null
-                                } else Modifier,
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { pendingAssign = null }) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = { pendingDeleteFolder = null }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -296,10 +238,7 @@ private fun CompanionScreen(
             },
             confirmButton = {
                 TextButton(
-                    onClick = {
-                        vm.createFolder(folderName)
-                        showNewFolderDialog = false
-                    },
+                    onClick = { vm.createFolder(folderName); showNewFolderDialog = false },
                     enabled = folderName.isNotBlank(),
                 ) { Text(stringResource(R.string.create)) }
             },
@@ -326,17 +265,21 @@ private fun BookList(
     folders: List<Folder>,
     bookFolders: Map<String, String>,
     onDelete: (BookSummary) -> Unit,
-    onAssignFolder: (BookSummary) -> Unit,
     onDeleteFolder: (Folder) -> Unit,
+    onAssignToFolder: (bookId: String, folderId: String?) -> Unit,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         for (folder in folders) {
             val folderBooks = books.filter { bookFolders[it.id] == folder.id }
             item(key = "fh_${folder.id}") {
-                FolderHeader(folder = folder, onDelete = { onDeleteFolder(folder) })
+                FolderHeader(
+                    folder = folder,
+                    onDelete = { onDeleteFolder(folder) },
+                    onDrop = { bookId -> onAssignToFolder(bookId, folder.id) },
+                )
             }
             items(folderBooks, key = { "b_${it.id}" }) { book ->
-                BookItem(book = book, onDelete = onDelete, onAssignFolder = onAssignFolder)
+                BookItem(book = book, onDelete = onDelete)
                 HorizontalDivider()
             }
         }
@@ -345,37 +288,39 @@ private fun BookList(
         if (uncategorized.isNotEmpty()) {
             if (folders.isNotEmpty()) {
                 item(key = "uncategorized_header") {
-                    ListItem(
-                        headlineContent = {
-                            Text(
-                                stringResource(R.string.uncategorized),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        colors = ListItemDefaults.colors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        ),
-                    )
+                    UncategorizedHeader(onDrop = { bookId -> onAssignToFolder(bookId, null) })
                 }
             }
             items(uncategorized, key = { "b_${it.id}" }) { book ->
-                BookItem(book = book, onDelete = onDelete, onAssignFolder = onAssignFolder)
+                BookItem(book = book, onDelete = onDelete)
                 HorizontalDivider()
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FolderHeader(folder: Folder, onDelete: () -> Unit) {
+private fun FolderHeader(folder: Folder, onDelete: () -> Unit, onDrop: (bookId: String) -> Unit) {
+    val isDragOver = remember { mutableStateOf(false) }
+    val onDropRef = rememberUpdatedState(onDrop)
+    val target = remember(folder.id) {
+        object : DragAndDropTarget {
+            override fun onDrop(event: DragAndDropEvent): Boolean {
+                val bookId = event.toAndroidDragEvent().clipData?.getItemAt(0)?.text?.toString()
+                    ?: return false
+                onDropRef.value(bookId)
+                isDragOver.value = false
+                return true
+            }
+            override fun onEntered(event: DragAndDropEvent) { isDragOver.value = true }
+            override fun onExited(event: DragAndDropEvent) { isDragOver.value = false }
+            override fun onEnded(event: DragAndDropEvent) { isDragOver.value = false }
+        }
+    }
     ListItem(
         leadingContent = {
-            Icon(
-                Icons.Default.Folder,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-            )
+            Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         },
         headlineContent = { Text(folder.name, fontWeight = FontWeight.SemiBold) },
         trailingContent = {
@@ -384,29 +329,75 @@ private fun FolderHeader(folder: Folder, onDelete: () -> Unit) {
             }
         },
         colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            containerColor = if (isDragOver.value) MaterialTheme.colorScheme.primaryContainer
+                             else MaterialTheme.colorScheme.surfaceVariant,
+        ),
+        modifier = Modifier.dragAndDropTarget(
+            shouldStartDragAndDrop = { event ->
+                event.toAndroidDragEvent().clipDescription
+                    ?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true
+            },
+            target = target,
         ),
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BookItem(
-    book: BookSummary,
-    onDelete: (BookSummary) -> Unit,
-    onAssignFolder: (BookSummary) -> Unit,
-) {
+private fun UncategorizedHeader(onDrop: (bookId: String) -> Unit) {
+    val isDragOver = remember { mutableStateOf(false) }
+    val onDropRef = rememberUpdatedState(onDrop)
+    val target = remember {
+        object : DragAndDropTarget {
+            override fun onDrop(event: DragAndDropEvent): Boolean {
+                val bookId = event.toAndroidDragEvent().clipData?.getItemAt(0)?.text?.toString()
+                    ?: return false
+                onDropRef.value(bookId)
+                isDragOver.value = false
+                return true
+            }
+            override fun onEntered(event: DragAndDropEvent) { isDragOver.value = true }
+            override fun onExited(event: DragAndDropEvent) { isDragOver.value = false }
+            override fun onEnded(event: DragAndDropEvent) { isDragOver.value = false }
+        }
+    }
+    ListItem(
+        headlineContent = {
+            Text(
+                stringResource(R.string.uncategorized),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        colors = ListItemDefaults.colors(
+            containerColor = if (isDragOver.value) MaterialTheme.colorScheme.secondaryContainer
+                             else MaterialTheme.colorScheme.surfaceVariant,
+        ),
+        modifier = Modifier.dragAndDropTarget(
+            shouldStartDragAndDrop = { event ->
+                event.toAndroidDragEvent().clipDescription
+                    ?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true
+            },
+            target = target,
+        ),
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun BookItem(book: BookSummary, onDelete: (BookSummary) -> Unit) {
     ListItem(
         headlineContent = { Text(book.title, fontWeight = FontWeight.Medium) },
         supportingContent = { Text(book.format) },
         trailingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { onAssignFolder(book) }) {
-                    Icon(Icons.Default.Folder, contentDescription = stringResource(R.string.move_to_folder))
-                }
-                IconButton(onClick = { onDelete(book) }) {
-                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
-                }
+            IconButton(onClick = { onDelete(book) }) {
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
             }
+        },
+        modifier = Modifier.dragAndDropSource {
+            detectTapGestures(onLongPress = {
+                startTransfer(DragAndDropTransferData(ClipData.newPlainText("bookId", book.id)))
+            })
         },
     )
 }

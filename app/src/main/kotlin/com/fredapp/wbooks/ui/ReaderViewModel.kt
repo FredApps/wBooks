@@ -10,7 +10,9 @@ import com.fredapp.wbooks.data.library.LibraryRepository
 import com.fredapp.wbooks.data.pace.ReadingPaceRepository
 import com.fredapp.wbooks.data.position.BookPosition
 import com.fredapp.wbooks.data.position.PositionsRepository
+import com.fredapp.wbooks.data.folder.FolderSyncRepository
 import com.fredapp.wbooks.data.stats.ReadingStatsRepository
+import com.fredapp.wbooks.transfer.FoldersJson
 import com.fredapp.wbooks.data.settings.FontChoice
 import com.fredapp.wbooks.data.settings.ReaderSettings
 import com.fredapp.wbooks.data.settings.ReadingMode
@@ -64,6 +66,7 @@ class ReaderViewModel(
     private val statsRepo: ReadingStatsRepository,
     /** Application-level scope used for cache writes that must outlive this ViewModel. */
     private val appScope: CoroutineScope,
+    private val folderSyncRepo: FolderSyncRepository,
 ) : ViewModel() {
 
     private var lastAdvanceMs: Long = 0L
@@ -81,6 +84,7 @@ class ReaderViewModel(
 
     // ---- Library ----
     val books: StateFlow<List<Book>> = libraryRepo.books
+    val folderState: StateFlow<FoldersJson.State> = folderSyncRepo.state
 
     // ---- Currently-loaded document ----
     private val _document = MutableStateFlow<DocumentState>(DocumentState.Idle)
@@ -530,12 +534,14 @@ class ReaderViewModel(
         private val paceRepo: ReadingPaceRepository,
         private val statsRepo: ReadingStatsRepository,
         private val appScope: CoroutineScope,
+        private val folderSyncRepo: FolderSyncRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass == ReaderViewModel::class.java)
             return ReaderViewModel(
-                settingsRepo, libraryRepo, positionsRepo, bookmarksRepo, transferController, documentCache, paceRepo, statsRepo, appScope,
+                settingsRepo, libraryRepo, positionsRepo, bookmarksRepo, transferController,
+                documentCache, paceRepo, statsRepo, appScope, folderSyncRepo,
             ) as T
         }
     }

@@ -8,6 +8,9 @@ import androidx.core.app.NotificationCompat
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.wearable.ChannelClient
+import com.google.android.gms.wearable.DataEvent
+import com.google.android.gms.wearable.DataEventBuffer
+import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
 import com.fredapp.wbooks.R
@@ -135,6 +138,19 @@ class BookReceiverService : WearableListenerService() {
         } else {
             app.settingsRepository.applyWireKey(key, value)
         }
+    }
+
+    override fun onDataChanged(dataEvents: DataEventBuffer) {
+        for (event in dataEvents) {
+            if (event.type == DataEvent.TYPE_CHANGED &&
+                event.dataItem.uri.path == WearProtocol.PATH_FOLDERS
+            ) {
+                val json = DataMapItem.fromDataItem(event.dataItem).dataMap.getString("data")
+                    ?: continue
+                (application as WBooksApp).folderSyncRepository.applyJson(json)
+            }
+        }
+        dataEvents.release()
     }
 
     override fun onChannelOpened(channel: ChannelClient.Channel) {

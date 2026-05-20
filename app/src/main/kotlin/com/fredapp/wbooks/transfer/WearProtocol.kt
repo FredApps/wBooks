@@ -33,6 +33,9 @@ internal object WearProtocol {
      * full [SettingsJson] snapshot, so the phone can update its UI in one round-trip.
      */
     const val PATH_SETTINGS_SET = "/wbooks/settings/set"
+
+    /** DataItem path the phone pushes folder assignments to via DataClient.putDataItem. */
+    const val PATH_FOLDERS = "/wbooks/folders"
 }
 
 /**
@@ -183,6 +186,87 @@ internal object SettingsJson {
             i++
         }
         return sb.toString()
+    }
+}
+
+/** Decoder for the folder-sync payload the phone companion pushes as a Data Layer item. */
+object FoldersJson {
+    data class State(
+        val folders: List<FolderEntry> = emptyList(),
+        val assignments: Map<String, String> = emptyMap(),
+    )
+    data class FolderEntry(val id: String, val name: String)
+
+    fun decode(json: String): State = State(
+        folders = parseFolders(json),
+        assignments = parseAssignments(json),
+    )
+
+    private fun parseFolders(json: String): List<FolderEntry> {
+        val needle = "\"folders\""
+        val k = json.indexOf(needle); if (k < 0) return emptyList()
+        val open = json.indexOf('[', k + needle.length); if (open < 0) return emptyList()
+        val close = matchBracket(json, open, '[', ']'); if (close < 0) return emptyList()
+        val body = json.substring(open + 1, close).trim()
+        if (body.isEmpty()) return emptyList()
+        val out = mutableListOf<FolderEntry>()
+        var i = 0
+        while (i < body.length) {
+            val s = body.indexOf('{', i); if (s < 0) break
+            val e = matchBracket(body, s, '{', '}'); if (e < 0) break
+            val obj = body.substring(s, e + 1)
+            out += FolderEntry(id = readStr(obj, "id"), name = readStr(obj, "name"))
+            i = e + 1
+        }
+        return out
+    }
+
+    private fun parseAssignments(json: String): Map<String, String> {
+        val needle = "\"assignments\""
+        val k = json.indexOf(needle); if (k < 0) return emptyMap()
+        val open = json.indexOf('{', k + needle.length); if (open < 0) return emptyMap()
+        val close = matchBracket(json, open, '{', '}'); if (close < 0) return emptyMap()
+        val body = json.substring(open + 1, close).trim()
+        if (body.isEmpty()) return emptyMap()
+        val out = mutableMapOf<String, String>()
+        var i = 0
+        while (i < body.length) {
+            val q1 = body.indexOf('"', i); if (q1 < 0) break
+            val q2 = body.indexOf('"', q1 + 1); if (q2 < 0) break
+            val key = body.substring(q1 + 1, q2)
+            val colon = body.indexOf(':', q2 + 1); if (colon < 0) break
+            val vq1 = body.indexOf('"', colon + 1); if (vq1 < 0) break
+            val vq2 = body.indexOf('"', vq1 + 1); if (vq2 < 0) break
+            out[key] = body.substring(vq1 + 1, vq2)
+            i = vq2 + 1
+        }
+        return out
+    }
+
+    private fun readStr(obj: String, key: String): String {
+        val needle = "\"$key\""
+        val k = obj.indexOf(needle); if (k < 0) return ""
+        val q1 = obj.indexOf('"', obj.indexOf(':', k + needle.length) + 1); if (q1 < 0) return ""
+        val sb = StringBuilder(); var i = q1 + 1
+        while (i < obj.length) {
+            val c = obj[i]
+            if (c == '"') return sb.toString()
+            if (c == '\\' && i + 1 < obj.length) { sb.append(obj[i + 1]); i += 2 } else { sb.append(c); i++ }
+        }
+        return sb.toString()
+    }
+
+    private fun matchBracket(s: String, openIdx: Int, open: Char, close: Char): Int {
+        var depth = 0; var i = openIdx
+        while (i < s.length) {
+            when (s[i]) {
+                open -> depth++
+                close -> { depth--; if (depth == 0) return i }
+                '"' -> { i++; while (i < s.length && s[i] != '"') { if (s[i] == '\\') i++; i++ } }
+            }
+            i++
+        }
+        return -1
     }
 }
 
