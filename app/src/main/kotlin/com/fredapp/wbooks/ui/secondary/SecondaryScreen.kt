@@ -266,8 +266,18 @@ private fun SearchResultsList(
     onClear: () -> Unit,
 ) {
     val listState = rememberScalingLazyListState()
+    val focusRequester = remember { FocusRequester() }
+    val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
+    LaunchedEffect(query) {
+        listState.scrollToItem(0)
+        runCatching { focusRequester.requestFocus() }
+    }
     ScalingLazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .focusRequester(focusRequester)
+            .focusable()
+            .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
         state = listState,
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
