@@ -76,7 +76,9 @@ fun ReaderScreen(
                 )
                 ReadingMode.SPEEDREAD -> SpeedReadMode(
                     document = state.doc,
+                    initialPosition = state.initialPosition,
                     settings = settings,
+                    vm = vm,
                     isActive = isActive,
                     onWpmChange = vm::setSpeedreadWpm,
                 )
