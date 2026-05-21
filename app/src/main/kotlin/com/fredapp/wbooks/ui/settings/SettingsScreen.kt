@@ -2,6 +2,7 @@
 
 import android.Manifest
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.focusable
@@ -32,8 +33,11 @@ import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.foundation.rotary.rotaryScrollable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
+import androidx.wear.compose.material.CompactChip
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.InlineSlider
 import androidx.wear.compose.material.InlineSliderDefaults
@@ -60,10 +64,12 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
     var showChangelog by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     if (showChangelog) {
+        BackHandler { showChangelog = false }
         ChangelogScreen(onBack = { showChangelog = false })
         return
     }
     if (showAbout) {
+        BackHandler { showAbout = false }
         AboutScreen(onBack = { showAbout = false })
         return
     }
@@ -75,11 +81,11 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
     // When the user swipes into Settings, reset the scroll to the top and
     // reclaim rotary focus from whatever was holding it (a reader-mode focusable
     // or â€” going the other direction â€” an InlineSlider in this very list).
+    // Reclaim rotary focus whenever Settings becomes active again. We used to
+    // also scroll back to the top, but the user explicitly didn't want that —
+    // re-visiting a menu shouldn't lose their place.
     LaunchedEffect(isActive) {
-        if (isActive) {
-            state.scrollToItem(0)
-            runCatching { focusRequester.requestFocus() }
-        }
+        if (isActive) runCatching { focusRequester.requestFocus() }
     }
 
     // Hoisted out of the lazy item so it survives the row scrolling off-screen between
@@ -105,12 +111,21 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item {
+                // CompactChip sits flush at the top of the list (smaller height
+                // and width than the full Chip) so the screen doesn't waste a
+                // visible band of whitespace above the first real setting.
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                    Chip(
+                    CompactChip(
+                        icon = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = "Back",
+                                tint = FolderGreyText,
+                            )
+                        },
                         label = { Text("Back", color = FolderGreyText) },
                         onClick = onBack,
                         colors = ChipDefaults.chipColors(backgroundColor = FolderGrey, contentColor = FolderGreyText),
-                        modifier = Modifier.width(92.dp),
                     )
                 }
             }
@@ -307,9 +322,13 @@ private fun ChoiceChip(label: String, fontFamily: FontFamily? = null, selected: 
 @Composable
 private fun ColorChoiceChip(argb: Int, selected: Boolean, onClick: () -> Unit) {
     val label = colorName(argb)
+    // Both the name and the hex code render in the swatch color so the row is
+    // self-describing — you can pick "Pale blue" just by looking at the tint
+    // of the label rather than reading the code.
+    val tint = Color(argb)
     Chip(
-        label = { Text(if (selected) "$label (selected)" else label) },
-        secondaryLabel = { Text("#%06X".format(argb and 0xFFFFFF), color = Color(argb)) },
+        label = { Text(if (selected) "$label (selected)" else label, color = tint) },
+        secondaryLabel = { Text("#%06X".format(argb and 0xFFFFFF), color = tint) },
         onClick = onClick,
         colors = if (selected) ChipDefaults.primaryChipColors() else ChipDefaults.secondaryChipColors(),
         modifier = Modifier.fillMaxWidth(),

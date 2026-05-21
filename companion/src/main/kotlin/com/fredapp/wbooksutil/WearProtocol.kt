@@ -14,6 +14,7 @@ object WearProtocol {
     const val PATH_SETTINGS_SET = "/wbooks/settings/set"
     const val PATH_MKDIR = "/wbooks/library/mkdir"
     const val PATH_MOVE = "/wbooks/library/move"
+    const val PATH_RENAME = "/wbooks/library/rename"
 }
 
 /**

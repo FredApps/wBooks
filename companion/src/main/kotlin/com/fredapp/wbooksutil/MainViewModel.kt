@@ -87,6 +87,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun renameFolder(oldName: String, newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isBlank() || trimmed == oldName) return
+        if (trimmed.contains('/') || trimmed.contains('\\')) {
+            _state.value = _state.value.copy(errorMessage = "Folder names cannot contain slashes")
+            return
+        }
+        viewModelScope.launch {
+            applyResult(repo.renameFolder(oldName, trimmed))
+        }
+    }
+
     fun deleteFolder(folderId: String) {
         _state.value = _state.value.copy(
             folders = _state.value.folders.filter { it.id != folderId },

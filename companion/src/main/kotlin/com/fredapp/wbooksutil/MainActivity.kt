@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -122,6 +123,7 @@ private fun CompanionScreen(
 
     var pendingDelete by remember { mutableStateOf<BookSummary?>(null) }
     var pendingDeleteFolder by remember { mutableStateOf<Folder?>(null) }
+    var folderToRename by remember { mutableStateOf<Folder?>(null) }
     var showNewFolderDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -167,6 +169,7 @@ private fun CompanionScreen(
                     bookFolders = state.bookFolders,
                     onDelete = { pendingDelete = it },
                     onDeleteFolder = { pendingDeleteFolder = it },
+                    onRenameFolder = { folderToRename = it },
                     onAssignToFolder = vm::assignBookToFolder,
                 )
             }
@@ -222,6 +225,36 @@ private fun CompanionScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingDeleteFolder = null }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+
+    // Rename folder
+    folderToRename?.let { folder ->
+        var newName by remember(folder.id) { mutableStateOf(folder.name) }
+        AlertDialog(
+            onDismissRequest = { folderToRename = null },
+            title = { Text("Rename folder") },
+            text = {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text(stringResource(R.string.folder_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.renameFolder(folder.id, newName)
+                        folderToRename = null
+                    },
+                    enabled = newName.isNotBlank() && newName.trim() != folder.name,
+                ) { Text("Rename") }
+            },
+            dismissButton = {
+                TextButton(onClick = { folderToRename = null }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -303,6 +336,7 @@ private fun BookList(
     bookFolders: Map<String, String>,
     onDelete: (BookSummary) -> Unit,
     onDeleteFolder: (Folder) -> Unit,
+    onRenameFolder: (Folder) -> Unit,
     onAssignToFolder: (bookId: String, folderId: String?) -> Unit,
 ) {
     var expandedFolders by rememberSaveable { mutableStateOf(emptySet<String>()) }
@@ -330,6 +364,7 @@ private fun BookList(
                             expandedFolders = if (isExpanded) expandedFolders - folder.id
                                               else expandedFolders + folder.id
                         },
+                        onRename = { onRenameFolder(folder) },
                         onDelete = { onDeleteFolder(folder) },
                         onDrop = { bookId -> onAssignToFolder(bookId, folder.id) },
                     )
@@ -364,6 +399,7 @@ private fun FolderChip(
     bookCount: Int,
     selected: Boolean,
     onToggle: () -> Unit,
+    onRename: () -> Unit,
     onDelete: () -> Unit,
     onDrop: (bookId: String) -> Unit,
 ) {
@@ -421,6 +457,9 @@ private fun FolderChip(
             )
             Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("${folder.name} ($bookCount)", fontWeight = FontWeight.SemiBold)
+            IconButton(onClick = onRename) {
+                Icon(Icons.Default.Edit, contentDescription = "Rename folder")
+            }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
             }

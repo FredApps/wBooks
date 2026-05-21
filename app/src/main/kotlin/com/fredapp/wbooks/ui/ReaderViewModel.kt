@@ -81,6 +81,46 @@ class ReaderViewModel(
 
     // ---- Library ----
     val books: StateFlow<List<Book>> = libraryRepo.books
+    val folders: StateFlow<List<String>> = libraryRepo.folders
+
+    fun createFolder(name: String) {
+        viewModelScope.launch { libraryRepo.createFolder(name) }
+    }
+
+    fun renameFolder(oldName: String, newName: String) {
+        viewModelScope.launch {
+            val newId = libraryRepo.renameFolder(oldName, newName) ?: return@launch
+            // Books under the renamed folder change ID — migrate per-book state.
+            val movedBooks = libraryRepo.books.value.filter { it.id.startsWith("$newId/") }
+            for (book in movedBooks) {
+                val tail = book.id.removePrefix("$newId/")
+                val oldId = "$oldName/$tail"
+                migrateBookState(oldId, book.id)
+                val openState = _document.value
+                if (openState is DocumentState.Loaded && openState.book.id == oldId) {
+                    _document.value = openState.copy(book = book, initialPosition = currentPosition.value)
+                }
+            }
+        }
+    }
+
+    fun deleteFolder(name: String) {
+        viewModelScope.launch {
+            val removedIds = libraryRepo.deleteFolder(name)
+            for (id in removedIds) {
+                if ((_document.value as? DocumentState.Loaded)?.book?.id == id) {
+                    closeBook()
+                    positionsRepo.setLastOpenedBookId(null)
+                } else if (positionsRepo.readLastOpenedBookId() == id) {
+                    positionsRepo.setLastOpenedBookId(null)
+                }
+                paceRepo.clear(id)
+                positionsRepo.clear(id)
+                bookmarksRepo.clear(id)
+                documentCache.invalidate(id)
+            }
+        }
+    }
 
     // ---- Currently-loaded document ----
     private val _document = MutableStateFlow<DocumentState>(DocumentState.Idle)

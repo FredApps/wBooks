@@ -42,6 +42,9 @@ internal object WearProtocol {
      * `folder` is the destination directory name, or `""` for the root. Reply: [LibraryListJson].
      */
     const val PATH_MOVE = "/wbooks/library/move"
+
+    /** Phone -> watch. Payload: JSON `{"from":"<old>","to":"<new>"}`. Reply: [LibraryListJson]. */
+    const val PATH_RENAME = "/wbooks/library/rename"
 }
 
 /**

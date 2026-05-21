@@ -1,5 +1,6 @@
 package com.fredapp.wbooks.ui.library
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -10,8 +11,16 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Folder
@@ -25,13 +34,21 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
@@ -49,7 +66,7 @@ import com.fredapp.wbooks.R
 import com.fredapp.wbooks.data.book.Book
 import kotlinx.coroutines.withTimeoutOrNull
 
-// Neutral grey folder tabs â€” the old saturated yellow was too bright against
+// Neutral grey folder tabs — the old saturated yellow was too bright against
 // the watch's black background. Same palette is mirrored in :companion
 // (MainActivity.kt) and the LAN web UI (UploadServer.kt) so all three surfaces
 // look the same.
@@ -61,21 +78,74 @@ private val DeleteRed = Color(0xFFE53935)
 @Composable
 fun LibraryScreen(
     books: List<Book>,
+    folderNames: List<String>,
     onBookOpen: (Book) -> Unit,
     onRefresh: () -> Unit,
     onMoveBook: (bookId: String, targetFolder: String) -> Unit,
     onDeleteBook: (bookId: String) -> Unit,
+    onCreateFolder: (String) -> Unit,
+    onRenameFolder: (oldName: String, newName: String) -> Unit,
+    onDeleteFolder: (String) -> Unit,
     isActive: Boolean = true,
 ) {
     var bookToMove by remember { mutableStateOf<Book?>(null) }
     var pendingDelete by remember { mutableStateOf<Book?>(null) }
+    var folderAction by remember { mutableStateOf<String?>(null) }
+    var folderToRename by remember { mutableStateOf<String?>(null) }
+    var pendingFolderDelete by remember { mutableStateOf<String?>(null) }
+    var showNewFolder by remember { mutableStateOf(false) }
 
     val grouped = books.groupBy { it.id.substringBeforeLast('/', "") }
-    val folderNames = grouped.keys.filter { it.isNotEmpty() }.sorted()
+    // Show every persisted folder, including empty ones — that's the whole
+    // point of folders sticking around after the last book moves out.
+    val allFolderNames = (folderNames + grouped.keys.filter { it.isNotEmpty() })
+        .distinct().sorted()
+
+    pendingFolderDelete?.let { folder ->
+        BackHandler { pendingFolderDelete = null }
+        ConfirmDeleteScreen(
+            bookTitle = "$folder/",
+            heading = "Delete folder?",
+            onConfirm = { onDeleteFolder(folder); pendingFolderDelete = null; folderAction = null },
+            onCancel = { pendingFolderDelete = null },
+        )
+        return
+    }
+    folderToRename?.let { folder ->
+        BackHandler { folderToRename = null }
+        RenameFolderScreen(
+            currentName = folder,
+            onSubmit = { onRenameFolder(folder, it); folderToRename = null; folderAction = null },
+            onCancel = { folderToRename = null },
+        )
+        return
+    }
+    folderAction?.let { folder ->
+        BackHandler { folderAction = null }
+        FolderActionsScreen(
+            folderName = folder,
+            onRename = { folderToRename = folder },
+            onDelete = { pendingFolderDelete = folder },
+            onCancel = { folderAction = null },
+        )
+        return
+    }
+    if (showNewFolder) {
+        BackHandler { showNewFolder = false }
+        RenameFolderScreen(
+            currentName = "",
+            heading = "New folder",
+            onSubmit = { onCreateFolder(it); showNewFolder = false },
+            onCancel = { showNewFolder = false },
+        )
+        return
+    }
 
     pendingDelete?.let { book ->
+        BackHandler { pendingDelete = null }
         ConfirmDeleteScreen(
             bookTitle = book.title,
+            heading = "Delete this book?",
             onConfirm = { onDeleteBook(book.id); pendingDelete = null; bookToMove = null },
             onCancel = { pendingDelete = null },
         )
@@ -83,9 +153,10 @@ fun LibraryScreen(
     }
 
     bookToMove?.let { book ->
+        BackHandler { bookToMove = null }
         FolderPickerScreen(
             bookTitle = book.title,
-            folders = folderNames,
+            folders = allFolderNames,
             currentFolder = book.id.substringBeforeLast('/', ""),
             onPick = { folder -> onMoveBook(book.id, folder); bookToMove = null },
             onDelete = { pendingDelete = book },
@@ -94,6 +165,8 @@ fun LibraryScreen(
         return
     }
 
+    // Refresh once when the screen first composes. Re-runs of isActive shouldn't
+    // refire — that's the "menus pop back to top" feel the user objected to.
     LaunchedEffect(Unit) { onRefresh() }
 
     val listState = rememberScalingLazyListState()
@@ -104,12 +177,27 @@ fun LibraryScreen(
     }
 
     val uncategorized = grouped[""] ?: emptyList()
-    val hasFolders = folderNames.isNotEmpty()
+    val hasFolders = allFolderNames.isNotEmpty()
     var selectedFolder by rememberSaveable { mutableStateOf<String?>(null) }
 
     Scaffold(timeText = { TimeText() }) {
-        if (books.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+        if (books.isEmpty() && !hasFolders) {
+            // Long-press anywhere on the empty state to create the first folder.
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                waitForUpOrCancellation()
+                            }
+                            if (up == null) showNewFolder = true
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(stringResource(R.string.empty_library))
             }
             return@Scaffold
@@ -125,6 +213,23 @@ fun LibraryScreen(
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            // Empty band above the folder chips: long-press creates a folder.
+            item(key = "create_folder_zone") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(20.dp)
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                    waitForUpOrCancellation()
+                                }
+                                if (up == null) showNewFolder = true
+                            }
+                        },
+                )
+            }
             if (hasFolders) {
                 item(key = "folder_chips") {
                     FlowRow(
@@ -132,13 +237,10 @@ fun LibraryScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        for (folder in folderNames) {
+                        for (folder in allFolderNames) {
                             val isSelected = folder == selectedFolder
                             val bg = if (isSelected) FolderGrey.copy(alpha = 0.55f) else FolderGrey
-                            // Chevron flips to indicate the folder is expanded â€”
-                            // the alpha-only state cue wasn't readable on the small
-                            // round watch face. Replaces the folder glyph in the
-                            // CompactChip icon slot (which only fits one icon).
+                            val count = grouped[folder]?.size ?: 0
                             CompactChip(
                                 icon = {
                                     Icon(
@@ -148,15 +250,43 @@ fun LibraryScreen(
                                         tint = FolderGreyText,
                                     )
                                 },
-                                label = { Text(folder, color = FolderGreyText) },
+                                label = { Text("$folder ($count)", color = FolderGreyText) },
                                 onClick = { selectedFolder = if (isSelected) null else folder },
                                 colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderGreyText),
+                                modifier = Modifier.pointerInput(folder) {
+                                    awaitEachGesture {
+                                        awaitFirstDown(requireUnconsumed = false)
+                                        val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                            waitForUpOrCancellation()
+                                        }
+                                        if (up == null) {
+                                            folderAction = folder
+                                            // Drain the rest of the gesture so the chip's
+                                            // click doesn't also fire on the release.
+                                            var stillPressed = true
+                                            while (stillPressed) {
+                                                val evt = awaitPointerEvent()
+                                                evt.changes.forEach { it.consume() }
+                                                stillPressed = evt.changes.any { it.pressed }
+                                            }
+                                        }
+                                    }
+                                },
                             )
                         }
                     }
                 }
                 selectedFolder?.let { folder ->
                     val folderBooks = grouped[folder] ?: emptyList()
+                    if (folderBooks.isEmpty()) {
+                        item(key = "empty_folder_${folder}") {
+                            Text(
+                                "(empty)",
+                                style = MaterialTheme.typography.caption2,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
+                    }
                     items(folderBooks, key = { "fb_${it.id}" }) { book ->
                         BookChip(book = book, onClick = { onBookOpen(book) }, onLongPress = { bookToMove = book })
                     }
@@ -184,8 +314,14 @@ fun LibraryScreen(
         }
     }
 }
+
 @Composable
-private fun ConfirmDeleteScreen(bookTitle: String, onConfirm: () -> Unit, onCancel: () -> Unit) {
+private fun ConfirmDeleteScreen(
+    bookTitle: String,
+    heading: String = "Delete this book?",
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+) {
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
@@ -204,7 +340,7 @@ private fun ConfirmDeleteScreen(bookTitle: String, onConfirm: () -> Unit, onCanc
         ) {
             item(key = "title") {
                 Text(
-                    "Delete this book?",
+                    heading,
                     style = MaterialTheme.typography.title3,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
@@ -262,6 +398,9 @@ private fun FolderPickerScreen(
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            item(key = "back") {
+                BackChipRow(onClick = onCancel)
+            }
             item(key = "title") {
                 Text(
                     bookTitle,
@@ -310,6 +449,159 @@ private fun FolderPickerScreen(
 }
 
 @Composable
+private fun FolderActionsScreen(
+    folderName: String,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val listState = rememberScalingLazyListState()
+    val focusRequester = remember { FocusRequester() }
+    val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
+    LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
+
+    Scaffold(timeText = { TimeText() }) {
+        ScalingLazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .focusRequester(focusRequester)
+                .focusable()
+                .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
+            state = listState,
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            item(key = "back") { BackChipRow(onClick = onCancel) }
+            item(key = "title") {
+                Text(
+                    folderName,
+                    style = MaterialTheme.typography.title3,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                )
+            }
+            item(key = "rename") {
+                Chip(
+                    label = { Text("Rename") },
+                    onClick = onRename,
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item(key = "delete") {
+                Chip(
+                    label = { Text("Delete folder", color = Color.White) },
+                    onClick = onDelete,
+                    colors = ChipDefaults.chipColors(backgroundColor = DeleteRed, contentColor = Color.White),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item(key = "cancel") {
+                Chip(
+                    label = { Text("Cancel") },
+                    onClick = onCancel,
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun RenameFolderScreen(
+    currentName: String,
+    heading: String = "Rename folder",
+    onSubmit: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var text by remember { mutableStateOf(currentName) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val onSurface = MaterialTheme.colors.onSurface
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(heading)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .border(1.dp, onSurface.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (text.isBlank()) {
+                Text(
+                    text = "Name",
+                    color = onSurface.copy(alpha = 0.5f),
+                    style = MaterialTheme.typography.button,
+                )
+            }
+            BasicTextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                textStyle = TextStyle(
+                    color = onSurface,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Start,
+                ),
+                cursorBrush = SolidColor(onSurface),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    keyboard?.hide()
+                    if (text.isNotBlank()) onSubmit(text.trim())
+                }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Chip(
+                label = { Text("OK") },
+                onClick = { if (text.isNotBlank()) onSubmit(text.trim()) },
+                colors = ChipDefaults.primaryChipColors(),
+                modifier = Modifier.weight(1f),
+            )
+            Chip(
+                label = { Text("Cancel") },
+                onClick = onCancel,
+                colors = ChipDefaults.secondaryChipColors(),
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+internal fun BackChipRow(onClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        CompactChip(
+            icon = {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Back",
+                    tint = FolderGreyText,
+                    modifier = Modifier,
+                )
+            },
+            label = { Text("Back", color = FolderGreyText) },
+            onClick = onClick,
+            colors = ChipDefaults.chipColors(backgroundColor = FolderGrey, contentColor = FolderGreyText),
+        )
+    }
+}
+
+@Composable
 private fun FolderIcon() {
     Icon(
         imageVector = Icons.Default.Folder,
@@ -329,12 +621,40 @@ private fun BookChip(book: Book, onClick: () -> Unit, onLongPress: () -> Unit) {
             .fillMaxWidth()
             .pointerInput(book.id) {
                 awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                        waitForUpOrCancellation()
+                    val down = awaitFirstDown(requireUnconsumed = true)
+                    val slop = viewConfiguration.touchSlop
+                    val startX = down.position.x
+                    val startY = down.position.y
+                    val timeout = viewConfiguration.longPressTimeoutMillis
+                    val deadline = System.currentTimeMillis() + timeout
+                    var cancelled = false
+                    while (true) {
+                        val remaining = deadline - System.currentTimeMillis()
+                        if (remaining <= 0) break
+                        val evt = withTimeoutOrNull(remaining) { awaitPointerEvent() } ?: break
+                        val change = evt.changes.firstOrNull { it.id == down.id } ?: break
+                        // If the finger moves more than touch slop in any direction
+                        // before the long-press timeout, treat it as a drag/scroll
+                        // and let the parent (HorizontalPager / ScalingLazyColumn)
+                        // own the rest of the gesture. This is what fixed the
+                        // "swipe on a book chip opens move/delete" complaint.
+                        val dx = change.position.x - startX
+                        val dy = change.position.y - startY
+                        if (kotlin.math.abs(dx) > slop || kotlin.math.abs(dy) > slop) {
+                            cancelled = true
+                            break
+                        }
+                        if (!change.pressed) {
+                            // Lifted before long-press timeout — Chip's own click
+                            // handler will fire onClick. Nothing to do here.
+                            cancelled = true
+                            break
+                        }
                     }
-                    if (up == null) {
+                    if (!cancelled) {
                         onLongPress()
+                        // Consume the rest of the gesture so the chip's click
+                        // doesn't also fire on release.
                         var stillPressed = true
                         while (stillPressed) {
                             val evt = awaitPointerEvent()
