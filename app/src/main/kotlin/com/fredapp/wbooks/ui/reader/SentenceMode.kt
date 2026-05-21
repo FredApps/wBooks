@@ -295,7 +295,19 @@ private fun segmentSentences(doc: Document): List<SentenceItem> {
  * The trailing-space requirement keeps decimals like "3.14" and abbreviations
  * like "Mr.Smith" intact, while still splitting at every real sentence /
  * clause boundary.
+ *
+ * Quote characters include straight ("/') and curly (U+201C/D/U+2018/9) so
+ * ebooks that use smart quotes still split after `."`.
+ *
+ * Fragments shorter than [MIN_FRAGMENT_SPACES] inter-word spaces are not
+ * emitted as their own screen — instead the break is skipped and the
+ * fragment keeps growing until it reaches the next valid boundary.
  */
+private const val MIN_FRAGMENT_SPACES = 3
+
+private fun Char.isCloseQuote(): Boolean =
+    this == '"' || this == '\'' || this == '“' || this == '”' || this == '‘' || this == '’'
+
 private fun String.splitAtPunctuation(): List<String> {
     val pieces = mutableListOf<String>()
     var start = 0
@@ -304,11 +316,14 @@ private fun String.splitAtPunctuation(): List<String> {
         val c = this[i]
         if (c == '.' || c == ',') {
             var end = i + 1
-            if (end < length && this[end] == '"') end++
+            if (end < length && this[end].isCloseQuote()) end++
             val nextIsBoundary = end >= length || this[end].isWhitespace()
             if (nextIsBoundary) {
-                substring(start, end).trim().takeIf { it.isNotEmpty() }?.let { pieces += it }
-                start = end
+                val fragment = substring(start, end).trim()
+                if (fragment.isNotEmpty() && fragment.count { it == ' ' } >= MIN_FRAGMENT_SPACES) {
+                    pieces += fragment
+                    start = end
+                }
                 i = end
                 continue
             }
