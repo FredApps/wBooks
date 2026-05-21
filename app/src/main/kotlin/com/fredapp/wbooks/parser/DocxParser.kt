@@ -46,8 +46,8 @@ class DocxParser(
     }
 
     private fun parseZip(zip: ZipFile): Document {
-        val (title, author) = parseCore(readEntry(zip, "docProps/core.xml"))
-        val docXml = readEntry(zip, "word/document.xml")
+        val (title, author) = parseCore(zip.readTextEntry("docProps/core.xml"))
+        val docXml = zip.readTextEntry("word/document.xml")
             ?: error("DOCX: missing word/document.xml")
         val doc = Jsoup.parse(docXml, "", Parser.xmlParser())
         val body = doc.selectFirst("w|body")
@@ -127,8 +127,4 @@ class DocxParser(
         return out
     }
 
-    private fun readEntry(zip: ZipFile, name: String): String? {
-        val entry = zip.getEntry(name) ?: return null
-        return zip.getInputStream(entry).use { it.readBytes() }.toString(Charsets.UTF_8)
-    }
 }

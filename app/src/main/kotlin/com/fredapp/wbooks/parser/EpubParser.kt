@@ -45,16 +45,16 @@ class EpubParser(
         ZipFile(file).use { zip -> parseZip(zip) }
 
     private fun parseZip(zip: ZipFile): Document {
-        val containerXml = readEntryAsString(zip, "META-INF/container.xml")
+        val containerXml = zip.readTextEntry("META-INF/container.xml")
             ?: error("EPUB: missing META-INF/container.xml")
         val opfPath = parseContainer(containerXml)
-        val opfXml = readEntryAsString(zip, opfPath) ?: error("EPUB: missing OPF at $opfPath")
+        val opfXml = zip.readTextEntry(opfPath) ?: error("EPUB: missing OPF at $opfPath")
         val opfDir = opfPath.substringBeforeLast('/', missingDelimiterValue = "")
         val opf = parseOpf(opfXml)
 
         val chapters = opf.spineHrefs.mapNotNull { href ->
             val full = joinEpubPath(opfDir, href)
-            val xhtml = readEntryAsString(zip, full) ?: return@mapNotNull null
+            val xhtml = zip.readTextEntry(full) ?: return@mapNotNull null
             Chapter(title = null, blocks = htmlParser.blocksOf(xhtml))
         }
 
@@ -63,11 +63,6 @@ class EpubParser(
             author = opf.creator,
             chapters = chapters,
         )
-    }
-
-    private fun readEntryAsString(zip: ZipFile, name: String): String? {
-        val entry = zip.getEntry(name.trimStart('/')) ?: return null
-        return zip.getInputStream(entry).use { it.readBytes() }.toString(Charsets.UTF_8)
     }
 
     private data class OpfData(
