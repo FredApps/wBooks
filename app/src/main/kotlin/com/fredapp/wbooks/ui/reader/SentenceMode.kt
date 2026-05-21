@@ -2,6 +2,7 @@
 
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -38,6 +39,7 @@ import com.fredapp.wbooks.parser.model.Block
 import com.fredapp.wbooks.parser.model.Document
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
+import com.fredapp.wbooks.ui.layout.watchContentPadding
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -46,6 +48,7 @@ import java.util.Locale
 import kotlin.math.abs
 
 private data class SentenceItem(val text: String, val position: BookPosition)
+private const val SENTENCE_SWIPE_THRESHOLD_PX = 36f
 
 /**
  * One sentence at a time, larger text.
@@ -114,6 +117,14 @@ fun SentenceMode(
         return true
     }
 
+    fun advanceSentence() {
+        index = (index + 1).coerceAtMost(sentences.size - 1)
+    }
+
+    fun rewindSentence() {
+        index = (index - 1).coerceAtLeast(0)
+    }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -124,27 +135,37 @@ fun SentenceMode(
             .focusRequester(focusRequester)
             .focusable()
             .pointerInput(settings.autoscrollEnabled) {
-                detectTapGestures(onTap = { offset ->
-                    if (settings.autoscrollEnabled) {
-                        // Spec: autoscroll pauses on tap, resumes on tap.
-                        autoscrollPaused = !autoscrollPaused
-                    } else {
-                        // Touch-only navigation: top third of the screen taps to the
-                        // previous sentence, bottom two thirds tap to the next.
-                        val prevZone = offset.y < size.height / 3f
-                        index = if (prevZone) (index - 1).coerceAtLeast(0)
-                        else (index + 1).coerceAtMost(sentences.size - 1)
-                    }
+                detectTapGestures(onTap = {
+                    if (settings.autoscrollEnabled) autoscrollPaused = !autoscrollPaused
+                    else advanceSentence()
                 })
+            }
+            .pointerInput(Unit) {
+                var totalDragY = 0f
+                detectVerticalDragGestures(
+                    onDragStart = { totalDragY = 0f },
+                    onVerticalDrag = { change, dragAmount ->
+                        totalDragY += dragAmount
+                        change.consume()
+                    },
+                    onDragEnd = {
+                        when {
+                            totalDragY <= -SENTENCE_SWIPE_THRESHOLD_PX -> advanceSentence()
+                            totalDragY >= SENTENCE_SWIPE_THRESHOLD_PX -> rewindSentence()
+                        }
+                    },
+                    onDragCancel = { totalDragY = 0f },
+                )
             },
     ) {
         val sentenceTextMaxHeight = (maxHeight - 58.dp).coerceAtLeast(48.dp)
+        val contentPadding = watchContentPadding(horizontal = 12.dp, vertical = 12.dp)
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp),
+                .padding(contentPadding),
         ) {
             Text(
                 text = "${index + 1}/${sentences.size}",
@@ -178,12 +199,12 @@ private fun FittingSentenceText(
     modifier: Modifier = Modifier,
 ) {
     val minFontSizeSp = 12
-    var displayText by remember(text) { mutableStateOf(text) }
-    var fontSizeSp by remember(text, targetFontSizeSp) { mutableIntStateOf(targetFontSizeSp) }
-    var commaSplitTried by remember(text) { mutableStateOf(false) }
+    val variants = remember(text) { text.fitVariants() }
+    var variantIndex by remember(text) { mutableIntStateOf(0) }
+    var fontSizeSp by remember(text, targetFontSizeSp, variantIndex) { mutableIntStateOf(targetFontSizeSp) }
 
     Text(
-        text = displayText,
+        text = variants[variantIndex],
         color = color,
         fontSize = fontSizeSp.sp,
         textAlign = TextAlign.Center,
@@ -195,20 +216,40 @@ private fun FittingSentenceText(
                 fontSizeSp--
                 return@Text
             }
-            if (!commaSplitTried) {
-                displayText = text.withCenterCommaLineBreak()
-                commaSplitTried = true
+            if (variantIndex < variants.lastIndex) {
+                variantIndex++
             }
         },
     )
 }
 
-private fun String.withCenterCommaLineBreak(): String {
-    val commaIndexes = indices.filter { this[it] == ',' }
-    if (commaIndexes.isEmpty()) return this
-    val midpoint = length / 2
-    val splitAt = commaIndexes.minBy { kotlin.math.abs(it - midpoint) }
-    return substring(0, splitAt + 1).trimEnd() + "\n" + substring(splitAt + 1).trimStart()
+private fun String.fitVariants(): List<String> {
+    val variants = mutableListOf(this)
+    splitAfterToken(".\"")?.let { variants += it }
+    splitAfterToken(",")?.let { commaSplit ->
+        if (commaSplit !in variants) variants += commaSplit
+    }
+    return variants
+}
+
+private fun String.splitAfterToken(token: String): String? {
+    val splitAt = tokenStartIndexes(token)
+        .minByOrNull { kotlin.math.abs(it - length / 2) }
+        ?: return null
+    val end = splitAt + token.length
+    return substring(0, end).trimEnd() + "\n" + substring(end).trimStart()
+}
+
+private fun String.tokenStartIndexes(token: String): List<Int> {
+    val out = mutableListOf<Int>()
+    var from = 0
+    while (from <= length - token.length) {
+        val idx = indexOf(token, startIndex = from)
+        if (idx < 0) break
+        out += idx
+        from = idx + token.length
+    }
+    return out
 }
 
 private fun segmentSentences(doc: Document): List<SentenceItem> {
@@ -228,13 +269,30 @@ private fun segmentSentences(doc: Document): List<SentenceItem> {
             var end = iter.next()
             while (end != BreakIterator.DONE) {
                 val sentence = text.substring(start, end).trim()
-                if (sentence.isNotEmpty()) out.add(SentenceItem(sentence, BookPosition(ci, bi)))
+                for (part in sentence.splitAfterQuotedSentenceEnd()) {
+                    if (part.isNotEmpty()) out.add(SentenceItem(part, BookPosition(ci, bi)))
+                }
                 start = end
                 end = iter.next()
             }
         }
     }
     return out
+}
+
+private fun String.splitAfterQuotedSentenceEnd(): List<String> {
+    val token = ".\""
+    val pieces = mutableListOf<String>()
+    var start = 0
+    while (start < length) {
+        val idx = indexOf(token, startIndex = start)
+        if (idx < 0 || idx + token.length >= length) break
+        val end = idx + token.length
+        substring(start, end).trim().takeIf { it.isNotEmpty() }?.let { pieces += it }
+        start = end
+    }
+    substring(start).trim().takeIf { it.isNotEmpty() }?.let { pieces += it }
+    return pieces.ifEmpty { listOf(trim()) }
 }
 
 /** First sentence whose origin is at or after [target] (lexicographic on chapter, then block). */

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -67,6 +66,7 @@ import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.R
 import com.fredapp.wbooks.data.book.Book
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
+import com.fredapp.wbooks.ui.layout.watchListPadding
 
 // Neutral grey folder tabs — the old saturated yellow was too bright against
 // the watch's black background. Same palette is mirrored in :companion
@@ -192,7 +192,7 @@ fun LibraryScreen(
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
-            contentPadding = PaddingValues(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
+            contentPadding = watchListPadding(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             // Explicit "New folder +" button at the top — discoverable affordance
@@ -319,7 +319,7 @@ private fun ConfirmDeleteScreen(
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
-            contentPadding = PaddingValues(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
+            contentPadding = watchListPadding(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item(key = "back") { BackChipRow(onClick = onCancel) }
@@ -380,7 +380,7 @@ private fun FolderPickerScreen(
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
-            contentPadding = PaddingValues(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
+            contentPadding = watchListPadding(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item(key = "back") {
@@ -453,7 +453,7 @@ private fun FolderActionsScreen(
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
-            contentPadding = PaddingValues(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
+            contentPadding = watchListPadding(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item(key = "back") { BackChipRow(onClick = onCancel) }

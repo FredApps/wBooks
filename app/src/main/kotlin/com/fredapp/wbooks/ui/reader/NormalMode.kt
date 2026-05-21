@@ -4,7 +4,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -30,6 +29,7 @@ import com.fredapp.wbooks.parser.model.flatIndexOf
 import com.fredapp.wbooks.parser.model.positionAt
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
+import com.fredapp.wbooks.ui.layout.watchReaderPadding
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -119,7 +119,7 @@ fun NormalMode(
 
     LazyColumn(
         state = listState,
-        contentPadding = PaddingValues(start = 14.dp, top = 48.dp, end = 14.dp, bottom = 24.dp),
+        contentPadding = watchReaderPadding(start = 14.dp, top = 48.dp, end = 14.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .fillMaxSize()

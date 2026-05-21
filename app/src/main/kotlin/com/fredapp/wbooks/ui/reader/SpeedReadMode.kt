@@ -40,6 +40,7 @@ import com.fredapp.wbooks.parser.model.Block
 import com.fredapp.wbooks.parser.model.Document
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
+import com.fredapp.wbooks.ui.layout.watchContentPadding
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -105,6 +106,7 @@ fun SpeedReadMode(
     }
 
     ClaimRotaryFocusOnActive(active = isActive, focusRequester = focusRequester)
+    val centerPadding = watchContentPadding(horizontal = 12.dp, vertical = 0.dp)
 
     fun stepWpm(scrollPixels: Float): Boolean {
         if (abs(scrollPixels) <= 0f) return false
@@ -146,7 +148,7 @@ fun SpeedReadMode(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .align(Alignment.Center)
-                .padding(horizontal = 12.dp)
+                .padding(centerPadding)
                 .fillMaxWidth(),
         ) {
             FocalWord(
