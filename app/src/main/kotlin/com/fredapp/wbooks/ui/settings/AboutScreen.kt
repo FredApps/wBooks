@@ -63,13 +63,13 @@ fun AboutScreen(onBack: () -> Unit) {
             item { SectionTitle("Seed books") }
             item {
                 Body(
-                    "Moby Dick Â· Pride and Prejudice Â· The Adventures of Sherlock Holmes Â· " +
-                        "The Yellow Wallpaper Â· The Strange Case of Dr Jekyll and Mr Hyde Â· " +
-                        "The Time Machine â€” bundled from Project Gutenberg public-domain editions.",
+                    "Moby Dick, Pride and Prejudice, The Adventures of Sherlock Holmes, " +
+                        "The Yellow Wallpaper, The Strange Case of Dr Jekyll and Mr Hyde, " +
+                        "and The Time Machine - bundled from Project Gutenberg public-domain editions.",
                 )
             }
             item { SectionTitle("Built with") }
-            item { Body("Kotlin Â· Jetpack Compose for Wear OS Â· Jsoup Â· NanoHTTPD") }
+            item { Body("Kotlin, Jetpack Compose for Wear OS, Jsoup, NanoHTTPD") }
             item { SectionTitle("License") }
             item {
                 Body(

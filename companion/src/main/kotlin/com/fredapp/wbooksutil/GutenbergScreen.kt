@@ -100,7 +100,7 @@ private fun ResultsList(
                         val sub = book.author ?: ""
                         Text(
                             text = if (sub.isEmpty()) book.extension.uppercase()
-                            else "$sub  Â·  ${book.extension.uppercase()}",
+                            else "$sub - ${book.extension.uppercase()}",
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )

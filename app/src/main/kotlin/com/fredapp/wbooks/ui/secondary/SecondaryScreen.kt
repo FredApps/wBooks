@@ -282,7 +282,7 @@ private fun SearchResultsList(
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        item { ListHeader { Text("\"$query\" Â· ${results.size}") } }
+        item { ListHeader { Text("\"$query\" - ${results.size}") } }
         item {
             Chip(
                 label = { Text("Clear") },
@@ -423,7 +423,7 @@ private fun String.looksLikeBoilerplateHeading(): Boolean {
         lower == "contents" ||
         lower == "table of contents" ||
         lower.contains("transcriber's note") ||
-        lower.contains("transcriberâ€™s note")
+        lower.contains("transcriber's note")
 }
 
 private fun buildSearchIntent(): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {

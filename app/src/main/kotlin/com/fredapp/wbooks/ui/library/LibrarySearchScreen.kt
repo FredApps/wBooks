@@ -117,7 +117,7 @@ fun LibrarySearchScreen(
             }
 
             if (query.isNotBlank()) {
-                item { ListHeader { Text("\"$query\" Â· ${filtered.size}") } }
+                item { ListHeader { Text("\"$query\" - ${filtered.size}") } }
                 item {
                     Chip(
                         label = { Text("Clear") },

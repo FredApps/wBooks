@@ -164,7 +164,7 @@ private fun WpmChart(samples: List<StatsSummary.WpmSample>) {
         }
     }
     Text(
-        "${samples.size} samples Â· ${samples.minOf { it.wpm }}â€“${samples.maxOf { it.wpm }} wpm",
+        "${samples.size} samples, ${samples.minOf { it.wpm }}-${samples.maxOf { it.wpm }} wpm",
         style = MaterialTheme.typography.labelSmall,
     )
 }

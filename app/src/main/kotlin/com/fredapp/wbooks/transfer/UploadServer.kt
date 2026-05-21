@@ -1,5 +1,6 @@
 ﻿package com.fredapp.wbooks.transfer
 
+import android.content.res.AssetManager
 import com.fredapp.wbooks.data.book.BookFormat
 import com.fredapp.wbooks.data.settings.FontChoice
 import com.fredapp.wbooks.data.settings.ReaderSettings
@@ -40,6 +41,7 @@ class UploadServer(
     private val pin: String,
     private val settingsRepository: SettingsRepository,
     private val crashReportingPref: CrashReportingPref,
+    private val assets: AssetManager,
     private val onBookDeleted: (bookId: String) -> Unit = {},
     private val onBookMoved: (fromBookId: String, toBookId: String) -> Unit = { _, _ -> },
 ) : NanoHTTPD(port) {
@@ -48,16 +50,20 @@ class UploadServer(
     private val failedAttempts = ArrayDeque<Long>()
 
     override fun serve(session: IHTTPSession): Response = try {
-        when (session.uri.trimEnd('/').ifEmpty { "/" }) {
-            "/" -> when (session.method) {
+        val uri = session.uri.trimEnd('/').ifEmpty { "/" }
+        when {
+            uri == "/" -> when (session.method) {
                 Method.GET -> renderIndex(queryParam(session, "msg"))
                 else -> methodNotAllowed()
             }
-            "/upload" -> handleUpload(session)
-            "/delete" -> handleDelete(session)
-            "/mkdir" -> handleMkdir(session)
-            "/move" -> handleMove(session)
-            "/settings" -> handleSettings(session)
+            uri == "/upload" -> handleUpload(session)
+            uri == "/delete" -> handleDelete(session)
+            uri == "/mkdir" -> handleMkdir(session)
+            uri == "/move" -> handleMove(session)
+            uri == "/settings" -> handleSettings(session)
+            // PDF.js shipped in the APK (assets/pdfjs/). Static, unauthenticated:
+            // it's a copy of Mozilla's library, not user data.
+            uri.startsWith("/pdfjs/") && session.method == Method.GET -> servePdfJsAsset(uri)
             else -> notFound()
         }
     } catch (e: Exception) {
@@ -150,6 +156,12 @@ class UploadServer(
               .swatches{display:flex;gap:6px;flex-wrap:wrap}
               .swatch{width:30px;height:30px;border-radius:50%;border:2px solid #777;cursor:pointer}
               .swatch.selected{outline:3px solid #111}
+              .modal{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:none;align-items:center;justify-content:center;z-index:100}
+              .modal.show{display:flex}
+              .modal-card{background:#fff;color:#111;padding:18px 20px;border-radius:8px;max-width:480px;width:calc(100% - 24px);box-shadow:0 10px 36px rgba(0,0,0,0.35)}
+              .modal-card h3{margin-top:0}
+              .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+              .pdf-note{color:#666;font-size:0.85em;margin:6px 0 0}
               @media (prefers-color-scheme: dark) {
                 body{background:#111;color:#eee}
                 td{border-bottom-color:#333}
@@ -163,8 +175,17 @@ class UploadServer(
                 .settings{background:#181818;border-color:#3a3a3a}
                 .setting small{color:#b8b8b8}
                 .swatch.selected{outline-color:#fff}
+                .modal-card{background:#1c1c1c;color:#eee}
+                .pdf-note{color:#b8b8b8}
               }
             </style>
+            <!--
+              PDF.js (browser-side PDF-to-HTML conversion). Bundled in the APK
+              under assets/pdfjs/ and served by the watch itself - no internet
+              needed, no CDN trust. Keeps pdfbox-android (~8 MB) out of the watch
+              while staying self-contained on the LAN.
+            -->
+            <script src="/pdfjs/pdf.min.js"></script>
             <script>
               function toggleFolder(id) {
                 var tb = document.getElementById(id);
@@ -189,16 +210,165 @@ class UploadServer(
               async function uploadFiles(files, folder) {
                 var pin = document.getElementById('pin').value;
                 if (!files.length) return;
+                var arr = Array.prototype.slice.call(files);
+                var hasPdf = arr.some(function(f){return /\.pdf$/i.test(f.name);});
+                if (hasPdf) {
+                  var ok = await confirmPdfWarning();
+                  if (!ok) return;
+                }
+                var prepared = [];
+                for (var i = 0; i < arr.length; i++) {
+                  var f = arr[i];
+                  if (/\.pdf$/i.test(f.name)) {
+                    try {
+                      var html = await convertPdfToHtml(f);
+                      var base = f.name.replace(/\.pdf$/i, '');
+                      prepared.push(new File([html], base + ' [PDF].html', {type:'text/html'}));
+                    } catch (e) {
+                      alert('PDF conversion failed for ' + f.name + ': ' + (e && e.message ? e.message : e));
+                      return;
+                    }
+                  } else {
+                    prepared.push(f);
+                  }
+                }
                 var fd = new FormData();
                 if (folder) fd.append('folder', folder);
-                for (var i = 0; i < files.length; i++) {
-                  fd.append('file' + i, files[i], files[i].name);
+                for (var j = 0; j < prepared.length; j++) {
+                  fd.append('file' + j, prepared[j], prepared[j].name);
                 }
                 try {
                   var resp = await fetch('/upload?pin=' + encodeURIComponent(pin), {method:'POST', body: fd});
                   if (!resp.ok) { alert('Upload failed: ' + resp.status); return; }
                 } catch(err) { alert('Upload error: ' + err); return; }
                 location.href = '/';
+              }
+              // ----- PDF conversion (mirrors PdfConverter.kt on phone) -----
+              // PDF.js served from the watch APK at /pdfjs/. Heuristics: font
+              // name contains bold/italic/oblique/black/heavy -> run styling;
+              // per-paragraph max font size >= 1.6x/1.3x/1.1x the document
+              // median promotes to h1/h2/h3. Page boundaries break paragraphs.
+              var pdfjsWorkerReady = false;
+              function ensurePdfjs() {
+                if (typeof pdfjsLib === 'undefined') {
+                  throw new Error('PDF.js failed to load. Reload the page and try again.');
+                }
+                if (!pdfjsWorkerReady) {
+                  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
+                  pdfjsWorkerReady = true;
+                }
+              }
+              async function convertPdfToHtml(file) {
+                ensurePdfjs();
+                var buf = await file.arrayBuffer();
+                var pdf = await pdfjsLib.getDocument({data: buf}).promise;
+                var items = [];
+                var sizes = [];
+                for (var p = 1; p <= pdf.numPages; p++) {
+                  var page = await pdf.getPage(p);
+                  var tc = await page.getTextContent();
+                  for (var k = 0; k < tc.items.length; k++) {
+                    var it = tc.items[k];
+                    if (!it.str) continue;
+                    var fname = it.fontName || '';
+                    try {
+                      var f = page.commonObjs.get(it.fontName);
+                      if (f && f.name) fname = f.name;
+                    } catch (e) { /* font not registered yet - fall back to raw id */ }
+                    var bold = /bold|black|heavy/i.test(fname);
+                    var italic = /italic|oblique/i.test(fname);
+                    var sz = it.height || Math.abs((it.transform && it.transform[3]) || (it.transform && it.transform[0]) || 12);
+                    items.push({text: it.str, bold: bold, italic: italic, size: sz, page: p, eol: !!it.hasEOL});
+                    sizes.push(sz);
+                  }
+                }
+                sizes.sort(function(a,b){return a-b;});
+                var median = sizes.length ? sizes[Math.floor(sizes.length/2)] : 12;
+                return buildPdfHtml(items, median, file.name.replace(/\.pdf$/i, ''));
+              }
+              function buildPdfHtml(items, median, title) {
+                var h1c = median * 1.6, h2c = median * 1.3, h3c = median * 1.1;
+                var paras = [];
+                var curr = [];
+                var currMax = 0;
+                var prevPage = null;
+                function flush() {
+                  var txt = curr.map(function(r){return r.text;}).join('').replace(/\s+/g,' ').trim();
+                  if (txt) paras.push({runs: mergePdfRuns(curr), max: currMax});
+                  curr = []; currMax = 0;
+                }
+                for (var i = 0; i < items.length; i++) {
+                  var it = items[i];
+                  if (prevPage !== null && prevPage !== it.page) flush();
+                  curr.push({text: it.text, bold: it.bold, italic: it.italic});
+                  if (it.size > currMax) currMax = it.size;
+                  if (it.eol) curr.push({text: ' ', bold: false, italic: false});
+                  prevPage = it.page;
+                }
+                flush();
+                var html = '<!doctype html>\n<html><head><meta charset="utf-8"><title>' + escPdfHtml(title) + '</title></head><body>\n';
+                if (paras.length === 0) {
+                  html += '<p><em>No extractable text in this PDF. It may be a scanned-image document.</em></p>\n';
+                } else {
+                  for (var i2 = 0; i2 < paras.length; i2++) {
+                    var p = paras[i2];
+                    var tag = 'p';
+                    if (p.max >= h1c) tag = 'h1';
+                    else if (p.max >= h2c) tag = 'h2';
+                    else if (p.max >= h3c) tag = 'h3';
+                    html += '<' + tag + '>';
+                    if (tag === 'p') {
+                      html += renderPdfRuns(p.runs);
+                    } else {
+                      html += escPdfHtml(p.runs.map(function(r){return r.text;}).join('').replace(/\s+/g,' ').trim());
+                    }
+                    html += '</' + tag + '>\n';
+                  }
+                }
+                html += '</body></html>\n';
+                return html;
+              }
+              function mergePdfRuns(runs) {
+                var out = [];
+                for (var i = 0; i < runs.length; i++) {
+                  var r = runs[i];
+                  var last = out.length ? out[out.length-1] : null;
+                  if (last && last.bold === r.bold && last.italic === r.italic) {
+                    last.text += r.text;
+                  } else {
+                    out.push({text: r.text, bold: r.bold, italic: r.italic});
+                  }
+                }
+                return out;
+              }
+              function renderPdfRuns(runs) {
+                var s = '';
+                for (var i = 0; i < runs.length; i++) {
+                  var r = runs[i];
+                  var t = escPdfHtml(r.text);
+                  if (r.bold && r.italic) s += '<strong><em>' + t + '</em></strong>';
+                  else if (r.bold) s += '<strong>' + t + '</strong>';
+                  else if (r.italic) s += '<em>' + t + '</em>';
+                  else s += t;
+                }
+                return s;
+              }
+              function escPdfHtml(s) {
+                return String(s).replace(/[&<>"]/g, function(c){
+                  return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];
+                });
+              }
+              function confirmPdfWarning() {
+                return new Promise(function(resolve) {
+                  var modal = document.getElementById('pdf-modal');
+                  modal.classList.add('show');
+                  document.getElementById('pdf-modal-cancel').onclick = function() {
+                    modal.classList.remove('show'); resolve(false);
+                  };
+                  document.getElementById('pdf-modal-ok').onclick = function() {
+                    modal.classList.remove('show'); resolve(true);
+                  };
+                });
               }
               function installDropZones() {
                 document.querySelectorAll('.drop-zone').forEach(function(zone) {
@@ -236,8 +406,9 @@ class UploadServer(
             <form method="post" action="/upload" enctype="multipart/form-data" class="row"
                   onsubmit="submitUpload(event)">
               <label>Folder (optional): <input type="text" name="folder" placeholder="e.g. fiction"></label>
-              <input type="file" name="file" multiple accept=".epub,.txt,.fb2,.html,.htm,.xhtml,.docx,.odt">
+              <input type="file" name="file" multiple accept=".epub,.txt,.fb2,.html,.htm,.xhtml,.docx,.odt,.pdf,application/pdf">
               <button>Upload</button>
+              <p class="pdf-note">PDF support is experimental - the browser converts to HTML before upload. Scanned PDFs convert to nothing useful (no OCR).</p>
             </form>
             <form method="post" action="/mkdir" class="row" onsubmit="return attachPin(this)">
               <label>New folder: <input type="text" name="name" required></label>
@@ -245,6 +416,22 @@ class UploadServer(
             </form>
             <table>$rows</table>
             $settingsHtml
+            <div id="pdf-modal" class="modal" role="dialog" aria-modal="true">
+              <div class="modal-card">
+                <h3>Experimental: convert PDF</h3>
+                <p>PDF support is experimental.</p>
+                <ul>
+                  <li>If the PDF contains real text, it will be converted and sent to the watch with basic formatting (paragraphs, headings, bold, italic).</li>
+                  <li>If the PDF only contains scanned images, the result will be empty or garbled - there is no OCR.</li>
+                </ul>
+                <p>Converted PDFs appear in your library marked <strong>[PDF]</strong> after the title.</p>
+                <p class="pdf-note">Parsing runs in this browser using PDF.js, served from the watch over your LAN - no internet needed.</p>
+                <div class="modal-actions">
+                  <button type="button" id="pdf-modal-cancel">Cancel</button>
+                  <button type="button" id="pdf-modal-ok">Convert</button>
+                </div>
+              </div>
+            </div>
             </body></html>
         """.trimIndent()
         return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
@@ -558,6 +745,33 @@ class UploadServer(
 
     private fun notFound() =
         newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found")
+
+    /**
+     * Stream a file from [assets] under `pdfjs/`. The route gate already restricts
+     * the URI prefix to `/pdfjs/`, but we also reject any `..` segment as defence
+     * in depth so a clever browser can't escape into other asset paths.
+     */
+    private fun servePdfJsAsset(uri: String): Response {
+        val rel = uri.removePrefix("/pdfjs/")
+        if (rel.isEmpty() || rel.contains("..") || rel.startsWith("/")) return notFound()
+        val assetPath = "pdfjs/$rel"
+        return try {
+            val stream = assets.open(assetPath)
+            val mime = when {
+                rel.endsWith(".js") -> "application/javascript; charset=utf-8"
+                rel.endsWith(".map") -> "application/json"
+                else -> "application/octet-stream"
+            }
+            // Caches across page reloads. The file is part of the APK so it only
+            // changes when the user updates the app, at which point the URL still
+            // points to the new bytes (no immutable hash in the name yet).
+            val resp = newChunkedResponse(Response.Status.OK, mime, stream)
+            resp.addHeader("Cache-Control", "public, max-age=86400")
+            resp
+        } catch (_: java.io.IOException) {
+            notFound()
+        }
+    }
 
     private fun badRequest(msg: String) =
         newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", msg)
