@@ -1,6 +1,7 @@
 ﻿package com.fredapp.wbooks
 
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,13 +30,24 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_SHOW_LIBRARY = "show_library"
     }
 
-    /** Pings the VM's keep-awake timer when the user touches the screen or
-     *  presses a key. Composition wires this to vm.noteInteraction(). */
+    /** Pings the VM's keep-awake timer when the user touches the screen, spins
+     *  the bezel, or presses a key. Composition wires this to vm.noteInteraction(). */
     private val userInteractions = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     override fun onUserInteraction() {
         super.onUserInteraction()
         userInteractions.tryEmit(Unit)
+    }
+
+    /**
+     * Bezel rotation arrives as a generic motion event, NOT a touch — so
+     * [onUserInteraction] is never called for it. Without this override the
+     * user can spin the bezel for the full keep-awake timeout and still get
+     * booted to the launcher as if they were idle.
+     */
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean {
+        userInteractions.tryEmit(Unit)
+        return super.dispatchGenericMotionEvent(ev)
     }
 
     override fun onResume() {
