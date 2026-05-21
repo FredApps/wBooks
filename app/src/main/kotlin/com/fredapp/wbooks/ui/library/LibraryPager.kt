@@ -5,12 +5,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.settings.SettingsScreen
 import kotlinx.coroutines.launch
@@ -36,6 +38,11 @@ fun LibraryPager(vm: ReaderViewModel) {
     val settingsActive by remember { derivedStateOf { settledPage == 2 } }
     val scope = rememberCoroutineScope()
     val goToLibrary = { scope.launch { pagerState.animateScrollToPage(1) } ; Unit }
+    val focusManager = LocalFocusManager.current
+
+    LaunchedEffect(pagerState.isScrollInProgress) {
+        if (pagerState.isScrollInProgress) focusManager.clearFocus(force = true)
+    }
 
     // Back from search or settings → Library page. From the library page,
     // BackHandler is not registered, so the system default (exit) applies.

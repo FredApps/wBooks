@@ -32,6 +32,7 @@ import com.fredapp.wbooks.data.settings.ReaderSettings
 import com.fredapp.wbooks.parser.model.Block
 import com.fredapp.wbooks.parser.model.Document
 import com.fredapp.wbooks.ui.ReaderViewModel
+import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -76,9 +77,7 @@ fun SentenceMode(
     }
     var autoscrollPaused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(isActive) {
-        if (isActive) runCatching { focusRequester.requestFocus() }
-    }
+    ClaimRotaryFocusOnActive(active = isActive, focusRequester = focusRequester)
 
     // Handle external jumps (chapter list, bookmark tap).
     LaunchedEffect(document) {

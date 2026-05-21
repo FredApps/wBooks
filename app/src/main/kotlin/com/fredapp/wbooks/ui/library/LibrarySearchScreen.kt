@@ -17,7 +17,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +50,7 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.R
 import com.fredapp.wbooks.data.book.Book
+import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 
 /**
  * Page 0 of the LibraryPager. Shows a "Search library" chip; tapping it opens an
@@ -82,10 +82,11 @@ fun LibrarySearchScreen(
     // Reclaim rotary focus on page activation, on Activity resume, and when the
     // search panel closes (the BasicTextField had grabbed focus). Don't reset
     // the scroll position.
-    val resumeTick = rememberResumeTick()
-    LaunchedEffect(isActive, resumeTick, panelOpen) {
-        if (isActive && !panelOpen) runCatching { focusRequester.requestFocus() }
-    }
+    ClaimRotaryFocusOnActive(
+        isActive && !panelOpen,
+        focusRequester,
+        query,
+    )
 
     // Back: close the keyboard panel first; clear the query next; otherwise
     // bubble up to the pager-level back handler to return to library.
