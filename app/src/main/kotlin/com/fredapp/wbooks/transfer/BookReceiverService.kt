@@ -176,6 +176,11 @@ class BookReceiverService : WearableListenerService() {
         scope.launch {
             val client = Wearable.getChannelClient(this@BookReceiverService)
             val dest = uniqueFile(app.booksDir, safe)
+            if (!dest.canonicalFile.toPath().startsWith(app.booksDir.canonicalFile.toPath()) ||
+                dest.canonicalFile == app.booksDir.canonicalFile) {
+                client.close(channel).await()
+                return@launch
+            }
             val ok = runCatching {
                 client.getInputStream(channel).await().use { input ->
                     dest.outputStream().buffered().use { out ->

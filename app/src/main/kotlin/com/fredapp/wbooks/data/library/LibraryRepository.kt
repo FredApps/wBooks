@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -50,7 +51,7 @@ class LibraryRepository(private val booksDir: File) {
     fun delete(id: String): Boolean {
         val target = _books.value.firstOrNull { it.id == id } ?: return false
         val removed = target.file.delete()
-        if (removed) _books.value = _books.value.filterNot { it.id == id }
+        if (removed) _books.update { list -> list.filterNot { it.id == id } }
         return removed
     }
 
