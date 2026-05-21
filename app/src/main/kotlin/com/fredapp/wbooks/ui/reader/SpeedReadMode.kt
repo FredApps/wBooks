@@ -24,6 +24,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.rotary.onPreRotaryScrollEvent
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -75,7 +76,12 @@ fun SpeedReadMode(
 
     var index by remember(document) { mutableIntStateOf(wordIndexFor(words, initialPosition)) }
     var playing by remember { mutableStateOf(true) }
+    var displayedWpm by remember { mutableIntStateOf(settings.speedreadWpm) }
     val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(settings.speedreadWpm) {
+        displayedWpm = settings.speedreadWpm
+    }
 
     LaunchedEffect(document) {
         vm.jumps.collect { target -> index = wordIndexFor(words, target) }
@@ -88,9 +94,9 @@ fun SpeedReadMode(
             .collect { position -> vm.reportPosition(position) }
     }
 
-    LaunchedEffect(playing, settings.speedreadWpm) {
+    LaunchedEffect(playing, displayedWpm) {
         if (!playing) return@LaunchedEffect
-        val intervalMs = (60_000L / settings.speedreadWpm.coerceAtLeast(60)).coerceAtLeast(20L)
+        val intervalMs = (60_000L / displayedWpm.coerceAtLeast(60)).coerceAtLeast(20L)
         while (index < words.size - 1) {
             delay(intervalMs)
             index++
@@ -100,24 +106,32 @@ fun SpeedReadMode(
 
     ClaimRotaryFocusOnActive(active = isActive, focusRequester = focusRequester)
 
+    fun stepWpm(scrollPixels: Float): Boolean {
+        if (abs(scrollPixels) <= 0f) return false
+        val step = if (scrollPixels > 0) WPM_STEP else -WPM_STEP
+        val next = (displayedWpm + step).coerceIn(ReaderSettings.WPM_RANGE)
+        if (next != displayedWpm) {
+            displayedWpm = next
+            onWpmChange(next)
+        }
+        return true
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .onPreRotaryScrollEvent { event -> stepWpm(event.verticalScrollPixels) }
+            .onRotaryScrollEvent { event ->
+                stepWpm(event.verticalScrollPixels)
+            }
             .focusRequester(focusRequester)
             .focusable()
-            .onRotaryScrollEvent { event ->
-                if (abs(event.verticalScrollPixels) > 0f) {
-                    val step = if (event.verticalScrollPixels > 0) WPM_STEP else -WPM_STEP
-                    onWpmChange(settings.speedreadWpm + step)
-                }
-                true
-            }
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { playing = !playing })
             },
     ) {
         Text(
-            text = "${settings.speedreadWpm} wpm",
+            text = "$displayedWpm wpm",
             color = Color(settings.textColorArgb).copy(alpha = 0.58f),
             style = MaterialTheme.typography.caption2,
             textAlign = TextAlign.Center,
@@ -150,7 +164,11 @@ fun SpeedReadMode(
                 ) {
                     CompactChip(
                         label = { Text("-25") },
-                        onClick = { onWpmChange(settings.speedreadWpm - 25) },
+                        onClick = {
+                            val next = (displayedWpm - WPM_STEP).coerceIn(ReaderSettings.WPM_RANGE)
+                            displayedWpm = next
+                            onWpmChange(next)
+                        },
                         colors = ChipDefaults.secondaryChipColors(),
                     )
                     Text(
@@ -160,7 +178,11 @@ fun SpeedReadMode(
                     )
                     CompactChip(
                         label = { Text("+25") },
-                        onClick = { onWpmChange(settings.speedreadWpm + 25) },
+                        onClick = {
+                            val next = (displayedWpm + WPM_STEP).coerceIn(ReaderSettings.WPM_RANGE)
+                            displayedWpm = next
+                            onWpmChange(next)
+                        },
                         colors = ChipDefaults.secondaryChipColors(),
                     )
                 }

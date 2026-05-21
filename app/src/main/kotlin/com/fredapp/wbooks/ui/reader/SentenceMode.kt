@@ -4,8 +4,11 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.MaterialTheme
@@ -102,7 +106,7 @@ fun SentenceMode(
         }
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .focusRequester(focusRequester)
@@ -128,23 +132,27 @@ fun SentenceMode(
                     }
                 })
             },
-        contentAlignment = Alignment.Center,
     ) {
+        val sentenceTextMaxHeight = (maxHeight - 58.dp).coerceAtLeast(48.dp)
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
         ) {
             Text(
                 text = "${index + 1}/${sentences.size}",
                 color = Color(settings.textColorArgb).copy(alpha = 0.5f),
                 style = MaterialTheme.typography.caption2,
             )
-            Text(
+            FittingSentenceText(
                 text = sentences[index].text,
                 color = Color(settings.textColorArgb),
-                fontSize = settings.sentenceTextSizeSp.sp,
-                textAlign = TextAlign.Center,
+                targetFontSizeSp = settings.sentenceTextSizeSp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = sentenceTextMaxHeight),
             )
             if (settings.autoscrollEnabled && autoscrollPaused) {
                 Text(
@@ -155,6 +163,47 @@ fun SentenceMode(
             }
         }
     }
+}
+
+@Composable
+private fun FittingSentenceText(
+    text: String,
+    color: Color,
+    targetFontSizeSp: Int,
+    modifier: Modifier = Modifier,
+) {
+    val minFontSizeSp = 12
+    var displayText by remember(text) { mutableStateOf(text) }
+    var fontSizeSp by remember(text, targetFontSizeSp) { mutableIntStateOf(targetFontSizeSp) }
+    var commaSplitTried by remember(text) { mutableStateOf(false) }
+
+    Text(
+        text = displayText,
+        color = color,
+        fontSize = fontSizeSp.sp,
+        textAlign = TextAlign.Center,
+        overflow = TextOverflow.Clip,
+        modifier = modifier,
+        onTextLayout = { result ->
+            if (!result.hasVisualOverflow) return@Text
+            if (fontSizeSp > minFontSizeSp) {
+                fontSizeSp--
+                return@Text
+            }
+            if (!commaSplitTried) {
+                displayText = text.withCenterCommaLineBreak()
+                commaSplitTried = true
+            }
+        },
+    )
+}
+
+private fun String.withCenterCommaLineBreak(): String {
+    val commaIndexes = indices.filter { this[it] == ',' }
+    if (commaIndexes.isEmpty()) return this
+    val midpoint = length / 2
+    val splitAt = commaIndexes.minBy { kotlin.math.abs(it - midpoint) }
+    return substring(0, splitAt + 1).trimEnd() + "\n" + substring(splitAt + 1).trimStart()
 }
 
 private fun segmentSentences(doc: Document): List<SentenceItem> {
