@@ -5,9 +5,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -44,6 +47,29 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      * full-screen spinner â€” the user shouldn't see the form vanish every time
      * they re-enter the screen.
      */
+    private var pollJob: Job? = null
+
+    /** Refresh every [POLL_INTERVAL_MS] while the settings screen is on-stage. */
+    fun startPolling() {
+        if (pollJob?.isActive == true) return
+        pollJob = viewModelScope.launch {
+            while (isActive) {
+                if (!_saving.value) {
+                    // Quietly re-pull the snapshot in the background. Don't flip
+                    // back to a loading spinner — the user is editing.
+                    val result = repo.fetchSettings()
+                    if (!_saving.value) applyResult(result)
+                }
+                delay(POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    fun stopPolling() {
+        pollJob?.cancel()
+        pollJob = null
+    }
+
     fun refresh() = viewModelScope.launch {
         val stale = (_state.value as? SyncState.Synced)?.snapshot
             ?: (_state.value as? SyncState.Refreshing)?.stale
@@ -85,6 +111,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             is WatchRepository.Result.NoWatch -> _state.value = SyncState.NoWatch
             is WatchRepository.Result.Error -> _state.value = SyncState.Error(result.message)
         }
+    }
+
+    private companion object {
+        const val POLL_INTERVAL_MS = 5_000L
     }
 
     class Factory(private val app: Application) : ViewModelProvider.Factory {

@@ -79,10 +79,12 @@ fun LibrarySearchScreen(
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
 
-    // Only reclaim rotary focus when this page becomes active. Don't reset the
-    // scroll position — see the screen-level doc for why.
-    LaunchedEffect(isActive) {
-        if (isActive) runCatching { focusRequester.requestFocus() }
+    // Reclaim rotary focus on page activation, on Activity resume, and when the
+    // search panel closes (the BasicTextField had grabbed focus). Don't reset
+    // the scroll position.
+    val resumeTick = rememberResumeTick()
+    LaunchedEffect(isActive, resumeTick, panelOpen) {
+        if (isActive && !panelOpen) runCatching { focusRequester.requestFocus() }
     }
 
     // Back: close the keyboard panel first; clear the query next; otherwise

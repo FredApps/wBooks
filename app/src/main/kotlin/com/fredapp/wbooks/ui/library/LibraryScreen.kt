@@ -1,28 +1,29 @@
 package com.fredapp.wbooks.ui.library
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.focusable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.runtime.Composable
@@ -33,15 +34,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -64,7 +64,6 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.R
 import com.fredapp.wbooks.data.book.Book
-import kotlinx.coroutines.withTimeoutOrNull
 
 // Neutral grey folder tabs — the old saturated yellow was too bright against
 // the watch's black background. Same palette is mirrored in :companion
@@ -74,7 +73,7 @@ private val FolderGrey = Color(0xFFB0B0B0)
 private val FolderGreyText = Color(0xFF1C1C1C)
 private val DeleteRed = Color(0xFFE53935)
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun LibraryScreen(
     books: List<Book>,
@@ -96,8 +95,6 @@ fun LibraryScreen(
     var showNewFolder by remember { mutableStateOf(false) }
 
     val grouped = books.groupBy { it.id.substringBeforeLast('/', "") }
-    // Show every persisted folder, including empty ones — that's the whole
-    // point of folders sticking around after the last book moves out.
     val allFolderNames = (folderNames + grouped.keys.filter { it.isNotEmpty() })
         .distinct().sorted()
 
@@ -165,44 +162,24 @@ fun LibraryScreen(
         return
     }
 
-    // Refresh once when the screen first composes. Re-runs of isActive shouldn't
-    // refire — that's the "menus pop back to top" feel the user objected to.
+    // Refresh once when the screen first composes.
     LaunchedEffect(Unit) { onRefresh() }
 
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
-    LaunchedEffect(isActive, books.isNotEmpty()) {
+    val resumeTick = rememberResumeTick()
+    // Re-claim rotary focus on page activation AND on Activity resume —
+    // backgrounding the app dropped focus silently, leaving the bezel inert
+    // until the user touched the screen. Keyed on isActive plus resume tick.
+    LaunchedEffect(isActive, resumeTick, books.isNotEmpty()) {
         if (isActive && books.isNotEmpty()) runCatching { focusRequester.requestFocus() }
     }
 
     val uncategorized = grouped[""] ?: emptyList()
-    val hasFolders = allFolderNames.isNotEmpty()
     var selectedFolder by rememberSaveable { mutableStateOf<String?>(null) }
 
     Scaffold(timeText = { TimeText() }) {
-        if (books.isEmpty() && !hasFolders) {
-            // Long-press anywhere on the empty state to create the first folder.
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-                    .pointerInput(Unit) {
-                        awaitEachGesture {
-                            awaitFirstDown(requireUnconsumed = false)
-                            val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                                waitForUpOrCancellation()
-                            }
-                            if (up == null) showNewFolder = true
-                        }
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(stringResource(R.string.empty_library))
-            }
-            return@Scaffold
-        }
-
         ScalingLazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -213,24 +190,28 @@ fun LibraryScreen(
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // Empty band above the folder chips: long-press creates a folder.
-            item(key = "create_folder_zone") {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(20.dp)
-                        .pointerInput(Unit) {
-                            awaitEachGesture {
-                                awaitFirstDown(requireUnconsumed = false)
-                                val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                                    waitForUpOrCancellation()
-                                }
-                                if (up == null) showNewFolder = true
-                            }
+            // Explicit "New folder +" button at the top — discoverable affordance
+            // that replaces the long-press-empty-area gesture. Centered, compact.
+            item(key = "new_folder_btn") {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CompactChip(
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                tint = FolderGreyText,
+                            )
                         },
-                )
+                        label = { Text("New folder", color = FolderGreyText) },
+                        onClick = { showNewFolder = true },
+                        colors = ChipDefaults.chipColors(
+                            backgroundColor = FolderGrey,
+                            contentColor = FolderGreyText,
+                        ),
+                    )
+                }
             }
-            if (hasFolders) {
+            if (allFolderNames.isNotEmpty()) {
                 item(key = "folder_chips") {
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
@@ -241,6 +222,9 @@ fun LibraryScreen(
                             val isSelected = folder == selectedFolder
                             val bg = if (isSelected) FolderGrey.copy(alpha = 0.55f) else FolderGrey
                             val count = grouped[folder]?.size ?: 0
+                            // Don't use pointerInput for the long-press — it interferes
+                            // with the parent pager's swipe. combinedClickable cooperates
+                            // with the gesture system and lets drags propagate.
                             CompactChip(
                                 icon = {
                                     Icon(
@@ -251,27 +235,12 @@ fun LibraryScreen(
                                     )
                                 },
                                 label = { Text("$folder ($count)", color = FolderGreyText) },
-                                onClick = { selectedFolder = if (isSelected) null else folder },
+                                onClick = {},
                                 colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderGreyText),
-                                modifier = Modifier.pointerInput(folder) {
-                                    awaitEachGesture {
-                                        awaitFirstDown(requireUnconsumed = false)
-                                        val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                                            waitForUpOrCancellation()
-                                        }
-                                        if (up == null) {
-                                            folderAction = folder
-                                            // Drain the rest of the gesture so the chip's
-                                            // click doesn't also fire on the release.
-                                            var stillPressed = true
-                                            while (stillPressed) {
-                                                val evt = awaitPointerEvent()
-                                                evt.changes.forEach { it.consume() }
-                                                stillPressed = evt.changes.any { it.pressed }
-                                            }
-                                        }
-                                    }
-                                },
+                                modifier = Modifier.combinedClickable(
+                                    onClick = { selectedFolder = if (isSelected) null else folder },
+                                    onLongClick = { folderAction = folder },
+                                ),
                             )
                         }
                     }
@@ -311,6 +280,15 @@ fun LibraryScreen(
             items(uncategorized, key = { "ub_${it.id}" }) { book ->
                 BookChip(book = book, onClick = { onBookOpen(book) }, onLongPress = { bookToMove = book })
             }
+
+            if (books.isEmpty() && allFolderNames.isEmpty()) {
+                item(key = "empty_state") {
+                    Text(
+                        text = stringResource(R.string.empty_library),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+            }
         }
     }
 }
@@ -325,7 +303,8 @@ private fun ConfirmDeleteScreen(
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
-    LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
+    val resumeTick = rememberResumeTick()
+    LaunchedEffect(resumeTick) { runCatching { focusRequester.requestFocus() } }
 
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
@@ -338,6 +317,7 @@ private fun ConfirmDeleteScreen(
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            item(key = "back") { BackChipRow(onClick = onCancel) }
             item(key = "title") {
                 Text(
                     heading,
@@ -385,7 +365,8 @@ private fun FolderPickerScreen(
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
-    LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
+    val resumeTick = rememberResumeTick()
+    LaunchedEffect(resumeTick) { runCatching { focusRequester.requestFocus() } }
 
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
@@ -458,7 +439,8 @@ private fun FolderActionsScreen(
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
-    LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
+    val resumeTick = rememberResumeTick()
+    LaunchedEffect(resumeTick) { runCatching { focusRequester.requestFocus() } }
 
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
@@ -588,10 +570,9 @@ internal fun BackChipRow(onClick: () -> Unit) {
         CompactChip(
             icon = {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                     contentDescription = "Back",
                     tint = FolderGreyText,
-                    modifier = Modifier,
                 )
             },
             label = { Text("Back", color = FolderGreyText) },
@@ -610,59 +591,20 @@ private fun FolderIcon() {
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BookChip(book: Book, onClick: () -> Unit, onLongPress: () -> Unit) {
+    // combinedClickable wins over the prior pointerInput approach: it integrates
+    // with Compose's gesture system so vertical scrolls reach the parent column
+    // and horizontal swipes reach the pager, instead of being swallowed and
+    // re-emitted as a long-press.
     Chip(
         label = { Text(book.title) },
         secondaryLabel = { Text(book.format.name) },
-        onClick = onClick,
+        onClick = {},
         colors = ChipDefaults.secondaryChipColors(),
         modifier = Modifier
             .fillMaxWidth()
-            .pointerInput(book.id) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = true)
-                    val slop = viewConfiguration.touchSlop
-                    val startX = down.position.x
-                    val startY = down.position.y
-                    val timeout = viewConfiguration.longPressTimeoutMillis
-                    val deadline = System.currentTimeMillis() + timeout
-                    var cancelled = false
-                    while (true) {
-                        val remaining = deadline - System.currentTimeMillis()
-                        if (remaining <= 0) break
-                        val evt = withTimeoutOrNull(remaining) { awaitPointerEvent() } ?: break
-                        val change = evt.changes.firstOrNull { it.id == down.id } ?: break
-                        // If the finger moves more than touch slop in any direction
-                        // before the long-press timeout, treat it as a drag/scroll
-                        // and let the parent (HorizontalPager / ScalingLazyColumn)
-                        // own the rest of the gesture. This is what fixed the
-                        // "swipe on a book chip opens move/delete" complaint.
-                        val dx = change.position.x - startX
-                        val dy = change.position.y - startY
-                        if (kotlin.math.abs(dx) > slop || kotlin.math.abs(dy) > slop) {
-                            cancelled = true
-                            break
-                        }
-                        if (!change.pressed) {
-                            // Lifted before long-press timeout — Chip's own click
-                            // handler will fire onClick. Nothing to do here.
-                            cancelled = true
-                            break
-                        }
-                    }
-                    if (!cancelled) {
-                        onLongPress()
-                        // Consume the rest of the gesture so the chip's click
-                        // doesn't also fire on release.
-                        var stillPressed = true
-                        while (stillPressed) {
-                            val evt = awaitPointerEvent()
-                            evt.changes.forEach { it.consume() }
-                            stillPressed = evt.changes.any { it.pressed }
-                        }
-                    }
-                }
-            },
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress),
     )
 }

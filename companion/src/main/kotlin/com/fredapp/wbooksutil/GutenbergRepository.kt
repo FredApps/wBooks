@@ -101,14 +101,26 @@ class GutenbergRepository {
         val doc = Jsoup.parse(xml, BASE, Parser.xmlParser())
         val out = mutableListOf<GutenbergBook>()
         for (entry in doc.select("entry")) {
-            // Skip navigation entries â€” only real books have an acquisition link.
-            val acq = entry.select("link[rel=http://opds-spec.org/acquisition]")
-            if (acq.isEmpty()) continue
-            val preferred = pickPreferred(acq) ?: continue
             val title = entry.selectFirst("title")?.text()?.trim().orEmpty()
             if (title.isEmpty()) continue
+            val id = entry.selectFirst("id")?.text()?.trim().orEmpty()
+            // The /ebooks.opds/ "popular" feed embeds direct download links per
+            // entry; the /search.opds/ feed only has a subsection link to a
+            // per-book OPDS doc. For search results we synthesize the download
+            // URL from the numeric book id encoded in <id> ("…/ebooks/2701.opds").
+            val acq = entry.select("link[rel=http://opds-spec.org/acquisition]")
+            val preferred = if (acq.isNotEmpty()) {
+                pickPreferred(acq)
+            } else {
+                bookIdFromOpdsUrl(id)?.let { numeric ->
+                    Acquisition(
+                        url = "$BASE_NO_SLASH/ebooks/$numeric.epub3.images",
+                        extension = "epub",
+                    )
+                }
+            } ?: continue
             out += GutenbergBook(
-                id = entry.selectFirst("id")?.text()?.trim().orEmpty(),
+                id = id,
                 title = title,
                 author = entry.selectFirst("author > name")?.text()?.trim()
                     ?.takeIf { it.isNotEmpty() },
@@ -120,6 +132,12 @@ class GutenbergRepository {
             )
         }
         return out
+    }
+
+    /** Extract the numeric book id from an `<id>https://www.gutenberg.org/ebooks/2701.opds</id>` URL. */
+    private fun bookIdFromOpdsUrl(idUrl: String): String? {
+        val m = Regex("/ebooks/(\\d+)(?:\\.opds)?\\b").find(idUrl) ?: return null
+        return m.groupValues[1]
     }
 
     private data class Acquisition(val url: String, val extension: String)

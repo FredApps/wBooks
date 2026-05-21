@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -143,9 +142,8 @@ private fun CompanionScreen(
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Watch settings")
                     }
-                    IconButton(onClick = vm::refresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh))
-                    }
+                    // No explicit refresh button — the polling loop in MainViewModel
+                    // refetches the library + connection state every 5 seconds.
                 },
             )
         },
@@ -173,24 +171,14 @@ private fun CompanionScreen(
                     onAssignToFolder = vm::assignBookToFolder,
                 )
             }
-            if (state.sending) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Surface(tonalElevation = 4.dp) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            CircularProgressIndicator()
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text(stringResource(R.string.sending))
-                        }
-                    }
-                }
-            }
         }
+    }
+    if (state.sending) {
+        UploadProgressDialog(
+            filename = state.sendingFilename,
+            sentBytes = state.sendingProgressBytes,
+            totalBytes = state.sendingProgressTotal,
+        )
     }
 
     // Delete book
@@ -316,19 +304,13 @@ private fun CompanionScreen(
 }
 
 /**
- * Three-band layout so the Root strip is always reachable as a drop target,
- * even when an expanded folder has more books than fit on screen:
- *
- *   top    — folder chips (fixed, never scrolls off)
- *   middle — expanded folder books, scrolls within remaining space (weight 1f)
- *   bottom — Root section, pinned. Whole section is one drop target, so the
- *            user can drop on the header strip, the empty hint, or the root
- *            book list and the move goes through.
- *
- * The root book list inside the bottom band has its own bounded LazyColumn so
- * it can't push the screen above it offscreen when there are many root books.
+ * Single scrolling list. Each folder chip is followed inline by the books that
+ * live in it when expanded. Root sits at the end of the list — when there are
+ * many folders, the natural scroll position settles with Root in the middle of
+ * the screen. The whole list scrolls together so users don't have to manage two
+ * scroll viewports.
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun BookList(
     books: List<BookSummary>,
@@ -343,19 +325,12 @@ private fun BookList(
     var rootExpanded by rememberSaveable { mutableStateOf(true) }
     val rootBooks = books.filter { it.id !in bookFolders }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        if (folders.isNotEmpty()) {
-            FlowRow(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                // Utility is a phone app — chips read left-to-right like the
-                // rest of the toolbar. The watch UI keeps centered chips
-                // (round display, no left edge), see LibraryScreen.kt.
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                for (folder in folders) {
-                    val folderBooks = books.filter { bookFolders[it.id] == folder.id }
-                    val isExpanded = folder.id in expandedFolders
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        for (folder in folders) {
+            val folderBooks = books.filter { bookFolders[it.id] == folder.id }
+            val isExpanded = folder.id in expandedFolders
+            item(key = "fc_${folder.id}") {
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                     FolderChip(
                         folder = folder,
                         bookCount = folderBooks.size,
@@ -370,26 +345,145 @@ private fun BookList(
                     )
                 }
             }
+            if (isExpanded) {
+                items(folderBooks, key = { "b_${folder.id}_${it.id}" }) { book ->
+                    BookItem(book = book, onDelete = onDelete)
+                    HorizontalDivider()
+                }
+                if (folderBooks.isEmpty()) {
+                    item(key = "fe_${folder.id}") {
+                        Text(
+                            text = "Empty — drag a book onto the folder chip to add it.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+            }
         }
 
-        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            for (folder in folders.filter { it.id in expandedFolders }) {
-                val folderBooks = books.filter { bookFolders[it.id] == folder.id }
-                items(folderBooks, key = { "b_${folder.id}_${it.id}" }) { book ->
+        item(key = "root_header") {
+            RootHeader(
+                rootBooks = rootBooks,
+                expanded = rootExpanded,
+                onToggle = { rootExpanded = !rootExpanded },
+                onDrop = { bookId -> onAssignToFolder(bookId, null) },
+            )
+        }
+        if (rootExpanded) {
+            if (rootBooks.isEmpty()) {
+                item(key = "root_empty") {
+                    Text(
+                        "Drop books here to move them to Root",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+                    )
+                }
+            } else {
+                items(rootBooks, key = { "rb_${it.id}" }) { book ->
                     BookItem(book = book, onDelete = onDelete)
                     HorizontalDivider()
                 }
             }
         }
-
-        RootSection(
-            rootBooks = rootBooks,
-            expanded = rootExpanded,
-            onToggle = { rootExpanded = !rootExpanded },
-            onDrop = { bookId -> onAssignToFolder(bookId, null) },
-            onDeleteBook = onDelete,
-        )
+        // Trailing spacer so the last book row scrolls clear of the FAB.
+        item(key = "fab_spacer") { Spacer(modifier = Modifier.height(80.dp)) }
     }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun RootHeader(
+    rootBooks: List<BookSummary>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onDrop: (bookId: String) -> Unit,
+) {
+    val isDragOver = remember { mutableStateOf(false) }
+    val onDropRef = rememberUpdatedState(onDrop)
+    val target = remember {
+        object : DragAndDropTarget {
+            override fun onDrop(event: DragAndDropEvent): Boolean {
+                val bookId = event.toAndroidDragEvent().clipData?.getItemAt(0)?.text?.toString()
+                    ?: return false
+                onDropRef.value(bookId)
+                isDragOver.value = false
+                return true
+            }
+            override fun onEntered(event: DragAndDropEvent) { isDragOver.value = true }
+            override fun onExited(event: DragAndDropEvent) { isDragOver.value = false }
+            override fun onEnded(event: DragAndDropEvent) { isDragOver.value = false }
+        }
+    }
+    val sectionBg = if (isDragOver.value) MaterialTheme.colorScheme.surfaceContainerLow
+                    else MaterialTheme.colorScheme.surfaceVariant
+    ListItem(
+        leadingContent = {
+            Icon(
+                if (expanded) Icons.Default.KeyboardArrowDown
+                else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        headlineContent = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${stringResource(R.string.uncategorized)} (${rootBooks.size})", fontWeight = FontWeight.SemiBold)
+            }
+        },
+        colors = ListItemDefaults.colors(containerColor = sectionBg),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .dragAndDropTarget(
+                shouldStartDragAndDrop = { event ->
+                    event.toAndroidDragEvent().clipDescription
+                        ?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true
+                },
+                target = target,
+            ),
+    )
+}
+
+@Composable
+private fun UploadProgressDialog(filename: String?, sentBytes: Long, totalBytes: Long) {
+    val title = filename ?: stringResource(R.string.sending)
+    val pct: Float? = if (totalBytes > 0L) (sentBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f) else null
+    AlertDialog(
+        onDismissRequest = { /* Upload is in flight; ignore taps outside. */ },
+        title = { Text("Sending") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, maxLines = 2)
+                if (pct != null) {
+                    LinearProgressIndicator(
+                        progress = { pct },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = "${humanBytes(sentBytes)} of ${humanBytes(totalBytes)} (${(pct * 100).toInt()}%)",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Text(
+                        text = if (sentBytes > 0) "${humanBytes(sentBytes)} sent" else "Starting…",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+    )
+}
+
+private fun humanBytes(n: Long): String = when {
+    n >= 1024 * 1024 -> "%.1f MB".format(n / 1024.0 / 1024.0)
+    n >= 1024 -> "%.0f KB".format(n / 1024.0)
+    else -> "$n B"
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -467,94 +561,8 @@ private fun FolderChip(
     }
 }
 
-/**
- * Pinned-bottom Root section. The entire surface (header strip + hint + book
- * list) is one drop target so a user can drop a folder book anywhere in the
- * lower band of the screen and the move-to-root goes through. Previously the
- * drop target was only the 1-line header strip, which made dragging onto the
- * "Drop books here..." hint a silent no-op.
- *
- * Book list is bounded to ~240dp so root never grows past about a third of
- * the phone screen — keeps the expanded-folder area above it usable.
- */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun RootSection(
-    rootBooks: List<BookSummary>,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    onDrop: (bookId: String) -> Unit,
-    onDeleteBook: (BookSummary) -> Unit,
-) {
-    val isDragOver = remember { mutableStateOf(false) }
-    val onDropRef = rememberUpdatedState(onDrop)
-    val target = remember {
-        object : DragAndDropTarget {
-            override fun onDrop(event: DragAndDropEvent): Boolean {
-                val bookId = event.toAndroidDragEvent().clipData?.getItemAt(0)?.text?.toString()
-                    ?: return false
-                onDropRef.value(bookId)
-                isDragOver.value = false
-                return true
-            }
-            override fun onEntered(event: DragAndDropEvent) { isDragOver.value = true }
-            override fun onExited(event: DragAndDropEvent) { isDragOver.value = false }
-            override fun onEnded(event: DragAndDropEvent) { isDragOver.value = false }
-        }
-    }
-    // Grey palette to match FolderChip / watch / web. Drag-over uses
-    // surfaceContainerLow for a subtle highlight that doesn't fight the grey theme.
-    val sectionBg = if (isDragOver.value) MaterialTheme.colorScheme.surfaceContainerLow
-                    else MaterialTheme.colorScheme.surfaceVariant
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(sectionBg)
-            .dragAndDropTarget(
-                shouldStartDragAndDrop = { event ->
-                    event.toAndroidDragEvent().clipDescription
-                        ?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true
-                },
-                target = target,
-            ),
-    ) {
-        ListItem(
-            leadingContent = {
-                Icon(
-                    if (expanded) Icons.Default.KeyboardArrowDown
-                    else Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            },
-            headlineContent = {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("${stringResource(R.string.uncategorized)} (${rootBooks.size})", fontWeight = FontWeight.SemiBold)
-                }
-            },
-            colors = ListItemDefaults.colors(containerColor = sectionBg),
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
-        )
-        if (expanded) {
-            if (rootBooks.isEmpty()) {
-                Text(
-                    "Drop books here to move them to Root",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
-                )
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp)) {
-                    items(rootBooks, key = { "b_root_${it.id}" }) { book ->
-                        BookItem(book = book, onDelete = onDeleteBook)
-                        HorizontalDivider()
-                    }
-                }
-            }
-        }
-    }
-}
+// (RootSection removed — Root is now an inline row in the single BookList LazyColumn,
+//  handled by RootHeader.)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
