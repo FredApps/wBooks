@@ -134,6 +134,7 @@ internal data class SettingsSnapshot(
     val autoscrollSpeed: Int,
     val screenBrightness: Int,
     val speedreadWpm: Int,
+    val keepAwakeMinutes: Int,
     val theme: String,
     val crashReportingEnabled: Boolean,
 )
@@ -158,6 +159,7 @@ internal object SettingsJson {
         sb.append(""","autoscrollSpeed":""").append(s.autoscrollSpeed)
         sb.append(""","screenBrightness":""").append(s.screenBrightness)
         sb.append(""","speedreadWpm":""").append(s.speedreadWpm)
+        sb.append(""","keepAwakeMinutes":""").append(s.keepAwakeMinutes)
         sb.append(""","theme":""").append(jsonString(s.theme))
         sb.append(""","crashReportingEnabled":""").append(s.crashReportingEnabled)
         sb.append('}')

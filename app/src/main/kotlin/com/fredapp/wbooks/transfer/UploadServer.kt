@@ -841,10 +841,12 @@ class UploadServer(
                     autoscrollEnabled = params["autoscrollEnabled"]?.firstOrNull() == "on",
                     autoscrollSpeed = intParam(params, "autoscrollSpeed", current.autoscrollSpeed)
                         .coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE),
-                    screenBrightness = intParam(params, "screenBrightness", current.screenBrightness)
-                        .coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE),
                     speedreadWpm = intParam(params, "speedreadWpm", current.speedreadWpm)
                         .coerceIn(ReaderSettings.WPM_RANGE),
+                    screenBrightness = intParam(params, "screenBrightness", current.screenBrightness)
+                        .coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE),
+                    keepAwakeMinutes = intParam(params, "keepAwakeMinutes", current.keepAwakeMinutes)
+                        .coerceIn(ReaderSettings.KEEP_AWAKE_MINUTES_RANGE),
                 )
             }
         }
@@ -926,8 +928,9 @@ class UploadServer(
                     <div class="swatches">$swatches</div>
                   </div>
                   ${numberSetting("Autoscroll speed", "autoscrollSpeed", s.autoscrollSpeed, ReaderSettings.AUTOSCROLL_SPEED_RANGE)}
-                  ${numberSetting("Screen brightness", "screenBrightness", s.screenBrightness, ReaderSettings.SCREEN_BRIGHTNESS_RANGE, "%")}
                   ${numberSetting("Speed-read WPM", "speedreadWpm", s.speedreadWpm, ReaderSettings.WPM_RANGE)}
+                  ${numberSetting("Screen brightness", "screenBrightness", s.screenBrightness, ReaderSettings.SCREEN_BRIGHTNESS_RANGE, "%")}
+                  ${numberSetting("Keep awake (min)", "keepAwakeMinutes", s.keepAwakeMinutes, ReaderSettings.KEEP_AWAKE_MINUTES_RANGE)}
                   ${checkboxSetting("Autoscroll", "autoscrollEnabled", s.autoscrollEnabled)}
                   ${checkboxSetting("Crash reports", "crashReportingEnabled", crash)}
                 </div>

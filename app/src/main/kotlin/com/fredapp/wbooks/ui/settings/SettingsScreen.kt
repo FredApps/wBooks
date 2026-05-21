@@ -220,6 +220,15 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
             }
             item {
                 SliderRow(
+                    label = stringResource(R.string.settings_speedread_wpm),
+                    value = settings.speedreadWpm,
+                    range = ReaderSettings.WPM_RANGE,
+                    step = 25,
+                    onChange = vm::setSpeedreadWpm,
+                )
+            }
+            item {
+                SliderRow(
                     label = stringResource(R.string.settings_screen_brightness),
                     value = settings.screenBrightness,
                     range = ReaderSettings.SCREEN_BRIGHTNESS_RANGE,
@@ -230,11 +239,12 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
             }
             item {
                 SliderRow(
-                    label = stringResource(R.string.settings_speedread_wpm),
-                    value = settings.speedreadWpm,
-                    range = ReaderSettings.WPM_RANGE,
-                    step = 25,
-                    onChange = vm::setSpeedreadWpm,
+                    label = stringResource(R.string.settings_keep_awake),
+                    value = settings.keepAwakeMinutes,
+                    range = ReaderSettings.KEEP_AWAKE_MINUTES_RANGE,
+                    step = 1,
+                    suffix = " min",
+                    onChange = vm::setKeepAwakeMinutes,
                 )
             }
 

@@ -25,6 +25,7 @@ private object Keys {
     val AUTOSCROLL_SPEED = intPreferencesKey("autoscroll_speed")
     val SCREEN_BRIGHTNESS = intPreferencesKey("screen_brightness")
     val SPEEDREAD_WPM = intPreferencesKey("speedread_wpm")
+    val KEEP_AWAKE_MINUTES = intPreferencesKey("keep_awake_minutes")
     val THEME = stringPreferencesKey("theme")
 }
 
@@ -67,6 +68,7 @@ class SettingsRepository(context: Context) {
         "autoscrollSpeed" -> intUpdate(value) { copy(autoscrollSpeed = it.coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE)) }
         "screenBrightness" -> intUpdate(value) { copy(screenBrightness = it.coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE)) }
         "speedreadWpm" -> intUpdate(value) { copy(speedreadWpm = it.coerceIn(ReaderSettings.WPM_RANGE)) }
+        "keepAwakeMinutes" -> intUpdate(value) { copy(keepAwakeMinutes = it.coerceIn(ReaderSettings.KEEP_AWAKE_MINUTES_RANGE)) }
         "autoscrollEnabled" -> boolUpdate(value) { copy(autoscrollEnabled = it) }
         else -> false
     }
@@ -114,6 +116,8 @@ class SettingsRepository(context: Context) {
                 .coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE),
             speedreadWpm = (this[Keys.SPEEDREAD_WPM] ?: defaults.speedreadWpm)
                 .coerceIn(ReaderSettings.WPM_RANGE),
+            keepAwakeMinutes = (this[Keys.KEEP_AWAKE_MINUTES] ?: defaults.keepAwakeMinutes)
+                .coerceIn(ReaderSettings.KEEP_AWAKE_MINUTES_RANGE),
             theme = this[Keys.THEME]?.let(::readTheme) ?: defaults.theme,
         )
     }
@@ -128,6 +132,7 @@ class SettingsRepository(context: Context) {
         this[Keys.AUTOSCROLL_SPEED] = s.autoscrollSpeed.coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE)
         this[Keys.SCREEN_BRIGHTNESS] = s.screenBrightness.coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE)
         this[Keys.SPEEDREAD_WPM] = s.speedreadWpm.coerceIn(ReaderSettings.WPM_RANGE)
+        this[Keys.KEEP_AWAKE_MINUTES] = s.keepAwakeMinutes.coerceIn(ReaderSettings.KEEP_AWAKE_MINUTES_RANGE)
         this[Keys.THEME] = s.theme.name
     }
 
