@@ -198,6 +198,15 @@ private fun SettingsList(
             onCommit = vm::setAutoscrollSpeed,
         )
 
+        SectionHeader("Speed-read WPM")
+        SliderRow(
+            value = snapshot.speedreadWpm,
+            range = SettingsRanges.WPM,
+            step = 25,
+            enabled = enabled,
+            onCommit = vm::setSpeedreadWpm,
+        )
+
         SectionHeader("Screen brightness")
         SliderRow(
             value = snapshot.screenBrightness,
@@ -208,13 +217,14 @@ private fun SettingsList(
             onCommit = vm::setScreenBrightness,
         )
 
-        SectionHeader("Speed-read WPM")
+        SectionHeader("Keep awake")
         SliderRow(
-            value = snapshot.speedreadWpm,
-            range = SettingsRanges.WPM,
-            step = 25,
+            value = snapshot.keepAwakeMinutes,
+            range = SettingsRanges.KEEP_AWAKE_MINUTES,
+            step = 1,
+            suffix = " min",
             enabled = enabled,
-            onCommit = vm::setSpeedreadWpm,
+            onCommit = vm::setKeepAwakeMinutes,
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
