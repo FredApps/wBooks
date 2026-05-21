@@ -18,6 +18,7 @@ import androidx.wear.protolayout.material.layouts.PrimaryLayout
 import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
+import com.fredapp.wbooks.MainActivity
 import com.google.common.util.concurrent.ListenableFuture
 import com.fredapp.wbooks.R
 import com.fredapp.wbooks.WBooksApp
@@ -90,30 +91,12 @@ class BooksTileService : TileService() {
     ): LayoutElementBuilders.LayoutElement {
         val resumeClickable = ModifiersBuilders.Clickable.Builder()
             .setId("resume")
-            .setOnClick(
-                ActionBuilders.LaunchAction.Builder()
-                    .setAndroidActivity(
-                        ActionBuilders.AndroidActivity.Builder()
-                            .setPackageName(packageName)
-                            .setClassName("com.fredapp.wbooks.MainActivity")
-                            .build()
-                    )
-                    .build()
-            )
+            .setOnClick(launchActivity(showLibrary = false))
             .build()
 
         val libraryClickable = ModifiersBuilders.Clickable.Builder()
             .setId("library")
-            .setOnClick(
-                ActionBuilders.LaunchAction.Builder()
-                    .setAndroidActivity(
-                        ActionBuilders.AndroidActivity.Builder()
-                            .setPackageName(packageName)
-                            .setClassName("com.fredapp.wbooks.MainActivity")
-                            .build()
-                    )
-                    .build()
-            )
+            .setOnClick(launchActivity(showLibrary = true))
             .build()
 
         val timeLabel = formatDurationMs(todayMs).let { if (todayMs > 0) "$it today" else "No reading yet" }
@@ -162,6 +145,23 @@ class BooksTileService : TileService() {
 
     private fun <T> resolved(value: T): ListenableFuture<T> =
         ResolvableFuture.create<T>().also { it.set(value) }
+
+    private fun launchActivity(showLibrary: Boolean): ActionBuilders.LaunchAction {
+        val activity = ActionBuilders.AndroidActivity.Builder()
+            .setPackageName(packageName)
+            .setClassName("com.fredapp.wbooks.MainActivity")
+        if (showLibrary) {
+            activity.addKeyToExtraMapping(
+                MainActivity.EXTRA_SHOW_LIBRARY,
+                ActionBuilders.AndroidBooleanExtra.Builder()
+                    .setValue(true)
+                    .build(),
+            )
+        }
+        return ActionBuilders.LaunchAction.Builder()
+            .setAndroidActivity(activity.build())
+            .build()
+    }
 
     private companion object {
         const val RESOURCES_VERSION = "1"
