@@ -36,16 +36,42 @@ class UploadServerService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
-            else -> startServer()
+            else -> {
+                val started = startServer()
+                if (!started) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+            }
         }
-        return START_STICKY
+        // START_NOT_STICKY (not START_STICKY): the upload server is a
+        // user-controlled toggle. If the system kills the service under memory
+        // pressure, it must stay dead until the user explicitly turns it back
+        // on. With START_STICKY Android would restart the service later with a
+        // null intent — onStartCommand would fall into the else branch and
+        // silently bring the server back up with a fresh PIN, which is exactly
+        // the "re-enables itself" complaint the user reported.
+        return START_NOT_STICKY
     }
 
-    private fun startServer() {
-        if (server != null) return
+    /** Returns true on success; false if the server failed to bind (e.g. port busy). */
+    private fun startServer(): Boolean {
+        // Order matters: ContextCompat.startForegroundService(...) starts a
+        // ~5-second timer the system uses to enforce "this service must promote
+        // itself to foreground". We have to call startForeground for EVERY
+        // start intent before that timer expires, including the re-entrant
+        // "already running" case (otherwise a duplicate intent crashes us with
+        // ForegroundServiceDidNotStartInTimeException). The current PIN-bearing
+        // notification gets re-published below on the success path so this
+        // placeholder is only visible for a frame in the cold-start case.
+        ensureChannel()
+        startForeground(NOTIF_ID, buildNotification(pin = server?.let { (application as WBooksApp).transferController.state.value.pin }))
+
+        if (server != null) return true
         val app = application as WBooksApp
         val pin = generatePin()
-        val s = UploadServer(
+
+        val candidate = UploadServer(
             port = PORT,
             booksDir = app.booksDir,
             pin = pin,
@@ -88,21 +114,36 @@ class UploadServerService : Service() {
                     }
                 }
             },
-        ).also {
-            it.start(NANOHTTPD_TIMEOUT, /* daemon = */ true)
+        )
+        try {
+            candidate.start(NANOHTTPD_TIMEOUT, /* daemon = */ true)
+        } catch (t: Throwable) {
+            // Most likely: port already bound by a previous instance that
+            // hasn't released its socket yet. Surface as "not running" rather
+            // than leaving a half-started service hanging on the system.
+            io.sentry.Sentry.captureException(t)
+            app.transferController.publishStopped()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            return false
         }
-        server = s
+        server = candidate
         app.transferController.publishRunning(PORT, pin)
+        // Refresh the notification now that we know the PIN.
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIF_ID, buildNotification(pin = pin))
+        return true
+    }
 
-        ensureChannel()
-        val notif: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildNotification(pin: String?): Notification {
+        val subtitle = if (pin == null) getString(R.string.settings_transfer_subtitle)
+        else getString(R.string.server_url, "PIN $pin")
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(getString(R.string.server_running))
-            .setContentText(getString(R.string.server_url, "PIN $pin"))
+            .setContentText(subtitle)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
-        startForeground(NOTIF_ID, notif)
     }
 
     private fun shutdown() {
@@ -110,6 +151,18 @@ class UploadServerService : Service() {
         server = null
         (application as WBooksApp).transferController.publishStopped()
         stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
+    /**
+     * Called when the user swipes the app away from the recents list. The user
+     * intent is "I'm done with this app", and a server-running notification
+     * that outlives the app's task is confusing and wastes battery. Tear down
+     * the server here so the toggle starts fresh on the next launch.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        shutdown()
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
