@@ -5,6 +5,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,7 +42,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -596,23 +597,17 @@ private fun FolderIcon() {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BookChip(book: Book, onClick: () -> Unit, onLongPress: () -> Unit) {
-    // Use a single combinedClickable owner for both tap and long-press so the
-    // move-menu gesture is not preempted by Chip's internal click handler.
-    Box(
+    // Let Chip keep its normal tap behavior, but add an explicit long-press
+    // detector so press-and-hold still reaches the move menu on watch.
+    Chip(
+        label = { Text(book.title) },
+        secondaryLabel = { Text(book.format.name) },
+        onClick = onClick,
+        colors = ChipDefaults.secondaryChipColors(),
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongPress,
-                role = Role.Button,
-            ),
-    ) {
-        Chip(
-            label = { Text(book.title) },
-            secondaryLabel = { Text(book.format.name) },
-            onClick = {},
-            colors = ChipDefaults.secondaryChipColors(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
+            .pointerInput(onLongPress) {
+                detectTapGestures(onLongPress = { onLongPress() })
+            },
+    )
 }
