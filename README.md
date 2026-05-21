@@ -4,7 +4,7 @@ An Android Wear OS ebook reader. Targets standalone watches running Wear OS 3 or
 
 ## Status
 
-Feature-complete with library organization, chapter navigation, reading stats, and folder management. The library ships pre-populated with one book of each supported format (Project Gutenberg public-domain editions).
+Feature-complete with library organization, chapter navigation, reading stats, folder management, and experimental PDF support. The library ships pre-populated with one book of each supported format (Project Gutenberg public-domain editions).
 
 ## Watch compatibility
 
@@ -109,6 +109,7 @@ The bezel doesn't unlock any features touch can't reach. Watches without one get
 - **fb2** — Jsoup XML. `title-info` → title + author; `body > section` → Chapter; nested sections become level-bumped headings inline. `<emphasis>` italic, `<strong>` bold, `<empty-line/>` divider.
 - **docx** — Office Open XML. `docProps/core.xml` → `dc:title` / `dc:creator`; `word/document.xml` → `<w:body>`. `<w:p>` with `pStyle=Heading1` starts a new chapter; `HeadingN` (N≥2) → heading block; otherwise paragraph. `<w:r>` styling: `<w:b/>`, `<w:i/>`, `<w:u/>`.
 - **odt** — OpenDocument Text. `meta.xml` → title + author; `content.xml` → `<office:text>`. `<text:h text:outline-level=1>` starts a new chapter; deeper levels become heading blocks; `<text:p>` becomes a paragraph. Inline `<text:span>` styling is resolved against the document's automatic styles (`fo:font-weight`, `fo:font-style`, `style:text-underline-style`).
+- **pdf** — **Experimental.** PDFs are converted to HTML on-the-fly: via `pdfbox-android` in the Utility companion app, or via PDF.js client-side in the LAN web UI. Heuristic formatting extracts bold/italic from font names and promotes runs to headings based on size variance. Converted PDFs are marked `[PDF]` in the library. One-time warning dialog per session.
 
 Unsupported elements in any format (tables, images, frames, fields, lists, drawings) are silently dropped — files that contain them still open, they just render only the prose.
 
@@ -141,7 +142,7 @@ Books with chapter headings (Heading 1 level in supported formats) support insta
 
 wBooks is designed watch-first and works fully standalone. The watch has two optional transports for adding books:
 
-- **LAN upload server** (NanoHTTPD, built-in). Toggleable from Settings. Runs as a foreground service so it survives screen-off; persistent notification shows the URL + PIN. Every mutating endpoint is gated by a 4-digit PIN (regenerated per start) checked before the request body is parsed; a sliding-window counter trips the endpoint after 10 wrong PINs / 60 s. Works over any local network without a phone.
+- **LAN upload server** (NanoHTTPD, built-in). Toggleable from Settings. Runs as a foreground service so it survives screen-off; persistent notification shows the URL + PIN. Every mutating endpoint is gated by a 4-digit PIN (regenerated per start) checked before the request body is parsed; a sliding-window counter trips the endpoint after 10 wrong PINs / 60 s. Works over any local network without a phone. Includes a web UI at `/` that supports all formats (EPUB, HTML, TXT, FB2, DOCX, ODT, PDF). PDFs are converted to HTML client-side via PDF.js bundled in the APK — no internet required.
 - **Phone companion** (`:companion` module, separate APK). Optional, requires a paired Wear OS phone. Talks to the watch via the Wear Data Layer: `MessageClient.sendRequest` for list/delete, `ChannelClient` for streaming file uploads. The watch advertises a `wbooks_receiver` capability so the phone can discover any paired node automatically — no pairing UI, no PIN. See [Companion app](#companion-app) below.
 
 You don't need a phone to use wBooks. The LAN server is always available on the watch itself. The companion is an alternative transport for users with a paired phone — pick whichever fits your workflow.
@@ -152,6 +153,8 @@ A small Material 3 phone app (`:companion`, minSdk 24, branded as "wBooks Utilit
 
 **Library management:**
 - Tap **+** → SAF picker → file streams to the watch via `ChannelClient`.
+  - Supported: EPUB, HTML, TXT, FB2, DOCX, ODT
+  - **PDF**: one-time warning dialog, then converted to HTML via `pdfbox-android` before upload
 - Long-press on a book → delete from the watch.
 - Pull-down / Refresh → re-fetch the library.
 - **Folder management**: Drag-and-drop books between folders. Create folders. Folder structure syncs to the watch in real-time.
@@ -320,17 +323,21 @@ Replace `<watch-ip>:<port>` with your watch's ADB connection details (e.g., `192
 
 ## Known Issues and Limitations
 
-### PDF support: not implemented as a native format
+### PDF support: experimental
 
-PDF is a rendering format, not a content format. It encodes exact pixel positions and fonts, not logical structure (chapters, paragraphs, sections). On a small round Wear OS screen with variable text sizes and reflow, native PDF requires either shrinking to unreadable sizes or horizontal scrolling to see full lines — both worsen the reading experience.
+PDF support is **experimental** as of v0.5.0. PDFs are converted to HTML on-the-fly rather than parsed natively:
 
-**Workaround:** If you have PDFs you want to read on wBooks, the companion app (wBooks Utility) can convert PDFs to HTML, EPUB, or TXT before uploading them to the watch. Tools like:
-- Command-line: `pandoc`, `pdftotext`, `calibre`
-- Web-based: PDF-to-HTML converters, e-book converters
+**How it works:**
+- **Utility app**: Pick a PDF → warning dialog (once per session) → converted to HTML via `pdfbox-android` → uploaded to watch
+- **LAN web UI**: Pick a PDF → converted to HTML via PDF.js (bundled, no internet required) → uploaded to watch
+- **Library display**: Converted PDFs are marked `[PDF]` to indicate they came from a PDF source
 
-Convert your PDF, then upload the result via the companion app's file picker or Gutenberg browser.
+**Limitations:**
+- Conversion is heuristic: bold/italic sniffed from PostScript font names, headings inferred from font size variance
+- Complex PDFs with columns, images, or intricate layouts may not convert perfectly
+- The conversion happens on first upload; converted HTML is then stored in the library
 
-**Why not native support:** The supported formats (TXT, HTML, EPUB, FB2, DOCX, ODT) preserve semantic structure and reflow naturally to any screen size. Adding native PDF would contradict the app's design principle that every text should be readable at any font size on any watch.
+**Why conversion instead of native parsing:** PDF is a rendering format, not a content format. It encodes exact pixel positions and fonts, not logical structure (chapters, paragraphs, sections). Converting to HTML at upload time lets wBooks preserve semantic structure and reflow naturally to any screen size, which is core to the app's design principle.
 
 ## Support the project
 

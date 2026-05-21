@@ -39,10 +39,10 @@ If you find a bug or want to suggest a feature, open an issue on GitHub. Include
 
 ### What won't be accepted
 
-- PDF support (see README for why)
 - Features that only work with a bezel/crown (touch must work)
 - Breaking changes to the reading mode input model
 - Large UI redesigns without prior discussion
+- Reverting experimental PDF support without community discussion
 
 ## Development Workflow
 
