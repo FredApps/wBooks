@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -111,18 +112,26 @@ fun SpeedReadMode(
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { playing = !playing })
             },
-        contentAlignment = Alignment.Center,
     ) {
+        Text(
+            text = "${settings.speedreadWpm} wpm",
+            color = Color(settings.textColorArgb).copy(alpha = 0.58f),
+            style = MaterialTheme.typography.caption2,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .safeDrawingPadding()
+                .padding(top = 14.dp, start = 48.dp, end = 48.dp)
+                .fillMaxWidth(),
+        )
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 12.dp)
+                .fillMaxWidth(),
         ) {
-            Text(
-                text = "${settings.speedreadWpm} wpm - ${index + 1}/${words.size}",
-                color = Color(settings.textColorArgb).copy(alpha = 0.5f),
-                style = MaterialTheme.typography.caption2,
-            )
             FocalWord(
                 word = words[index].text,
                 fontSizeSp = settings.textSizeSp + 10,
@@ -154,6 +163,17 @@ fun SpeedReadMode(
                 }
             }
         }
+        Text(
+            text = "${index + 1}/${words.size}",
+            color = Color(settings.textColorArgb).copy(alpha = 0.58f),
+            style = MaterialTheme.typography.caption2,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .safeDrawingPadding()
+                .padding(bottom = 14.dp, start = 48.dp, end = 48.dp)
+                .fillMaxWidth(),
+        )
     }
 }
 
