@@ -64,8 +64,8 @@ import com.fredapp.wbooks.data.bookmarks.Bookmark
 import com.fredapp.wbooks.data.position.BookPosition
 import com.fredapp.wbooks.data.settings.ReadingMode
 import com.fredapp.wbooks.data.stats.formatDurationMs
-import com.fredapp.wbooks.parser.model.Block
-import com.fredapp.wbooks.parser.model.Document
+import com.fredapp.wbooks.parser.model.ChapterJump
+import com.fredapp.wbooks.parser.model.DocumentMetrics
 import com.fredapp.wbooks.ui.DocumentState
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.SearchResult
@@ -158,19 +158,12 @@ fun SecondaryScreen(
             return@Scaffold
         }
 
-        val modeBookmarks by vm.bookmarks.collectAsState()
+        val bookmarks by vm.bookmarks.collectAsState()
         val eta by vm.readingEta.collectAsState()
-        val settings by vm.settings.collectAsState()
-        // The VM flow is already scoped to the current mode's bucket; we only
-        // re-sort here so a freshly-added bookmark sits at the top of the list
-        // where the user is already looking.
-        val bookmarks = remember(modeBookmarks) {
-            modeBookmarks.sortedByDescending { it.savedAtMs }
-        }
         var pendingDelete by remember { mutableStateOf<BookPosition?>(null) }
         var bookmarkedFlashAt by remember { mutableStateOf(0L) }
-        val flashVisible = remember(bookmarkedFlashAt, modeBookmarks) {
-            bookmarkedFlashAt != 0L && modeBookmarks.any { it.savedAtMs >= bookmarkedFlashAt }
+        val flashVisible = remember(bookmarkedFlashAt, bookmarks) {
+            bookmarkedFlashAt != 0L && bookmarks.any { it.savedAtMs >= bookmarkedFlashAt }
         }
         LaunchedEffect(bookmarkedFlashAt) {
             if (bookmarkedFlashAt != 0L) {
@@ -178,9 +171,11 @@ fun SecondaryScreen(
                 bookmarkedFlashAt = 0L
             }
         }
-        val chapters = remember(state.doc) { chapterJumps(state.doc) }
-        val wordProgressLabels = remember(state.doc) { wordProgressLabels(state.doc) }
-        val sentenceProgressLabels = remember(state.doc) { sentenceProgressLabels(state.doc) }
+        // Metrics are pre-computed on Dispatchers.Default by the VM when the
+        // doc loads. Until they arrive (~tens of ms after the reader paints)
+        // we still render the page — just without word/sentence labels.
+        val metrics: DocumentMetrics? = state.metrics
+        val chapters: List<ChapterJump> = metrics?.chapterJumps ?: emptyList()
 
         // Swiping into Tools resets the list once, then claims focus after the
         // pager has released the previous rotary owner.
@@ -277,8 +272,12 @@ fun SecondaryScreen(
                 ) { bm ->
                     val chapterTitle = bm.label ?: chapterTitleAt(chapters, bm.position) ?: "Start"
                     val resolvedLabel = when (bm.mode) {
-                        ReadingMode.SPEEDREAD -> "$chapterTitle · ${wordProgressLabels.labelFor(bm.position)}"
-                        ReadingMode.SENTENCE -> "$chapterTitle · ${sentenceProgressLabels.labelFor(bm.position)}"
+                        ReadingMode.SPEEDREAD -> metrics?.let {
+                            "$chapterTitle · ${it.wordIndexAt(bm.position)}/${it.totalWords}"
+                        } ?: chapterTitle
+                        ReadingMode.SENTENCE -> metrics?.let {
+                            "$chapterTitle · ${it.sentenceIndexAt(bm.position)}/${it.totalSentences}"
+                        } ?: chapterTitle
                         ReadingMode.NORMAL -> chapterTitle
                     }
                     BookmarkRow(
@@ -431,59 +430,10 @@ private fun BookmarkRow(
     }
 }
 
-private data class ChapterJump(val title: String, val position: BookPosition)
-
-private data class WordProgressLabels(private val wordPositions: List<BookPosition>) {
-    fun labelFor(position: BookPosition): String {
-        if (wordPositions.isEmpty()) return "0/0"
-        val idx = wordPositions.indexOfFirst { word ->
-            word.chapterIndex > position.chapterIndex ||
-                (word.chapterIndex == position.chapterIndex && word.blockIndex >= position.blockIndex)
-        }.let { if (it >= 0) it else wordPositions.lastIndex }
-        return "${idx + 1}/${wordPositions.size}"
-    }
-}
-
-private data class SentenceProgressLabels(private val positions: List<BookPosition>) {
-    fun labelFor(target: BookPosition): String {
-        if (positions.isEmpty()) return "0/0"
-        val idx = positions.indexOfFirst { p ->
-            when {
-                p.chapterIndex != target.chapterIndex -> p.chapterIndex > target.chapterIndex
-                p.blockIndex != target.blockIndex -> p.blockIndex > target.blockIndex
-                else -> p.subIndex >= target.subIndex
-            }
-        }.let { if (it >= 0) it else positions.lastIndex }
-        return "${idx + 1}/${positions.size}"
-    }
-}
-
-private fun sentenceProgressLabels(doc: Document): SentenceProgressLabels =
-    SentenceProgressLabels(com.fredapp.wbooks.ui.reader.sentencePositions(doc))
-
-private fun wordProgressLabels(doc: Document): WordProgressLabels {
-    val ws = Regex("\\s+")
-    val out = mutableListOf<BookPosition>()
-    for ((ci, chapter) in doc.chapters.withIndex()) {
-        for ((bi, block) in chapter.blocks.withIndex()) {
-            val text = when (block) {
-                is Block.Heading -> block.text
-                is Block.Paragraph -> block.runs.joinToString("") { it.text }
-                Block.Divider, is Block.Code -> ""
-            }
-            if (text.isNotBlank()) {
-                val position = BookPosition(ci, bi)
-                repeat(text.trim().split(ws).count { it.isNotEmpty() }) { out += position }
-            }
-        }
-    }
-    return WordProgressLabels(out)
-}
-
 /**
  * Find the title of the heading-derived chapter that contains [position]. Returns
- * null if [position] is before the first chapter start. Chapters are assumed to be
- * in document order (which [chapterJumps] guarantees).
+ * null if [position] is before the first chapter start. Chapters are assumed to
+ * be in document order (which [DocumentMetrics.chapterJumps] guarantees).
  */
 private fun chapterTitleAt(chapters: List<ChapterJump>, position: BookPosition): String? {
     var best: String? = null
@@ -494,45 +444,6 @@ private fun chapterTitleAt(chapters: List<ChapterJump>, position: BookPosition):
         if (atOrBefore) best = c.title else break
     }
     return best
-}
-
-private fun chapterJumps(doc: Document): List<ChapterJump> {
-    val headingJumps = mutableListOf<ChapterJump>()
-    for ((ci, chapter) in doc.chapters.withIndex()) {
-        chapter.title?.takeIf { it.isNotBlank() }?.let { title ->
-            headingJumps += ChapterJump(title, BookPosition(ci, 0))
-        }
-        for ((bi, block) in chapter.blocks.withIndex()) {
-            if (block is Block.Heading && block.text.isNotBlank()) {
-                headingJumps += ChapterJump(block.text, BookPosition(ci, bi))
-            }
-        }
-    }
-    val distinct = headingJumps.distinctBy { it.position }
-    val explicitChapters = distinct.filter { it.title.looksLikeChapterHeading() }
-    val meaningfulHeadings = distinct.filterNot { it.title.looksLikeBoilerplateHeading() }
-    return (explicitChapters.ifEmpty { meaningfulHeadings }).ifEmpty {
-        doc.chapters.mapIndexed { idx, _ -> ChapterJump("Chapter ${idx + 1}", BookPosition(idx, 0)) }
-    }
-}
-
-private fun String.looksLikeChapterHeading(): Boolean {
-    val t = trim()
-    return t.startsWith("chapter ", ignoreCase = true) ||
-        Regex("^(book|part|volume)\\s+[ivxlcdm0-9]+\\b", RegexOption.IGNORE_CASE).containsMatchIn(t)
-}
-
-private fun String.looksLikeBoilerplateHeading(): Boolean {
-    val t = trim()
-    if (t.isBlank()) return true
-    val lower = t.lowercase()
-    return lower.startsWith("the project gutenberg ebook") ||
-        lower.startsWith("project gutenberg") ||
-        lower.startsWith("by ") ||
-        lower == "contents" ||
-        lower == "table of contents" ||
-        lower.contains("transcriber's note") ||
-        lower.contains("transcriber's note")
 }
 
 private fun buildSearchIntent(): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {

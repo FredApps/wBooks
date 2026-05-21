@@ -268,12 +268,6 @@ private fun String.tokenStartIndexes(token: String): List<Int> {
     return out
 }
 
-/** Positions of every sentence in [doc], in reading order. Used by Tools to
- *  compute the sentence count for SENTENCE-mode bookmarks. Mirrors the
- *  segmentation used by sentence mode itself. */
-fun sentencePositions(doc: Document): List<BookPosition> =
-    segmentSentences(doc).map { it.position }
-
 private fun segmentSentences(doc: Document): List<SentenceItem> {
     val out = mutableListOf<SentenceItem>()
     for ((ci, chapter) in doc.chapters.withIndex()) {

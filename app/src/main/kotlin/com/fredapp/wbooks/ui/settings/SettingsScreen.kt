@@ -77,6 +77,9 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = state)
     val settings by vm.settings.collectAsState()
+    // Hoisted out of the items below: a separate collectAsState per item costs
+    // a recomposition scope per call and adds a flow subscription each.
+    val transfer by vm.transferState.collectAsState()
 
     // Swipe-in starts at the top once, then focus is reclaimed after the pager
     // settles. Resume refocus does not re-run the scroll-to-top side effect.
@@ -130,7 +133,6 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
             item { ListHeader { Text(stringResource(R.string.page_settings)) } }
 
             item {
-                val transfer by vm.transferState.collectAsState()
                 ToggleChip(
                     checked = transfer.running,
                     onCheckedChange = { enabled ->
@@ -161,7 +163,6 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                 )
             }
             item {
-                val transfer by vm.transferState.collectAsState()
                 if (transfer.running && transfer.pin != null) {
                     Text(
                         text = "PIN ${transfer.pin}",
