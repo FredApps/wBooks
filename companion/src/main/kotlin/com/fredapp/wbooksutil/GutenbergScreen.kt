@@ -79,6 +79,12 @@ private fun SearchBar(value: String, onValueChange: (String) -> Unit, onSubmit: 
         placeholder = { Text("Search title or author") },
         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
         singleLine = true,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            imeAction = androidx.compose.ui.text.input.ImeAction.Search,
+        ),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+            onSearch = { onSubmit() },
+        ),
         trailingIcon = {
             TextButton(onClick = onSubmit) { Text("Go") }
         },

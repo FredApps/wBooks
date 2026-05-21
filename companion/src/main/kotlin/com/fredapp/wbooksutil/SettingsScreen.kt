@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,6 +37,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,8 +58,14 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
     val saving by vm.saving.collectAsStateWithLifecycle()
 
     // Per the watch-authoritative model, every entry into this screen pulls a
-    // fresh snapshot â€” UI is never edited against stale data.
+    // fresh snapshot — UI is never edited against stale data. While the screen
+    // is on stage we also poll every 5 s so background changes on the watch
+    // surface here without a manual refresh.
     LaunchedEffect(Unit) { vm.refresh() }
+    DisposableEffect(Unit) {
+        vm.startPolling()
+        onDispose { vm.stopPolling() }
+    }
 
     Scaffold(
         topBar = {
@@ -68,11 +74,6 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = vm::refresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                 },
             )
@@ -224,6 +225,60 @@ private fun SettingsList(
             checked = snapshot.crashReportingEnabled,
             enabled = enabled,
             onChange = vm::setCrashReportingEnabled,
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        SectionHeader("Changelog")
+        ChangelogBlock()
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        SectionHeader("About")
+        AboutBlock()
+    }
+}
+
+@Composable
+private fun ChangelogBlock() {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        for (entry in CompanionChangelog.ENTRIES) {
+            Text(
+                text = "${entry.version} — ${entry.date}",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+            )
+            for (note in entry.notes) {
+                Text(
+                    text = "• $note",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(start = 8.dp, top = 2.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AboutBlock() {
+    val versionName = androidx.compose.ui.platform.LocalContext.current.let {
+        runCatching { it.packageManager.getPackageInfo(it.packageName, 0).versionName }
+            .getOrNull() ?: "?"
+    }
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Text(
+            text = "wBooks companion — version $versionName",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+        Text(
+            text = "Phone-side helper for the wBooks Wear OS reader. Sends books to the watch over the Wear Data Layer, browses Project Gutenberg, and edits watch settings.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text(
+            text = "Source: github.com/FredApps/wBooks — GPLv3.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 4.dp),
         )
     }
 }

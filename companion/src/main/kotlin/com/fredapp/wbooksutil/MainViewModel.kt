@@ -28,6 +28,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val bookFolders: Map<String, String> = emptyMap(),
         val loading: Boolean = false,
         val sending: Boolean = false,
+        /** When [sending], the filename being uploaded — shown in the progress dialog. */
+        val sendingFilename: String? = null,
+        /** Cumulative bytes sent for the current upload. -1 if unknown / not started. */
+        val sendingProgressBytes: Long = 0L,
+        /** Total expected bytes for the current upload, or -1 if unknown (indeterminate bar). */
+        val sendingProgressTotal: Long = -1L,
         val noWatch: Boolean = false,
         val errorMessage: String? = null,
         // Folders created locally but not yet confirmed by a book assignment.
@@ -173,19 +179,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun runPdfConversion(pending: PendingPdf) = viewModelScope.launch {
-        _state.value = _state.value.copy(sending = true, errorMessage = null)
+        _state.value = _state.value.copy(
+            sending = true,
+            sendingFilename = pending.filename,
+            sendingProgressBytes = 0L,
+            sendingProgressTotal = -1L,
+            errorMessage = null,
+        )
         val converted = convertPdf(pending)
         if (converted == null) {
             _state.value = _state.value.copy(
                 sending = false,
+                sendingFilename = null,
                 errorMessage = "Could not read PDF. It may be encrypted or corrupted.",
             )
             return@launch
         }
         val outName = pdfOutputName(pending.filename)
         val bytes = converted.html.toByteArray(Charsets.UTF_8)
-        val result = repo.uploadStream(bytes.inputStream(), outName)
-        _state.value = _state.value.copy(sending = false)
+        val result = repo.uploadStream(
+            bytes.inputStream(),
+            outName,
+            totalBytes = bytes.size.toLong(),
+        ) { sent, total ->
+            _state.value = _state.value.copy(
+                sendingProgressBytes = sent,
+                sendingProgressTotal = total,
+            )
+        }
+        _state.value = _state.value.copy(
+            sending = false,
+            sendingFilename = null,
+            sendingProgressBytes = 0L,
+            sendingProgressTotal = -1L,
+        )
         when (result) {
             is WatchRepository.Result.Ok -> refresh()
             is WatchRepository.Result.NoWatch ->
@@ -196,9 +223,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun uploadDirect(uri: Uri, filename: String) = viewModelScope.launch {
-        _state.value = _state.value.copy(sending = true, errorMessage = null)
-        val result = repo.uploadBook(uri, filename)
-        _state.value = _state.value.copy(sending = false)
+        _state.value = _state.value.copy(
+            sending = true,
+            sendingFilename = filename,
+            sendingProgressBytes = 0L,
+            sendingProgressTotal = -1L,
+            errorMessage = null,
+        )
+        val result = repo.uploadBook(uri, filename) { sent, total ->
+            _state.value = _state.value.copy(
+                sendingProgressBytes = sent,
+                sendingProgressTotal = total,
+            )
+        }
+        _state.value = _state.value.copy(
+            sending = false,
+            sendingFilename = null,
+            sendingProgressBytes = 0L,
+            sendingProgressTotal = -1L,
+        )
         when (result) {
             is WatchRepository.Result.Ok -> refresh()
             is WatchRepository.Result.NoWatch ->

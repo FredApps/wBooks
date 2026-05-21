@@ -34,7 +34,7 @@ import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.foundation.rotary.rotaryScrollable
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.CompactChip
@@ -81,10 +81,11 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
     // When the user swipes into Settings, reset the scroll to the top and
     // reclaim rotary focus from whatever was holding it (a reader-mode focusable
     // or â€” going the other direction â€” an InlineSlider in this very list).
-    // Reclaim rotary focus whenever Settings becomes active again. We used to
-    // also scroll back to the top, but the user explicitly didn't want that —
-    // re-visiting a menu shouldn't lose their place.
-    LaunchedEffect(isActive) {
+    // Reclaim rotary focus whenever Settings becomes active again OR the
+    // Activity resumes from background. The resume tick covers the "open app,
+    // bezel dead until I tap" case.
+    val resumeTick = com.fredapp.wbooks.ui.library.rememberResumeTick()
+    LaunchedEffect(isActive, resumeTick) {
         if (isActive) runCatching { focusRequester.requestFocus() }
     }
 
@@ -118,7 +119,7 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                     CompactChip(
                         icon = {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                                 contentDescription = "Back",
                                 tint = FolderGreyText,
                             )

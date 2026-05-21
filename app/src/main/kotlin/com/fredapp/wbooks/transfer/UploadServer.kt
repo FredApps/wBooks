@@ -676,8 +676,32 @@ class UploadServer(
                 <p><button>Save settings</button></p>
               </form>
             </section>
+            ${renderChangelogPanel()}
+            ${renderAboutPanel()}
         """.trimIndent()
     }
+
+    private fun renderChangelogPanel(): String {
+        val items = com.fredapp.wbooks.data.changelog.CHANGELOG.joinToString("") { entry ->
+            val notes = entry.notes.joinToString("") { "<li>${htmlEscape(it)}</li>" }
+            """<section><h3>${htmlEscape(entry.version)} - ${htmlEscape(entry.date)}</h3><ul>$notes</ul></section>"""
+        }
+        return """
+            <section class="settings">
+              <h2>Changelog</h2>
+              $items
+            </section>
+        """.trimIndent()
+    }
+
+    private fun renderAboutPanel(): String = """
+        <section class="settings">
+          <h2>About</h2>
+          <p>wBooks - Wear OS ebook reader.</p>
+          <p>This web interface runs on the watch over your local Wi-Fi; the URL and PIN are shown on the watch screen.</p>
+          <p>Source: <a href="https://github.com/FredApps/wBooks">github.com/FredApps/wBooks</a> - GPLv3.</p>
+        </section>
+    """.trimIndent()
 
     private fun selectSetting(label: String, name: String, options: List<String>, selected: String): String {
         val optionHtml = options.joinToString("") { value ->

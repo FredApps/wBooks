@@ -85,17 +85,32 @@ class WatchRepository(context: Context) {
         }.getOrElse { Result.Error(it.message ?: "Delete failed") }
     }
 
-    suspend fun uploadBook(uri: Uri, filename: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun uploadBook(
+        uri: Uri,
+        filename: String,
+        onProgress: (sentBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         if (!isSupportedBookFilename(filename)) {
             return@withContext Result.Error("Unsupported file type")
         }
+        val total = querySize(uri) ?: -1L
         val input = appContext.contentResolver.openInputStream(uri)
             ?: return@withContext Result.Error("Cannot open file")
-        uploadStream(input, filename)
+        uploadStream(input, filename, total, onProgress)
     }
 
-    /** Push [input] to the watch under [filename]; closes [input] when done. */
-    suspend fun uploadStream(input: InputStream, filename: String): Result<Unit> =
+    /**
+     * Push [input] to the watch under [filename]; closes [input] when done.
+     * If [totalBytes] >= 0, [onProgress] is called periodically with the cumulative
+     * bytes sent and the total — used by the UI to drive a determinate progress bar.
+     * If totalBytes is negative, progress is reported with -1 total (indeterminate).
+     */
+    suspend fun uploadStream(
+        input: InputStream,
+        filename: String,
+        totalBytes: Long = -1L,
+        onProgress: (sentBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
+    ): Result<Unit> =
         withContext(Dispatchers.IO) {
             if (!isSupportedBookFilename(filename)) {
                 input.close()
@@ -108,7 +123,18 @@ class WatchRepository(context: Context) {
                     val channel = channelClient.openChannel(node.id, path).await()
                     try {
                         val out = channelClient.getOutputStream(channel).await()
-                        out.use { stream.copyTo(it) }
+                        out.use { sink ->
+                            val buf = ByteArray(DEFAULT_BUFFER_SIZE)
+                            var sent = 0L
+                            onProgress(0L, totalBytes)
+                            while (true) {
+                                val n = stream.read(buf)
+                                if (n < 0) break
+                                sink.write(buf, 0, n)
+                                sent += n
+                                onProgress(sent, totalBytes)
+                            }
+                        }
                     } finally {
                         channelClient.close(channel).await()
                     }
@@ -116,6 +142,17 @@ class WatchRepository(context: Context) {
                 Result.Ok(Unit)
             }.getOrElse { Result.Error(it.message ?: "Upload failed") }
         }
+
+    private fun querySize(uri: Uri): Long? {
+        val resolver = appContext.contentResolver
+        resolver.query(uri, arrayOf(android.provider.OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+                val idx = c.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                if (idx >= 0 && !c.isNull(idx)) return c.getLong(idx)
+            }
+        }
+        return null
+    }
 
     suspend fun mkdirBook(name: String): Result<LibrarySnapshot> = withContext(Dispatchers.IO) {
         val node = bestNode() ?: return@withContext Result.NoWatch
