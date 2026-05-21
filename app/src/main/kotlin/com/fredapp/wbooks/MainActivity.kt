@@ -3,16 +3,22 @@
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import com.fredapp.wbooks.data.settings.ReaderSettings
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.WBooksRoot
 import com.fredapp.wbooks.ui.theme.WBooksTheme
+import com.fredapp.wbooks.ui.theme.toFontFamily
+import androidx.wear.compose.material.LocalContentColor
+import androidx.wear.compose.material.ProvideTextStyle
 
 class MainActivity : ComponentActivity() {
 
@@ -53,8 +59,13 @@ class MainActivity : ComponentActivity() {
                 if (freshLaunch && !showLibrary) vm.resumeLastBook()
             }
 
-            WBooksTheme(choice = settings.theme) {
-                WBooksRoot(vm = vm)
+            val contentColor = Color(settings.textColorArgb)
+            WBooksTheme(choice = settings.theme, textColor = contentColor) {
+                CompositionLocalProvider(LocalContentColor provides contentColor) {
+                    ProvideTextStyle(TextStyle(color = contentColor, fontFamily = settings.font.toFontFamily())) {
+                        WBooksRoot(vm = vm)
+                    }
+                }
             }
         }
     }

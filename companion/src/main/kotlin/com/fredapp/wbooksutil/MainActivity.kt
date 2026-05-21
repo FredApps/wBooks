@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
@@ -281,6 +282,19 @@ private fun CompanionScreen(
     }
 }
 
+/**
+ * Three-band layout so the Root strip is always reachable as a drop target,
+ * even when an expanded folder has more books than fit on screen:
+ *
+ *   top    — folder chips (fixed, never scrolls off)
+ *   middle — expanded folder books, scrolls within remaining space (weight 1f)
+ *   bottom — Root section, pinned. Whole section is one drop target, so the
+ *            user can drop on the header strip, the empty hint, or the root
+ *            book list and the move goes through.
+ *
+ * The root book list inside the bottom band has its own bounded LazyColumn so
+ * it can't push the screen above it offscreen when there are many root books.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BookList(
@@ -293,68 +307,53 @@ private fun BookList(
 ) {
     var expandedFolders by rememberSaveable { mutableStateOf(emptySet<String>()) }
     var rootExpanded by rememberSaveable { mutableStateOf(true) }
+    val rootBooks = books.filter { it.id !in bookFolders }
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize()) {
         if (folders.isNotEmpty()) {
-            item(key = "folder_chips") {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    for (folder in folders) {
-                        val folderBooks = books.filter { bookFolders[it.id] == folder.id }
-                        val isExpanded = folder.id in expandedFolders
-                        FolderChip(
-                            folder = folder,
-                            bookCount = folderBooks.size,
-                            selected = isExpanded,
-                            onToggle = {
-                                expandedFolders = if (isExpanded) expandedFolders - folder.id
-                                                  else expandedFolders + folder.id
-                            },
-                            onDelete = { onDeleteFolder(folder) },
-                            onDrop = { bookId -> onAssignToFolder(bookId, folder.id) },
-                        )
-                    }
-                }
-            }
-        }
-
-        for (folder in folders.filter { it.id in expandedFolders }) {
-            val folderBooks = books.filter { bookFolders[it.id] == folder.id }
-            items(folderBooks, key = { "b_${folder.id}_${it.id}" }) { book ->
-                BookItem(book = book, onDelete = onDelete)
-                HorizontalDivider()
-            }
-        }
-
-        val rootBooks = books.filter { it.id !in bookFolders }
-        item(key = "root_header") {
-            RootHeader(
-                bookCount = rootBooks.size,
-                expanded = rootExpanded,
-                onToggle = { rootExpanded = !rootExpanded },
-                onDrop = { bookId -> onAssignToFolder(bookId, null) },
-            )
-        }
-        if (rootExpanded) {
-            if (rootBooks.isEmpty()) {
-                item(key = "root_empty") {
-                    Text(
-                        "Drop books here to move them to Root",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                // Utility is a phone app — chips read left-to-right like the
+                // rest of the toolbar. The watch UI keeps centered chips
+                // (round display, no left edge), see LibraryScreen.kt.
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (folder in folders) {
+                    val folderBooks = books.filter { bookFolders[it.id] == folder.id }
+                    val isExpanded = folder.id in expandedFolders
+                    FolderChip(
+                        folder = folder,
+                        bookCount = folderBooks.size,
+                        selected = isExpanded,
+                        onToggle = {
+                            expandedFolders = if (isExpanded) expandedFolders - folder.id
+                                              else expandedFolders + folder.id
+                        },
+                        onDelete = { onDeleteFolder(folder) },
+                        onDrop = { bookId -> onAssignToFolder(bookId, folder.id) },
                     )
                 }
-            } else {
-                items(rootBooks, key = { "b_root_${it.id}" }) { book ->
+            }
+        }
+
+        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            for (folder in folders.filter { it.id in expandedFolders }) {
+                val folderBooks = books.filter { bookFolders[it.id] == folder.id }
+                items(folderBooks, key = { "b_${folder.id}_${it.id}" }) { book ->
                     BookItem(book = book, onDelete = onDelete)
                     HorizontalDivider()
                 }
             }
         }
+
+        RootSection(
+            rootBooks = rootBooks,
+            expanded = rootExpanded,
+            onToggle = { rootExpanded = !rootExpanded },
+            onDrop = { bookId -> onAssignToFolder(bookId, null) },
+            onDeleteBook = onDelete,
+        )
     }
 }
 
@@ -384,9 +383,12 @@ private fun FolderChip(
             override fun onEnded(event: DragAndDropEvent) { isDragOver.value = false }
         }
     }
+    // Neutral grey palette to match the watch (FolderGrey) and web (.folder-row).
+    // Drag-over keeps a slight tint shift via surfaceContainerLow as the
+    // affordance signal; selected vs default differ by one container tier.
     val container = when {
-        isDragOver.value -> MaterialTheme.colorScheme.tertiaryContainer
-        selected -> MaterialTheme.colorScheme.secondaryContainer
+        isDragOver.value -> MaterialTheme.colorScheme.surfaceContainerLow
+        selected -> MaterialTheme.colorScheme.surfaceContainerHigh
         else -> MaterialTheme.colorScheme.surfaceContainerHighest
     }
     Surface(
@@ -405,10 +407,19 @@ private fun FolderChip(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(start = 6.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         ) {
-            Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+            // Chevron matches the Root section header: right-pointing when
+            // collapsed, down-pointing when this folder's books are expanded
+            // below. Same visual language as the watch and the web UI.
+            Icon(
+                if (selected) Icons.Default.KeyboardArrowDown
+                else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("${folder.name} ($bookCount)", fontWeight = FontWeight.SemiBold)
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
@@ -417,13 +428,24 @@ private fun FolderChip(
     }
 }
 
+/**
+ * Pinned-bottom Root section. The entire surface (header strip + hint + book
+ * list) is one drop target so a user can drop a folder book anywhere in the
+ * lower band of the screen and the move-to-root goes through. Previously the
+ * drop target was only the 1-line header strip, which made dragging onto the
+ * "Drop books here..." hint a silent no-op.
+ *
+ * Book list is bounded to ~240dp so root never grows past about a third of
+ * the phone screen — keeps the expanded-folder area above it usable.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RootHeader(
-    bookCount: Int,
+private fun RootSection(
+    rootBooks: List<BookSummary>,
     expanded: Boolean,
     onToggle: () -> Unit,
     onDrop: (bookId: String) -> Unit,
+    onDeleteBook: (BookSummary) -> Unit,
 ) {
     val isDragOver = remember { mutableStateOf(false) }
     val onDropRef = rememberUpdatedState(onDrop)
@@ -441,27 +463,14 @@ private fun RootHeader(
             override fun onEnded(event: DragAndDropEvent) { isDragOver.value = false }
         }
     }
-    ListItem(
-        leadingContent = {
-            Icon(
-                if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.tertiary,
-            )
-        },
-        headlineContent = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
-                Text("${stringResource(R.string.uncategorized)} ($bookCount)", fontWeight = FontWeight.SemiBold)
-            }
-        },
-        colors = ListItemDefaults.colors(
-            containerColor = if (isDragOver.value) MaterialTheme.colorScheme.tertiaryContainer
-                             else MaterialTheme.colorScheme.surfaceVariant,
-        ),
+    // Grey palette to match FolderChip / watch / web. Drag-over uses
+    // surfaceContainerLow for a subtle highlight that doesn't fight the grey theme.
+    val sectionBg = if (isDragOver.value) MaterialTheme.colorScheme.surfaceContainerLow
+                    else MaterialTheme.colorScheme.surfaceVariant
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onToggle)
+            .background(sectionBg)
             .dragAndDropTarget(
                 shouldStartDragAndDrop = { event ->
                     event.toAndroidDragEvent().clipDescription
@@ -469,7 +478,43 @@ private fun RootHeader(
                 },
                 target = target,
             ),
-    )
+    ) {
+        ListItem(
+            leadingContent = {
+                Icon(
+                    if (expanded) Icons.Default.KeyboardArrowDown
+                    else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            headlineContent = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${stringResource(R.string.uncategorized)} (${rootBooks.size})", fontWeight = FontWeight.SemiBold)
+                }
+            },
+            colors = ListItemDefaults.colors(containerColor = sectionBg),
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
+        )
+        if (expanded) {
+            if (rootBooks.isEmpty()) {
+                Text(
+                    "Drop books here to move them to Root",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+                )
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp)) {
+                    items(rootBooks, key = { "b_root_${it.id}" }) { book ->
+                        BookItem(book = book, onDelete = onDeleteBook)
+                        HorizontalDivider()
+                    }
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)

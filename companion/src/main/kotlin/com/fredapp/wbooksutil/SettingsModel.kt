@@ -25,9 +25,10 @@ object SettingsRanges {
 
     /** Same curated palette as the watch. Stays in sync by hand. */
     val TEXT_COLOR_PALETTE: List<Int> = listOf(
-        0xFFE8E6E1.toInt(),
-        0xFFFFFFFF.toInt(),
         0xFFD4C19C.toInt(),
+        0xFFFFFFFF.toInt(),
+        0xFFB0B0B0.toInt(),
+        0xFFE8E6E1.toInt(),
         0xFF9CB5D4.toInt(),
         0xFFA8D49C.toInt(),
         0xFFD49C9C.toInt(),
@@ -35,9 +36,10 @@ object SettingsRanges {
 }
 
 fun colorName(argb: Int): String = when (argb) {
-    0xFFE8E6E1.toInt() -> "Warm white"
-    0xFFFFFFFF.toInt() -> "White"
     0xFFD4C19C.toInt() -> "Sepia"
+    0xFFFFFFFF.toInt() -> "White"
+    0xFFB0B0B0.toInt() -> "Grey"
+    0xFFE8E6E1.toInt() -> "Warm white"
     0xFF9CB5D4.toInt() -> "Pale blue"
     0xFFA8D49C.toInt() -> "Pale green"
     0xFFD49C9C.toInt() -> "Pale red"

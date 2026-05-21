@@ -20,11 +20,11 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Text
-import com.fredapp.wbooks.data.settings.FontChoice
 import com.fredapp.wbooks.data.settings.ReaderSettings
 import com.fredapp.wbooks.parser.highlight.SyntaxHighlighter
 import com.fredapp.wbooks.parser.model.Block
 import com.fredapp.wbooks.parser.model.Run
+import com.fredapp.wbooks.ui.theme.toFontFamily
 
 /**
  * Reusable block rendering used by [NormalMode]. Kept here so [SentenceMode]
@@ -76,14 +76,6 @@ fun BlockView(block: Block, settings: ReaderSettings) {
             )
         }
     }
-}
-
-private fun FontChoice.toFontFamily(): FontFamily = when (this) {
-    FontChoice.DEFAULT -> FontFamily.Default
-    FontChoice.SERIF -> FontFamily.Serif
-    FontChoice.SANS -> FontFamily.SansSerif
-    FontChoice.MONO -> FontFamily.Monospace
-    FontChoice.CURSIVE -> FontFamily.Cursive
 }
 
 private fun List<Run>.toAnnotatedString(): AnnotatedString = buildAnnotatedString {

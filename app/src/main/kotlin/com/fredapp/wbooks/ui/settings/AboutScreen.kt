@@ -63,9 +63,12 @@ fun AboutScreen(onBack: () -> Unit) {
             item { SectionTitle("Seed books") }
             item {
                 Body(
-                    "Moby Dick, Pride and Prejudice, The Adventures of Sherlock Holmes, " +
-                        "The Yellow Wallpaper, The Strange Case of Dr Jekyll and Mr Hyde, " +
-                        "and The Time Machine - bundled from Project Gutenberg public-domain editions.",
+                    "- Moby Dick\n" +
+                        "- Pride and Prejudice\n" +
+                        "- The Adventures of Sherlock Holmes\n" +
+                        "- The Strange Case of Dr Jekyll and Mr Hyde\n" +
+                        "- The Time Machine\n" +
+                        "- The Yellow Wallpaper",
                 )
             }
             item { SectionTitle("Built with") }
@@ -73,8 +76,9 @@ fun AboutScreen(onBack: () -> Unit) {
             item { SectionTitle("License") }
             item {
                 Body(
-                    "Source: github.com/FredApps/wBooks. The bundled Gutenberg texts are in " +
-                        "the public domain in the United States; check your jurisdiction.",
+                    "wBooks is licensed under GPLv3.\n\n" +
+                        "Source: github.com/FredApps/wBooks\n\n" +
+                        "Bundled Gutenberg texts are public domain in the United States; check your jurisdiction.",
                 )
             }
             item {

@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.focusable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,8 +49,12 @@ import com.fredapp.wbooks.R
 import com.fredapp.wbooks.data.book.Book
 import kotlinx.coroutines.withTimeoutOrNull
 
-private val FolderYellow = Color(0xFFFFD54F)
-private val FolderYellowText = Color(0xFF3E2723)
+// Neutral grey folder tabs â€” the old saturated yellow was too bright against
+// the watch's black background. Same palette is mirrored in :companion
+// (MainActivity.kt) and the LAN web UI (UploadServer.kt) so all three surfaces
+// look the same.
+private val FolderGrey = Color(0xFFB0B0B0)
+private val FolderGreyText = Color(0xFF1C1C1C)
 private val DeleteRed = Color(0xFFE53935)
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -128,12 +134,23 @@ fun LibraryScreen(
                     ) {
                         for (folder in folderNames) {
                             val isSelected = folder == selectedFolder
-                            val bg = if (isSelected) FolderYellow.copy(alpha = 0.55f) else FolderYellow
+                            val bg = if (isSelected) FolderGrey.copy(alpha = 0.55f) else FolderGrey
+                            // Chevron flips to indicate the folder is expanded â€”
+                            // the alpha-only state cue wasn't readable on the small
+                            // round watch face. Replaces the folder glyph in the
+                            // CompactChip icon slot (which only fits one icon).
                             CompactChip(
-                                icon = { FolderIcon() },
-                                label = { Text(folder, color = FolderYellowText) },
+                                icon = {
+                                    Icon(
+                                        imageVector = if (isSelected) Icons.Default.KeyboardArrowDown
+                                                      else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = FolderGreyText,
+                                    )
+                                },
+                                label = { Text(folder, color = FolderGreyText) },
                                 onClick = { selectedFolder = if (isSelected) null else folder },
-                                colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderYellowText),
+                                colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderGreyText),
                             )
                         }
                     }
@@ -152,12 +169,12 @@ fun LibraryScreen(
                     label = {
                         Text(
                             "${stringResource(R.string.uncategorized)} (${uncategorized.size})",
-                            color = FolderYellowText,
+                            color = FolderGreyText,
                             fontWeight = FontWeight.Bold,
                         )
                     },
                     onClick = {},
-                    colors = ChipDefaults.chipColors(backgroundColor = FolderYellow, contentColor = FolderYellowText),
+                    colors = ChipDefaults.chipColors(backgroundColor = FolderGrey, contentColor = FolderGreyText),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -167,7 +184,6 @@ fun LibraryScreen(
         }
     }
 }
-
 @Composable
 private fun ConfirmDeleteScreen(bookTitle: String, onConfirm: () -> Unit, onCancel: () -> Unit) {
     val listState = rememberScalingLazyListState()
@@ -254,22 +270,22 @@ private fun FolderPickerScreen(
                 )
             }
             item(key = "root") {
-                val bg = if (currentFolder.isEmpty()) FolderYellow.copy(alpha = 0.55f) else FolderYellow
+                val bg = if (currentFolder.isEmpty()) FolderGrey.copy(alpha = 0.55f) else FolderGrey
                 Chip(
                     icon = { FolderIcon() },
-                    label = { Text(stringResource(R.string.uncategorized), color = FolderYellowText) },
+                    label = { Text(stringResource(R.string.uncategorized), color = FolderGreyText) },
                     onClick = { onPick("") },
-                    colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderYellowText),
+                    colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderGreyText),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
             items(folders, key = { "f_$it" }) { folder ->
-                val bg = if (folder == currentFolder) FolderYellow.copy(alpha = 0.55f) else FolderYellow
+                val bg = if (folder == currentFolder) FolderGrey.copy(alpha = 0.55f) else FolderGrey
                 Chip(
                     icon = { FolderIcon() },
-                    label = { Text(folder, color = FolderYellowText) },
+                    label = { Text(folder, color = FolderGreyText) },
                     onClick = { onPick(folder) },
-                    colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderYellowText),
+                    colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderGreyText),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -298,7 +314,7 @@ private fun FolderIcon() {
     Icon(
         imageVector = Icons.Default.Folder,
         contentDescription = null,
-        tint = FolderYellowText,
+        tint = FolderGreyText,
     )
 }
 

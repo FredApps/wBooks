@@ -8,9 +8,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.settings.SettingsScreen
+import kotlinx.coroutines.launch
 
 /**
  * Three-page horizontal pager for the library: Search | Library | Settings.
@@ -27,6 +29,7 @@ fun LibraryPager(vm: ReaderViewModel) {
     val searchActive by remember { derivedStateOf { settledPage == 0 } }
     val libraryActive by remember { derivedStateOf { settledPage == 1 } }
     val settingsActive by remember { derivedStateOf { settledPage == 2 } }
+    val scope = rememberCoroutineScope()
 
     HorizontalPager(
         state = pagerState,
@@ -46,7 +49,11 @@ fun LibraryPager(vm: ReaderViewModel) {
                 onMoveBook = { bookId, folder -> vm.moveBook(bookId, folder) },
                 onDeleteBook = { vm.deleteBook(it) },
             )
-            2 -> SettingsScreen(vm = vm, isActive = settingsActive)
+            2 -> SettingsScreen(
+                vm = vm,
+                isActive = settingsActive,
+                onBack = { scope.launch { pagerState.animateScrollToPage(1) } },
+            )
         }
     }
 }

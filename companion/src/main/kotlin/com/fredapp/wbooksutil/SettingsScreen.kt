@@ -35,6 +35,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -88,15 +91,30 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
                     // Controls are disabled during the refresh â€” if the user managed to
                     // edit between the LaunchedEffect firing and the fetch completing,
                     // the SET would race the GET and the wrong snapshot could land last.
-                    SettingsList(snapshot = s.stale, enabled = false, vm = vm)
+                    SettingsAppearance(s.stale) {
+                        SettingsList(snapshot = s.stale, enabled = false, vm = vm)
+                    }
                 }
-                is SettingsViewModel.SyncState.Synced -> SettingsList(
-                    snapshot = s.snapshot,
-                    enabled = !saving,
-                    vm = vm,
-                )
+                is SettingsViewModel.SyncState.Synced -> SettingsAppearance(s.snapshot) {
+                    SettingsList(
+                        snapshot = s.snapshot,
+                        enabled = !saving,
+                        vm = vm,
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun SettingsAppearance(snapshot: SettingsSnapshot, content: @Composable () -> Unit) {
+    val color = Color(snapshot.textColorArgb)
+    CompositionLocalProvider(LocalContentColor provides color) {
+        androidx.compose.material3.ProvideTextStyle(
+            MaterialTheme.typography.bodyLarge.copy(color = color, fontFamily = snapshot.fontChoice().toFontFamily()),
+            content = content,
+        )
     }
 }
 
@@ -134,8 +152,9 @@ private fun SettingsList(
         SectionHeader("Font")
         EnumPicker(
             options = FontChoice.entries,
-            selected = runCatching { FontChoice.valueOf(snapshot.font) }.getOrDefault(FontChoice.SERIF),
+            selected = snapshot.fontChoice(),
             labelFor = { it.familyName },
+            fontFor = { it.toFontFamily() },
             enabled = enabled,
             onSelect = vm::setFont,
         )
@@ -224,6 +243,7 @@ private fun <T : Enum<T>> EnumPicker(
     options: List<T>,
     selected: T,
     labelFor: (T) -> String,
+    fontFor: (T) -> FontFamily? = { null },
     enabled: Boolean,
     onSelect: (T) -> Unit,
 ) {
@@ -241,10 +261,21 @@ private fun <T : Enum<T>> EnumPicker(
                     enabled = enabled,
                 )
                 Spacer(Modifier.size(4.dp))
-                Text(labelFor(opt))
+                Text(labelFor(opt), fontFamily = fontFor(opt))
             }
         }
     }
+}
+
+private fun SettingsSnapshot.fontChoice(): FontChoice =
+    runCatching { FontChoice.valueOf(font) }.getOrDefault(FontChoice.SERIF)
+
+private fun FontChoice.toFontFamily(): FontFamily = when (this) {
+    FontChoice.DEFAULT -> FontFamily.Default
+    FontChoice.SERIF -> FontFamily.Serif
+    FontChoice.SANS -> FontFamily.SansSerif
+    FontChoice.MONO -> FontFamily.Monospace
+    FontChoice.CURSIVE -> FontFamily.Cursive
 }
 
 @Composable

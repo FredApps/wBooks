@@ -61,7 +61,7 @@ android {
         applicationId = "REDACTED"
         minSdk = 30
         targetSdk = 35
-        versionCode = 6
+        versionCode = 8
         versionName = "0.5.0"
 
         manifestPlaceholders["sentryDsn"] = localProperty("sentry.dsn")
