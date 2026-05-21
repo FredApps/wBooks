@@ -367,15 +367,16 @@ class ReaderViewModel(
         val state = _document.value
         if (state !is DocumentState.Loaded) return
         val pos = currentPosition.value
+        val mode = settings.value.mode
         viewModelScope.launch {
-            bookmarksRepo.add(state.book.id, Bookmark(pos, System.currentTimeMillis()))
+            bookmarksRepo.add(state.book.id, Bookmark(pos, System.currentTimeMillis(), mode = mode))
         }
     }
 
-    fun deleteBookmark(position: BookPosition) {
+    fun deleteBookmark(position: BookPosition, mode: ReadingMode) {
         val state = _document.value
         if (state !is DocumentState.Loaded) return
-        viewModelScope.launch { bookmarksRepo.remove(state.book.id, position) }
+        viewModelScope.launch { bookmarksRepo.remove(state.book.id, position, mode) }
     }
 
     // ---- Transfer ----
