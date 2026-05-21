@@ -54,7 +54,7 @@ class UploadServer(
         val uri = session.uri.trimEnd('/').ifEmpty { "/" }
         when {
             uri == "/" -> when (session.method) {
-                Method.GET -> renderIndex(queryParam(session, "msg"))
+                Method.GET -> renderIndex(session, queryParam(session, "msg"))
                 else -> methodNotAllowed()
             }
             uri == "/upload" -> handleUpload(session)
@@ -76,7 +76,10 @@ class UploadServer(
 
     // --- handlers ---
 
-    private fun renderIndex(flash: String): Response {
+    private fun renderIndex(session: IHTTPSession, flash: String): Response {
+        if (!hasValidPin(session)) {
+            return renderPinGate(flash)
+        }
         val allEntries = booksDir.walkTopDown().filter { it != booksDir }.toList()
         val topFolders = allEntries
             .filter { it.isDirectory && it.parentFile?.canonicalPath == booksDir.canonicalPath }
@@ -617,6 +620,80 @@ class UploadServer(
         return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
     }
 
+    private fun renderPinGate(flash: String): Response {
+        val flashHtml = if (flash.isNotEmpty())
+            """<p class="flash" role="status">${htmlEscape(flash)}</p>""" else ""
+        val html = """
+            <!doctype html>
+            <html><head><meta charset="utf-8"><title>wBooks web interface</title>
+            <style>
+              :root{--panel:#fffdf8;--ink:#211d18;--muted:#756b5e;--line:#ded2bf;--accent:#b35318;--danger:#a83232;--shadow:0 14px 36px rgba(52,37,20,0.14)}
+              *{box-sizing:border-box}
+              body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at top left,#fff8e8 0,#f3f0e8 42%,#ebe7de 100%);font-family:system-ui,sans-serif;color:var(--ink)}
+              .gate{width:min(420px,100%);background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:24px}
+              h1{margin:0 0 8px;font-size:1.8rem;line-height:1.1}
+              p{margin:0 0 18px;color:var(--muted)}
+              label{display:block;font-weight:800;margin-bottom:8px}
+              input{width:100%;border:1px solid var(--line);border-radius:6px;background:#fff;padding:12px;color:var(--ink);font-size:1rem}
+              button{width:100%;border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:#fff;padding:11px 12px;font-weight:800;cursor:pointer;margin-top:12px}
+              .error{display:none;color:var(--danger);font-weight:700;margin-top:12px}
+              .flash{background:#e8f5e9;border:1px solid #9fcca2;border-radius:8px;padding:10px 12px;margin:0 0 16px;color:var(--ink)}
+              @media (prefers-color-scheme: dark) {
+                :root{--panel:#191919;--ink:#eee;--muted:#b8b8b8;--line:#3b3b3b;--accent:#df7f34;--shadow:0 14px 36px rgba(0,0,0,.35)}
+                body{background:linear-gradient(135deg,#101010,#1c1a17 55%,#111)}
+                input{background:#222;color:#eee;border-color:#555}
+                .flash{background:#18351d;border-color:#426b45}
+              }
+            </style>
+            <script>
+              async function unlock(e) {
+                e.preventDefault();
+                var pin = (document.getElementById('pin').value || '').trim();
+                var err = document.getElementById('error');
+                err.style.display = 'none';
+                if (!pin) {
+                  err.textContent = 'Enter the PIN shown on the watch.';
+                  err.style.display = 'block';
+                  return false;
+                }
+                try {
+                  var resp = await fetch('/pin-check?pin=' + encodeURIComponent(pin), {method:'GET'});
+                  if (!resp.ok) {
+                    err.textContent = resp.status === 403 ? 'Wrong PIN. Check the watch and try again.' : 'PIN check failed: ' + resp.status;
+                    err.style.display = 'block';
+                    return false;
+                  }
+                  sessionStorage.setItem('wbooksPin', pin);
+                  location.href = '/';
+                } catch (ex) {
+                  err.textContent = 'PIN check failed: ' + ex;
+                  err.style.display = 'block';
+                }
+                return false;
+              }
+              window.addEventListener('DOMContentLoaded', function() {
+                var pin = sessionStorage.getItem('wbooksPin') || '';
+                if (pin) document.getElementById('pin').value = pin;
+                document.getElementById('pin').focus();
+              });
+            </script>
+            </head><body>
+              <main class="gate">
+                <h1>wBooks web interface</h1>
+                <p>Enter the PIN shown on the watch to load the library and settings.</p>
+                $flashHtml
+                <form onsubmit="return unlock(event)">
+                  <label for="pin">Watch PIN</label>
+                  <input id="pin" type="password" autocomplete="off" inputmode="numeric" placeholder="4-digit PIN">
+                  <button type="submit">Unlock</button>
+                  <p id="error" class="error" role="alert"></p>
+                </form>
+              </main>
+            </body></html>
+        """.trimIndent()
+        return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
+    }
+
     private fun handleUpload(session: IHTTPSession): Response {
         if (session.method != Method.POST) return methodNotAllowed()
         gatePin(session)?.let { return it }
@@ -773,7 +850,9 @@ class UploadServer(
     private fun handlePinCheck(session: IHTTPSession): Response {
         if (session.method != Method.GET) return methodNotAllowed()
         gatePin(session)?.let { return it }
-        return newFixedLengthResponse(Response.Status.OK, "text/plain", "OK")
+        val resp = newFixedLengthResponse(Response.Status.OK, "text/plain", "OK")
+        resp.addHeader("Set-Cookie", "$WEB_PIN_COOKIE=${URLEncoder.encode(pin, "UTF-8")}; Path=/; SameSite=Strict")
+        return resp
     }
 
     private fun bookCard(
@@ -953,12 +1032,13 @@ class UploadServer(
 
     /**
      * Returns null when the PIN matches, or an error Response (403 / 429) when it
-     * doesn't. PIN comes from the query string so this can run *before* parseBody;
+     * doesn't. PIN comes from the query string or the web-interface cookie so
+     * this can run *before* parseBody;
      * the comparison is constant-time and a sliding-window counter rate-limits
      * brute force against the 10k-combo PIN space.
      */
     private fun gatePin(session: IHTTPSession): Response? {
-        val supplied = pinFromQuery(session).toByteArray(Charsets.UTF_8)
+        val supplied = pinFromRequest(session).toByteArray(Charsets.UTF_8)
         if (MessageDigest.isEqual(supplied, pinBytes)) return null
         return if (recordFailedAttempt()) {
             newFixedLengthResponse(TOO_MANY_REQUESTS, "text/plain", "Too many bad PIN attempts; restart the server from the watch")
@@ -968,7 +1048,28 @@ class UploadServer(
         }
     }
 
-    private fun pinFromQuery(session: IHTTPSession): String = queryParam(session, "pin")
+    private fun hasValidPin(session: IHTTPSession): Boolean =
+        MessageDigest.isEqual(pinFromRequest(session).toByteArray(Charsets.UTF_8), pinBytes)
+
+    private fun pinFromRequest(session: IHTTPSession): String =
+        queryParam(session, "pin").ifEmpty { cookieParam(session, WEB_PIN_COOKIE) }
+
+    private fun cookieParam(session: IHTTPSession, name: String): String {
+        val cookie = session.headers["cookie"] ?: return ""
+        for (part in cookie.split(';')) {
+            val trimmed = part.trim()
+            val eq = trimmed.indexOf('=')
+            if (eq <= 0) continue
+            if (trimmed.substring(0, eq) == name) {
+                return try {
+                    URLDecoder.decode(trimmed.substring(eq + 1), "UTF-8")
+                } catch (_: IllegalArgumentException) {
+                    ""
+                }
+            }
+        }
+        return ""
+    }
 
     private fun queryParam(session: IHTTPSession, name: String): String {
         val qs = session.queryParameterString ?: return ""
@@ -1091,6 +1192,7 @@ class UploadServer(
     companion object {
         private const val MAX_PIN_FAILURES = 10
         private const val PIN_WINDOW_MS = 60_000L
+        private const val WEB_PIN_COOKIE = "wbooks_pin"
 
         // NanoHTTPD 2.3.1's Response.Status enum doesn't include 429.
         private val TOO_MANY_REQUESTS = object : Response.IStatus {
