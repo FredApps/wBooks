@@ -8,7 +8,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -81,10 +80,15 @@ class MainActivity : ComponentActivity() {
             val settings by vm.settings.collectAsState()
             val keepAwakeActive by vm.keepAwakeActive.collectAsState()
 
-            SideEffect {
+            // Brightness is a window attribute, not a Compose state. Pushing it
+            // from a SideEffect would run after EVERY recomposition, allocating
+            // a new LayoutParams each frame; gate on the actual value so it only
+            // runs when the user moves the slider.
+            val brightnessFraction = settings.screenBrightness
+                .coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE) / 100f
+            LaunchedEffect(brightnessFraction) {
                 window.attributes = window.attributes.apply {
-                    screenBrightness = settings.screenBrightness
-                        .coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE) / 100f
+                    screenBrightness = brightnessFraction
                 }
             }
 

@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -95,9 +96,14 @@ fun LibraryScreen(
     var pendingFolderDelete by remember { mutableStateOf<String?>(null) }
     var showNewFolder by remember { mutableStateOf(false) }
 
-    val grouped = books.groupBy { it.id.substringBeforeLast('/', "") }
-    val allFolderNames = (folderNames + grouped.keys.filter { it.isNotEmpty() })
-        .distinct().sorted()
+    // Derived collections are stable across recompositions caused by unrelated
+    // state (selectedFolder taps, dialog flips) — only the books/folderNames
+    // inputs actually change them. Re-running groupBy + sort on every tap was
+    // the dominant source of frame jank when paging chip-heavy folders.
+    val grouped = remember(books) { books.groupBy { it.id.substringBeforeLast('/', "") } }
+    val allFolderNames = remember(folderNames, grouped) {
+        (folderNames + grouped.keys.filter { it.isNotEmpty() }).distinct().sorted()
+    }
 
     pendingFolderDelete?.let { folder ->
         BackHandler { pendingFolderDelete = null }
@@ -163,8 +169,12 @@ fun LibraryScreen(
         return
     }
 
-    // Refresh once when the screen first composes.
-    LaunchedEffect(Unit) { onRefresh() }
+    // Refresh once when the screen first composes, and again whenever the user
+    // swipes back to the library page (isActive flips false→true). Walking the
+    // books directory is fast but does run on Dispatchers.IO and can stutter the
+    // pager if it lands mid-swipe — gating on isActive keeps it off the
+    // critical path while the user is still scrubbing through pages.
+    LaunchedEffect(isActive) { if (isActive) onRefresh() }
 
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
@@ -599,6 +609,14 @@ private fun FolderIcon() {
 private fun BookChip(book: Book, onClick: () -> Unit, onLongPress: () -> Unit) {
     // Let Chip keep its normal tap behavior, but add an explicit long-press
     // detector so press-and-hold still reaches the move menu on watch.
+    //
+    // pointerInput is keyed on book.id (a stable string) instead of the
+    // onLongPress lambda. The parent recomposes every time `bookToMove` or
+    // selectedFolder changes — each recomposition produces a fresh lambda
+    // identity, which would tear down and re-install the gesture detector
+    // for every chip in the list every keystroke. Latest-lambda-by-state
+    // keeps the detector installed and just retargets it.
+    val latestLongPress by rememberUpdatedState(onLongPress)
     Chip(
         label = { Text(book.title) },
         secondaryLabel = { Text(book.format.name) },
@@ -606,8 +624,8 @@ private fun BookChip(book: Book, onClick: () -> Unit, onLongPress: () -> Unit) {
         colors = ChipDefaults.secondaryChipColors(),
         modifier = Modifier
             .fillMaxWidth()
-            .pointerInput(onLongPress) {
-                detectTapGestures(onLongPress = { onLongPress() })
+            .pointerInput(book.id) {
+                detectTapGestures(onLongPress = { latestLongPress() })
             },
     )
 }

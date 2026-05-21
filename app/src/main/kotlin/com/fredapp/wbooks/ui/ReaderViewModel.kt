@@ -22,6 +22,8 @@ import com.fredapp.wbooks.parser.cache.DocumentCache
 import com.fredapp.wbooks.parser.EpubParser
 import com.fredapp.wbooks.parser.model.Block
 import com.fredapp.wbooks.parser.model.Document
+import com.fredapp.wbooks.parser.model.DocumentMetrics
+import com.fredapp.wbooks.parser.model.computeDocumentMetrics
 import com.fredapp.wbooks.parser.parserFor
 import com.fredapp.wbooks.transfer.TransferController
 import com.fredapp.wbooks.transfer.TransferState
@@ -37,10 +39,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -50,7 +54,16 @@ import kotlinx.coroutines.withContext
 sealed interface DocumentState {
     data object Idle : DocumentState
     data class Loading(val book: Book, val isFirstOpen: Boolean) : DocumentState
-    data class Loaded(val book: Book, val doc: Document, val initialPosition: BookPosition) : DocumentState
+    data class Loaded(
+        val book: Book,
+        val doc: Document,
+        val initialPosition: BookPosition,
+        /** Pre-computed lookup tables for word/sentence counts and the chapter TOC.
+         *  Built once on Dispatchers.Default when the book opens; nullable only
+         *  during the brief window between the doc loading and the metrics
+         *  finishing (callers should treat null as "loading"). */
+        val metrics: DocumentMetrics? = null,
+    ) : DocumentState
     data class Failed(val book: Book, val message: String) : DocumentState
 }
 
@@ -128,14 +141,23 @@ class ReaderViewModel(
     val document: StateFlow<DocumentState> = _document.asStateFlow()
     private var loadJob: Job? = null
 
+    /**
+     * Identity of the currently-open book, or null when nothing is open.
+     * Derived flows that only care about *which* book is open (not whether
+     * metrics have finished computing, etc.) subscribe to this instead of
+     * [_document] so they don't tear down and rebuild their DataStore
+     * subscriptions when the VM swaps in metrics after the doc parses.
+     */
+    private val openBookIdFlow: Flow<String?> = _document
+        .map { (it as? DocumentState.Loaded)?.book?.id }
+        .distinctUntilChanged()
+
     /** Last position recorded by the renderer for the open book. */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val currentPosition: StateFlow<BookPosition> = _document
-        .flatMapLatest { state ->
-            when (state) {
-                is DocumentState.Loaded -> positionsRepo.positionFlow(state.book.id)
-                else -> flow { emit(BookPosition.START) }
-            }
+    val currentPosition: StateFlow<BookPosition> = openBookIdFlow
+        .flatMapLatest { id ->
+            if (id == null) flow { emit(BookPosition.START) }
+            else positionsRepo.positionFlow(id)
         }
         .stateIn(
             scope = viewModelScope,
@@ -297,8 +319,9 @@ class ReaderViewModel(
         .flatMapLatest { state ->
             if (state !is DocumentState.Loaded) flow { emit(null) }
             else combine(paceRepo.paceFlow(state.book.id), currentPosition) { pace, pos ->
-                if (pace == null || !pace.isReady) null
-                else computeEta(state.doc, pos, pace.msPerBlock)
+                val metrics = state.metrics
+                if (pace == null || !pace.isReady || metrics == null) null
+                else computeEta(state.doc, metrics, pos, pace.msPerBlock)
             }
         }
         .stateIn(
@@ -307,29 +330,23 @@ class ReaderViewModel(
             initialValue = null,
         )
 
+    /**
+     * Word-based ETA built on the precomputed [DocumentMetrics]. Was previously
+     * walking every block on every position change — for a 50k-block book that's
+     * ~30ms of main-thread work on the watch's tiny CPU each time the user
+     * swipes a page. Now it's three array reads and a couple of subtractions.
+     */
     private fun computeEta(
         doc: Document,
+        metrics: DocumentMetrics,
         position: BookPosition,
         msPerBlock: Double,
     ): ReadingEta? {
         if (doc.chapters.isEmpty() || msPerBlock <= 0.0) return null
-        val ci = position.chapterIndex.coerceIn(0, doc.chapters.lastIndex)
-        val bi = position.blockIndex.coerceAtLeast(0)
-        val chapter = doc.chapters.getOrNull(ci) ?: return null
+        val totalBlocks = metrics.totalBlocks
+        val totalWords = metrics.totalWords
+        if (totalBlocks == 0 || totalWords == 0) return null
 
-        // Walking words instead of blocks gives a much more stable estimate:
-        // a heading block has ~3 words while a paragraph block can have ~150,
-        // so block-count multiplied by msPerBlock wildly overweights chapters
-        // that happen to have many short blocks.
-        var totalBlocks = 0
-        var totalWords = 0L
-        for (chap in doc.chapters) {
-            for (block in chap.blocks) {
-                totalBlocks++
-                totalWords += blockWordCount(block)
-            }
-        }
-        if (totalBlocks == 0 || totalWords == 0L) return null
         val avgWordsPerBlock = totalWords.toDouble() / totalBlocks
         if (avgWordsPerBlock <= 0.0) return null
         val msPerWord = msPerBlock / avgWordsPerBlock
@@ -340,34 +357,17 @@ class ReaderViewModel(
         // than mislead the user with a one-minute estimate for Moby Dick.
         if (derivedWpm !in MIN_TRUSTED_WPM..MAX_TRUSTED_WPM) return null
 
-        // Remaining-in-chapter is the distance to the next chapter boundary,
-        // either the next doc.chapter or — for single-chapter TXT/ODF parses —
-        // the next in-block Heading. Same shape as chapterJumps() in Tools.
-        var wordsRemainingInChapter = 0L
-        var foundHeading = false
-        for (i in (bi + 1)..chapter.blocks.lastIndex) {
-            if (chapter.blocks[i] is Block.Heading) {
-                foundHeading = true
-                break
-            }
-            wordsRemainingInChapter += blockWordCount(chapter.blocks[i])
-        }
-        if (!foundHeading) {
-            wordsRemainingInChapter = 0L
-            for (i in (bi + 1)..chapter.blocks.lastIndex) {
-                wordsRemainingInChapter += blockWordCount(chapter.blocks[i])
-            }
-        }
+        val ci = position.chapterIndex.coerceIn(0, doc.chapters.lastIndex)
+        val bi = position.blockIndex.coerceAtLeast(0)
+        val chapter = doc.chapters.getOrNull(ci) ?: return null
+        val chapterRow = metrics.wordsBeforeBlock[ci]
+        val safeBi = bi.coerceIn(0, chapter.blocks.size - 1)
+        val wordsConsumedInChapter = chapterRow[safeBi]
+        val wordsAtChapterEnd = chapterRow[chapter.blocks.size]
+        val wordsRemainingInChapter = (wordsAtChapterEnd - wordsConsumedInChapter).coerceAtLeast(0)
 
-        var wordsRemainingInBook = 0L
-        for (i in (bi + 1)..chapter.blocks.lastIndex) {
-            wordsRemainingInBook += blockWordCount(chapter.blocks[i])
-        }
-        for (i in (ci + 1)..doc.chapters.lastIndex) {
-            for (block in doc.chapters[i].blocks) {
-                wordsRemainingInBook += blockWordCount(block)
-            }
-        }
+        val wordsConsumedInBook = chapterRow[safeBi]
+        val wordsRemainingInBook = (totalWords - wordsConsumedInBook).coerceAtLeast(0)
 
         return ReadingEta(
             chapterMs = (wordsRemainingInChapter * msPerWord).toLong(),
@@ -375,29 +375,27 @@ class ReaderViewModel(
         )
     }
 
-    private fun blockWordCount(block: Block): Int {
-        val text = when (block) {
-            is Block.Heading -> block.text
-            is Block.Paragraph -> block.runs.joinToString("") { it.text }
-            Block.Divider, is Block.Code -> return 0
-        }
-        if (text.isBlank()) return 0
-        return text.trim().split(WHITESPACE_REGEX).count { it.isNotEmpty() }
-    }
-
     // ---- Bookmarks ----
     // Bookmarks are stored in three separate buckets — one per reading mode —
     // so switching modes shows a structurally different list, not a filter of
     // a shared list. The flow re-subscribes when either the open book or the
     // current mode changes.
+    /**
+     * Pre-sorted newest-first so the Tools screen can render directly without
+     * re-sorting in composition. distinctUntilChanged on the mode prevents
+     * unrelated settings edits (font, color, brightness) from tearing down and
+     * rebuilding the DataStore subscription.
+     */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val bookmarks: StateFlow<List<Bookmark>> = _document
-        .flatMapLatest { state ->
-            if (state !is DocumentState.Loaded) emptyFlow()
-            else settings.flatMapLatest { s ->
-                bookmarksRepo.bookmarksFlow(state.book.id, s.mode)
-            }
+    val bookmarks: StateFlow<List<Bookmark>> = openBookIdFlow
+        .flatMapLatest { id ->
+            if (id == null) emptyFlow()
+            else settings
+                .map { it.mode }
+                .distinctUntilChanged()
+                .flatMapLatest { mode -> bookmarksRepo.bookmarksFlow(id, mode) }
         }
+        .map { list -> list.sortedByDescending { it.savedAtMs } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -556,7 +554,23 @@ class ReaderViewModel(
                 positionsRepo.readPosition(book.id)
             } ?: BookPosition.START
             _document.value = result.fold(
-                onSuccess = { DocumentState.Loaded(book, it, initialPosition) },
+                onSuccess = { doc ->
+                    // Show the reader immediately on the parsed doc, then back-fill
+                    // metrics from Dispatchers.Default. Walking 50k blocks for word /
+                    // sentence prefix-sums on the main thread would block the swap-in
+                    // animation by 100-300ms on a watch CPU.
+                    val loaded = DocumentState.Loaded(book, doc, initialPosition)
+                    viewModelScope.launch {
+                        val metrics = withContext(Dispatchers.Default) {
+                            runCatching { computeDocumentMetrics(doc) }.getOrNull()
+                        }
+                        val current = _document.value
+                        if (current is DocumentState.Loaded && current.book.id == book.id && current.doc === doc) {
+                            _document.value = current.copy(metrics = metrics)
+                        }
+                    }
+                    loaded
+                },
                 onFailure = {
                     // runCatching also catches CancellationException â€" re-throw so
                     // coroutine cancellation (e.g. user navigates away mid-parse)
@@ -715,7 +729,6 @@ class ReaderViewModel(
         const val WPM_SAMPLE_DEBOUNCE_MS = 5_000L
         /** Cadence for splitting a session into commit-able chunks. */
         const val SESSION_FLUSH_INTERVAL_MS = 60_000L
-        val WHITESPACE_REGEX = Regex("\\s+")
         const val MIN_TRUSTED_WPM = 50.0
         const val MAX_TRUSTED_WPM = 800.0
     }
