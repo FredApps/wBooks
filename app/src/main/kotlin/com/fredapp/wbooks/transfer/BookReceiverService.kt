@@ -138,6 +138,7 @@ class BookReceiverService : WearableListenerService() {
             autoscrollSpeed = s.autoscrollSpeed,
             screenBrightness = s.screenBrightness,
             speedreadWpm = s.speedreadWpm,
+            keepAwakeMinutes = s.keepAwakeMinutes,
             theme = s.theme.name,
             crashReportingEnabled = app.crashReportingPref.enabled.value,
         )

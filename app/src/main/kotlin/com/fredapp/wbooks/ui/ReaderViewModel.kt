@@ -654,7 +654,50 @@ class ReaderViewModel(
             recordWpmSample(value.coerceIn(ReaderSettings.WPM_RANGE))
         }
     }
+    fun setKeepAwakeMinutes(value: Int) = editSettings {
+        it.copy(keepAwakeMinutes = value.coerceIn(ReaderSettings.KEEP_AWAKE_MINUTES_RANGE))
+    }
     fun setFont(font: FontChoice) = editSettings { it.copy(font = font) }
+
+    // ---- Keep-awake (only meaningful in NORMAL / SENTENCE) ----
+    // SPEEDREAD always wins — those modes advance the screen for the user so
+    // there is no "idle" to detect.
+    private val lastInteractionAt = MutableStateFlow(System.currentTimeMillis())
+
+    /** Reset the idle timer. Wired to Activity.onUserInteraction and onResume. */
+    fun noteInteraction() {
+        lastInteractionAt.value = System.currentTimeMillis()
+    }
+
+    /**
+     * True while the screen should be held awake: always in SPEEDREAD, and in
+     * the other two modes while less than `keepAwakeMinutes` have passed since
+     * the last interaction. Activity collects this to manage the window flag
+     * and to call moveTaskToBack when it flips to false.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val keepAwakeActive: StateFlow<Boolean> = settings
+        .flatMapLatest { s ->
+            if (s.mode == ReadingMode.SPEEDREAD) flow { emit(true) }
+            else lastInteractionAt.flatMapLatest { last ->
+                flow {
+                    val timeoutMs = s.keepAwakeMinutes.toLong() * 60_000L
+                    val remaining = timeoutMs - (System.currentTimeMillis() - last)
+                    if (remaining <= 0L) {
+                        emit(false)
+                    } else {
+                        emit(true)
+                        delay(remaining)
+                        emit(false)
+                    }
+                }
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = true,
+        )
 
     private fun editSettings(transform: (ReaderSettings) -> ReaderSettings) {
         viewModelScope.launch { settingsRepo.update(transform) }

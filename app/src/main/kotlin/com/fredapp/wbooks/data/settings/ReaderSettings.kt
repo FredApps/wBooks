@@ -47,6 +47,12 @@ data class ReaderSettings(
     val screenBrightness: Int = 100,
     /** Words per minute in speedread mode. */
     val speedreadWpm: Int = 300,
+    /**
+     * Minutes of inactivity before Normal/Sentence mode releases keep-awake
+     * and the app moves itself to the background. Speedread ignores this and
+     * stays awake indefinitely while it is the active mode.
+     */
+    val keepAwakeMinutes: Int = 5,
     val theme: ThemeChoice = ThemeChoice.DARK,
 ) {
     companion object {
@@ -55,6 +61,7 @@ data class ReaderSettings(
         val AUTOSCROLL_SPEED_RANGE = 1..60
         val SCREEN_BRIGHTNESS_RANGE = 10..100
         val WPM_RANGE = 100..900
+        val KEEP_AWAKE_MINUTES_RANGE = 1..10
 
         /** Curated text-colour palette the user can cycle through in settings. */
         val TEXT_COLOR_PALETTE: List<Int> = listOf(
