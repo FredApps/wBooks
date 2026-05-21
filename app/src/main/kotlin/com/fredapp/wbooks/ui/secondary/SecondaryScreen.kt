@@ -158,20 +158,19 @@ fun SecondaryScreen(
             return@Scaffold
         }
 
-        val allBookmarks by vm.bookmarks.collectAsState()
+        val modeBookmarks by vm.bookmarks.collectAsState()
         val eta by vm.readingEta.collectAsState()
         val settings by vm.settings.collectAsState()
-        // Bookmarks are mode-scoped: only show entries saved in the current
-        // reading mode so the chapter/word/sentence label is always meaningful.
-        // Newest first so a just-tapped "Bookmark here" lands at the top of
-        // the list where the user is already looking.
-        val bookmarks = remember(allBookmarks, settings.mode) {
-            allBookmarks.filter { it.mode == settings.mode }.sortedByDescending { it.savedAtMs }
+        // The VM flow is already scoped to the current mode's bucket; we only
+        // re-sort here so a freshly-added bookmark sits at the top of the list
+        // where the user is already looking.
+        val bookmarks = remember(modeBookmarks) {
+            modeBookmarks.sortedByDescending { it.savedAtMs }
         }
         var pendingDelete by remember { mutableStateOf<BookPosition?>(null) }
         var bookmarkedFlashAt by remember { mutableStateOf(0L) }
-        val flashVisible = remember(bookmarkedFlashAt, allBookmarks) {
-            bookmarkedFlashAt != 0L && allBookmarks.any { it.savedAtMs >= bookmarkedFlashAt }
+        val flashVisible = remember(bookmarkedFlashAt, modeBookmarks) {
+            bookmarkedFlashAt != 0L && modeBookmarks.any { it.savedAtMs >= bookmarkedFlashAt }
         }
         LaunchedEffect(bookmarkedFlashAt) {
             if (bookmarkedFlashAt != 0L) {
