@@ -170,7 +170,7 @@ fun SecondaryScreen(
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
+            contentPadding = PaddingValues(start = 4.dp, top = 12.dp, end = 4.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item {
@@ -294,7 +294,7 @@ private fun SearchResultsList(
             .focusable()
             .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
         state = listState,
-        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
+        contentPadding = PaddingValues(start = 4.dp, top = 12.dp, end = 4.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         item { ListHeader { Text("\"$query\" - ${results.size}") } }

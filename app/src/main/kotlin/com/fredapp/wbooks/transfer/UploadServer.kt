@@ -649,7 +649,7 @@ class UploadServer(
         val swatches = ReaderSettings.TEXT_COLOR_PALETTE.joinToString("") { color ->
             val value = color.toString()
             val selected = if (color == s.textColorArgb) " selected" else ""
-            """<button type="button" class="swatch$selected" data-value="$value" style="background:${argbCss(color)}" title="${argbHex(color)}" onclick="setColor('$value')"></button>"""
+            """<button type="button" class="swatch$selected" data-value="$value" style="background:${argbCss(color)}" title="${htmlEscape(colorName(color))} ${argbHex(color)}" aria-label="${htmlEscape(colorName(color))}" onclick="setColor('$value')"></button>"""
         }
         return """
             <section class="settings">
@@ -756,6 +756,17 @@ class UploadServer(
     private fun argbCss(argb: Int): String = "#%06X".format(argb and 0x00FFFFFF)
 
     private fun argbHex(argb: Int): String = "#%08X".format(argb)
+
+    private fun colorName(argb: Int): String = when (argb) {
+        0xFFD4C19C.toInt() -> "Sepia"
+        0xFFFFFFFF.toInt() -> "Cold white"
+        0xFFB0B0B0.toInt() -> "Grey"
+        0xFFE8E6E1.toInt() -> "Warm white"
+        0xFF9CB5D4.toInt() -> "Pale blue"
+        0xFFA8D49C.toInt() -> "Pale green"
+        0xFFD49C9C.toInt() -> "Pale red"
+        else -> "Custom"
+    }
 
     private fun File.isInsideBooksDir(): Boolean =
         canonicalFile.toPath().startsWith(booksDir.canonicalFile.toPath())

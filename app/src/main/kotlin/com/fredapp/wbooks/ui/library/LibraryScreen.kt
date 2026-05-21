@@ -187,7 +187,7 @@ fun LibraryScreen(
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
+            contentPadding = PaddingValues(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             // Explicit "New folder +" button at the top — discoverable affordance
@@ -314,7 +314,7 @@ private fun ConfirmDeleteScreen(
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
+            contentPadding = PaddingValues(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item(key = "back") { BackChipRow(onClick = onCancel) }
@@ -376,7 +376,7 @@ private fun FolderPickerScreen(
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
+            contentPadding = PaddingValues(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item(key = "back") {
@@ -450,7 +450,7 @@ private fun FolderActionsScreen(
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 32.dp),
+            contentPadding = PaddingValues(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item(key = "back") { BackChipRow(onClick = onCancel) }
