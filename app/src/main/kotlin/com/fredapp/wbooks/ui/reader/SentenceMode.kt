@@ -43,8 +43,6 @@ import com.fredapp.wbooks.ui.layout.watchContentPadding
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
-import java.text.BreakIterator
-import java.util.Locale
 import kotlin.math.abs
 
 private data class SentenceItem(val text: String, val position: BookPosition)
@@ -253,7 +251,6 @@ private fun String.tokenStartIndexes(token: String): List<Int> {
 }
 
 private fun segmentSentences(doc: Document): List<SentenceItem> {
-    val iter = BreakIterator.getSentenceInstance(Locale.getDefault())
     val out = mutableListOf<SentenceItem>()
     for ((ci, chapter) in doc.chapters.withIndex()) {
         for ((bi, block) in chapter.blocks.withIndex()) {
@@ -264,32 +261,38 @@ private fun segmentSentences(doc: Document): List<SentenceItem> {
             }.trim()
             if (text.isEmpty()) continue
 
-            iter.setText(text)
-            var start = iter.first()
-            var end = iter.next()
-            while (end != BreakIterator.DONE) {
-                val sentence = text.substring(start, end).trim()
-                for (part in sentence.splitAfterQuotedSentenceEnd()) {
-                    if (part.isNotEmpty()) out.add(SentenceItem(part, BookPosition(ci, bi)))
-                }
-                start = end
-                end = iter.next()
+            for (part in text.splitAtPunctuation()) {
+                if (part.isNotEmpty()) out.add(SentenceItem(part, BookPosition(ci, bi)))
             }
         }
     }
     return out
 }
 
-private fun String.splitAfterQuotedSentenceEnd(): List<String> {
-    val token = ".\""
+/**
+ * Always break after `.`, `."`, `,`, `,"` when followed by whitespace or end.
+ * The trailing-space requirement keeps decimals like "3.14" and abbreviations
+ * like "Mr.Smith" intact, while still splitting at every real sentence /
+ * clause boundary.
+ */
+private fun String.splitAtPunctuation(): List<String> {
     val pieces = mutableListOf<String>()
     var start = 0
-    while (start < length) {
-        val idx = indexOf(token, startIndex = start)
-        if (idx < 0 || idx + token.length >= length) break
-        val end = idx + token.length
-        substring(start, end).trim().takeIf { it.isNotEmpty() }?.let { pieces += it }
-        start = end
+    var i = 0
+    while (i < length) {
+        val c = this[i]
+        if (c == '.' || c == ',') {
+            var end = i + 1
+            if (end < length && this[end] == '"') end++
+            val nextIsBoundary = end >= length || this[end].isWhitespace()
+            if (nextIsBoundary) {
+                substring(start, end).trim().takeIf { it.isNotEmpty() }?.let { pieces += it }
+                start = end
+                i = end
+                continue
+            }
+        }
+        i++
     }
     substring(start).trim().takeIf { it.isNotEmpty() }?.let { pieces += it }
     return pieces.ifEmpty { listOf(trim()) }
