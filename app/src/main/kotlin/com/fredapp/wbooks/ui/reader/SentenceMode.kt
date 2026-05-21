@@ -156,32 +156,50 @@ fun SentenceMode(
                 )
             },
     ) {
-        val sentenceTextMaxHeight = (maxHeight - 58.dp).coerceAtLeast(48.dp)
         val contentPadding = watchContentPadding(horizontal = 12.dp, vertical = 12.dp)
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        // Reserve a fixed strip at the bottom for the counter so the sentence
+        // text never collides with it, regardless of sentence length or font
+        // size. The counter never moves.
+        val counterStripHeight = 24.dp
+        val sentenceTextMaxHeight =
+            (maxHeight - counterStripHeight - 32.dp).coerceAtLeast(48.dp)
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(contentPadding),
         ) {
-            Text(
-                text = "${index + 1}/${sentences.size}",
-                color = Color(settings.textColorArgb).copy(alpha = 0.5f),
-                style = MaterialTheme.typography.caption2,
-            )
-            FittingSentenceText(
-                text = sentences[index].text,
-                color = Color(settings.textColorArgb),
-                targetFontSizeSp = settings.sentenceTextSizeSp,
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = sentenceTextMaxHeight),
-            )
-            if (settings.autoscrollEnabled && autoscrollPaused) {
+                    .fillMaxSize()
+                    .padding(bottom = counterStripHeight),
+                contentAlignment = Alignment.Center,
+            ) {
+                FittingSentenceText(
+                    text = sentences[index].text,
+                    color = Color(settings.textColorArgb),
+                    targetFontSizeSp = settings.sentenceTextSizeSp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = sentenceTextMaxHeight),
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom,
+            ) {
+                if (settings.autoscrollEnabled && autoscrollPaused) {
+                    Text(
+                        text = "tap to resume",
+                        color = Color(settings.textColorArgb).copy(alpha = 0.4f),
+                        style = MaterialTheme.typography.caption2,
+                    )
+                }
                 Text(
-                    text = "tap to resume",
-                    color = Color(settings.textColorArgb).copy(alpha = 0.4f),
+                    text = "${index + 1}/${sentences.size}",
+                    color = Color(settings.textColorArgb).copy(alpha = 0.5f),
                     style = MaterialTheme.typography.caption2,
                 )
             }
@@ -261,8 +279,11 @@ private fun segmentSentences(doc: Document): List<SentenceItem> {
             }.trim()
             if (text.isEmpty()) continue
 
+            var subIndex = 0
             for (part in text.splitAtPunctuation()) {
-                if (part.isNotEmpty()) out.add(SentenceItem(part, BookPosition(ci, bi)))
+                if (part.isEmpty()) continue
+                out.add(SentenceItem(part, BookPosition(ci, bi, subIndex)))
+                subIndex++
             }
         }
     }
@@ -298,11 +319,20 @@ private fun String.splitAtPunctuation(): List<String> {
     return pieces.ifEmpty { listOf(trim()) }
 }
 
-/** First sentence whose origin is at or after [target] (lexicographic on chapter, then block). */
+/**
+ * First sentence at or after [target], compared lexicographically on
+ * (chapter, block, sub). Matching the sub-index lets bookmarks made in
+ * sentence mode land back on the exact sentence — not just the start of
+ * the paragraph.
+ */
 private fun sentenceIndexFor(sentences: List<SentenceItem>, target: BookPosition): Int {
     val i = sentences.indexOfFirst { s ->
-        s.position.chapterIndex > target.chapterIndex ||
-            (s.position.chapterIndex == target.chapterIndex && s.position.blockIndex >= target.blockIndex)
+        val p = s.position
+        when {
+            p.chapterIndex != target.chapterIndex -> p.chapterIndex > target.chapterIndex
+            p.blockIndex != target.blockIndex -> p.blockIndex > target.blockIndex
+            else -> p.subIndex >= target.subIndex
+        }
     }
     return if (i >= 0) i else 0
 }

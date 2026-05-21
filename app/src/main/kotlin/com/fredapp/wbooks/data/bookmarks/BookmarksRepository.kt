@@ -74,17 +74,26 @@ class BookmarksRepository(context: Context) {
     private fun encodeOne(b: Bookmark): String {
         val label = b.label.orEmpty().toByteArray(Charsets.UTF_8)
         val labelB64 = Base64.encodeToString(label, Base64.NO_WRAP or Base64.NO_PADDING)
-        return "${b.position.chapterIndex}|${b.position.blockIndex}|${b.savedAtMs}|$labelB64"
+        val p = b.position
+        return "${p.chapterIndex}|${p.blockIndex}|${p.subIndex}|${b.savedAtMs}|$labelB64"
     }
 
     private fun decodeOne(raw: String): Bookmark? {
         val parts = raw.split('|')
-        if (parts.size != 4) return null
-        val ch = parts[0].toIntOrNull() ?: return null
-        val bl = parts[1].toIntOrNull() ?: return null
-        val ts = parts[2].toLongOrNull() ?: return null
-        val labelBytes = runCatching { Base64.decode(parts[3], Base64.NO_WRAP or Base64.NO_PADDING) }.getOrNull()
+        // Legacy 4-part records have no sub-index; new 5-part records do.
+        val (ch, bl, sub, ts, labelToken) = when (parts.size) {
+            4 -> Quintuple(parts[0], parts[1], "0", parts[2], parts[3])
+            5 -> Quintuple(parts[0], parts[1], parts[2], parts[3], parts[4])
+            else -> return null
+        }
+        val chI = ch.toIntOrNull() ?: return null
+        val blI = bl.toIntOrNull() ?: return null
+        val subI = sub.toIntOrNull() ?: 0
+        val tsL = ts.toLongOrNull() ?: return null
+        val labelBytes = runCatching { Base64.decode(labelToken, Base64.NO_WRAP or Base64.NO_PADDING) }.getOrNull()
         val label = labelBytes?.toString(Charsets.UTF_8)?.takeIf { it.isNotEmpty() }
-        return Bookmark(BookPosition(ch, bl), ts, label)
+        return Bookmark(BookPosition(chI, blI, subI), tsL, label)
     }
+
+    private data class Quintuple(val a: String, val b: String, val c: String, val d: String, val e: String)
 }

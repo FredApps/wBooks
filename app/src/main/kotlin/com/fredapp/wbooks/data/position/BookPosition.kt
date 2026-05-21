@@ -8,18 +8,23 @@
 data class BookPosition(
     val chapterIndex: Int,
     val blockIndex: Int,
+    /** Sentence index within the block (sentence mode only). Zero for all other modes. */
+    val subIndex: Int = 0,
 ) {
-    fun encode(): String = "$chapterIndex|$blockIndex"
+    fun encode(): String =
+        if (subIndex == 0) "$chapterIndex|$blockIndex"
+        else "$chapterIndex|$blockIndex|$subIndex"
 
     companion object {
         val START = BookPosition(0, 0)
 
         fun decode(raw: String): BookPosition? {
             val parts = raw.split('|')
-            if (parts.size != 2) return null
+            if (parts.size !in 2..3) return null
             val ch = parts[0].toIntOrNull() ?: return null
             val bl = parts[1].toIntOrNull() ?: return null
-            return BookPosition(ch, bl)
+            val sub = parts.getOrNull(2)?.toIntOrNull() ?: 0
+            return BookPosition(ch, bl, sub)
         }
     }
 }
