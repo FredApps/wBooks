@@ -74,7 +74,7 @@ All notable changes to wBooks are documented in this file.
 
 ### Known limitations
 
-- **PDF support**: not implemented (rendering format, not suitable for reflow on small screens)
+- **PDF support**: not implemented as native format (rendering format, not suitable for reflow on small screens). Use companion app to convert PDFs to EPUB/HTML/TXT before uploading.
 - **Unsupported elements**: tables, images, frames, fields, lists, drawings are silently dropped in supported formats
 - **Network**: LAN upload requires watch and phone on same network
 - **Companion**: phone app requires Wear OS 7+ on phone, paired watch with wBooks installed
