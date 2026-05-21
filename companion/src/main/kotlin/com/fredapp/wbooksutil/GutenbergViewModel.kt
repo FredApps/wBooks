@@ -73,6 +73,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
      * Gutenberg pushes them.
      */
     fun sendToWatch(book: GutenbergBook) = viewModelScope.launch {
+        if (_state.value.downloadingId != null) return@launch
         _state.value = _state.value.copy(downloadingId = book.id, errorMessage = null)
         val filename = filenameFor(book)
         val result = runCatching {

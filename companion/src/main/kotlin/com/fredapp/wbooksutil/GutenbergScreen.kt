@@ -115,10 +115,14 @@ private fun ResultsList(
                     }
                 },
                 trailingContent = {
-                    if (downloadingId == book.id) {
+                    val isDownloading = downloadingId == book.id
+                    if (isDownloading) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     } else {
-                        TextButton(onClick = { onSend(book) }) { Text("Send") }
+                        TextButton(
+                            onClick = { onSend(book) },
+                            enabled = downloadingId == null,
+                        ) { Text("Send") }
                     }
                 },
             )
