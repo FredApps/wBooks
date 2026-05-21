@@ -6,7 +6,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,6 +50,7 @@ import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.R
 import com.fredapp.wbooks.data.book.Book
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
+import com.fredapp.wbooks.ui.layout.watchListPadding
 
 /**
  * Page 0 of the LibraryPager. Shows a "Search library" chip; tapping it opens an
@@ -116,7 +116,7 @@ fun LibrarySearchScreen(
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
-            contentPadding = PaddingValues(start = 4.dp, top = 12.dp, end = 4.dp, bottom = 32.dp),
+            contentPadding = watchListPadding(start = 4.dp, top = 12.dp, end = 4.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item(key = "back") { BackChipRow(onClick = onBack) }

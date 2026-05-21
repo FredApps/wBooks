@@ -2,7 +2,6 @@
 
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,6 +27,7 @@ import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.data.changelog.CHANGELOG
 import com.fredapp.wbooks.data.changelog.ChangelogEntry
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
+import com.fredapp.wbooks.ui.layout.watchListPadding
 
 @Composable
 fun ChangelogScreen(onBack: () -> Unit) {
@@ -44,7 +44,7 @@ fun ChangelogScreen(onBack: () -> Unit) {
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = listState,
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
+            contentPadding = watchListPadding(start = 4.dp, top = 32.dp, end = 4.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             item { ListHeader { Text("Changelog") } }
