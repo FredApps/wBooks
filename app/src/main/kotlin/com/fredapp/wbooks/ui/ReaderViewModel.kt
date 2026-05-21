@@ -30,6 +30,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -508,16 +509,7 @@ class ReaderViewModel(
                 sizeBytes = book.file.length(),
                 mtimeMs = book.file.lastModified(),
             )
-            val result = runCatching {
-                documentCache.load(key) ?: parseBook(book).also { parsed ->
-                    // Use appScope so the cache write isn't cancelled if the user
-                    // navigates away before it completes â€" a cancelled write would
-                    // force a full re-parse on the next open.
-                    appScope.launch(Dispatchers.IO) {
-                        runCatching { documentCache.store(key, parsed) }
-                    }
-                }
-            }
+            val result = loadDocumentResult(key, book)
             val initialPosition = withTimeoutOrNull(1_000) {
                 positionsRepo.readPosition(book.id)
             } ?: BookPosition.START
@@ -527,12 +519,45 @@ class ReaderViewModel(
                     // runCatching also catches CancellationException â€" re-throw so
                     // coroutine cancellation (e.g. user navigates away mid-parse)
                     // doesn't get reported to Sentry as a parser bug.
-                    if (it is kotlinx.coroutines.CancellationException) throw it
-                    io.sentry.Sentry.captureException(it)
-                    DocumentState.Failed(book, it.message ?: it::class.simpleName ?: "unknown error")
+                    if (it is kotlinx.coroutines.CancellationException &&
+                        it !is kotlinx.coroutines.TimeoutCancellationException
+                    ) {
+                        throw it
+                    }
+                    val reported = if (it is kotlinx.coroutines.TimeoutCancellationException) {
+                        IllegalStateException("Timed out opening ${book.id} (${book.format})", it)
+                    } else {
+                        it
+                    }
+                    io.sentry.Sentry.captureException(reported)
+                    DocumentState.Failed(
+                        book,
+                        if (it is kotlinx.coroutines.TimeoutCancellationException) {
+                            "Opening timed out"
+                        } else {
+                            it.message ?: it::class.simpleName ?: "unknown error"
+                        },
+                    )
                 },
             )
         }
+    }
+
+    private suspend fun loadDocumentResult(
+        key: DocumentCache.Key,
+        book: Book,
+    ): Result<Document> = try {
+        Result.success(
+            withTimeout(20_000) {
+                documentCache.load(key) ?: parseBook(book).also { parsed ->
+                    appScope.launch(Dispatchers.IO) {
+                        runCatching { documentCache.store(key, parsed) }
+                    }
+                }
+            }
+        )
+    } catch (t: Throwable) {
+        Result.failure(t)
     }
 
     private suspend fun parseBook(book: Book): Document = withContext(Dispatchers.IO) {
