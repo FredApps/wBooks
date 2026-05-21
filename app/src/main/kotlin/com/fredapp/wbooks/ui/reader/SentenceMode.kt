@@ -24,6 +24,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.rotary.onPreRotaryScrollEvent
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -106,18 +107,22 @@ fun SentenceMode(
         }
     }
 
+    fun stepSentence(scrollPixels: Float): Boolean {
+        if (abs(scrollPixels) <= 0f) return false
+        val direction = if (scrollPixels > 0) 1 else -1
+        index = (index + direction).coerceIn(0, sentences.size - 1)
+        return true
+    }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .onPreRotaryScrollEvent { event -> stepSentence(event.verticalScrollPixels) }
+            .onRotaryScrollEvent { event ->
+                stepSentence(event.verticalScrollPixels)
+            }
             .focusRequester(focusRequester)
             .focusable()
-            .onRotaryScrollEvent { event ->
-                if (abs(event.verticalScrollPixels) >= 5f) {
-                    val direction = if (event.verticalScrollPixels > 0) 1 else -1
-                    index = (index + direction).coerceIn(0, sentences.size - 1)
-                }
-                true
-            }
             .pointerInput(settings.autoscrollEnabled) {
                 detectTapGestures(onTap = { offset ->
                     if (settings.autoscrollEnabled) {
