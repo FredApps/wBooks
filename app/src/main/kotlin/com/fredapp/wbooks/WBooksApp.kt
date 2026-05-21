@@ -44,6 +44,10 @@ class WBooksApp : Application() {
         // isn't blocked by ~2 MB of asset I/O. The library refresh at the end
         // pushes the new books into the StateFlow the UI is already collecting.
         appScope.launch { seedLibraryIfFirstRun() }
+        // One-shot wipe of pre-mode-bucket bookmark records left over from
+        // earlier builds. Safe to run every launch — it only touches keys
+        // that don't match the current bm:<MODE>:<id> shape.
+        appScope.launch { bookmarksRepository.clearLegacyBookmarks() }
     }
 
     /**
