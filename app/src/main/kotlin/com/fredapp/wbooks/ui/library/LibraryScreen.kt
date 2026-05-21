@@ -228,6 +228,7 @@ fun LibraryScreen(
                             // Don't use pointerInput for the long-press — it interferes
                             // with the parent pager's swipe. combinedClickable cooperates
                             // with the gesture system and lets drags propagate.
+                            val onFolderClick = { selectedFolder = if (isSelected) null else folder }
                             CompactChip(
                                 icon = {
                                     Icon(
@@ -238,10 +239,10 @@ fun LibraryScreen(
                                     )
                                 },
                                 label = { Text("$folder ($count)", color = FolderGreyText) },
-                                onClick = {},
+                                onClick = onFolderClick,
                                 colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderGreyText),
                                 modifier = Modifier.combinedClickable(
-                                    onClick = { selectedFolder = if (isSelected) null else folder },
+                                    onClick = onFolderClick,
                                     onLongClick = { folderAction = folder },
                                 ),
                             )
@@ -601,7 +602,7 @@ private fun BookChip(book: Book, onClick: () -> Unit, onLongPress: () -> Unit) {
     Chip(
         label = { Text(book.title) },
         secondaryLabel = { Text(book.format.name) },
-        onClick = {},
+        onClick = onClick,
         colors = ChipDefaults.secondaryChipColors(),
         modifier = Modifier
             .fillMaxWidth()
