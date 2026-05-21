@@ -49,8 +49,8 @@ class OdtParser(
     }
 
     private fun parseZip(zip: ZipFile): Document {
-        val (title, author) = parseMeta(readEntry(zip, "meta.xml"))
-        val contentXml = readEntry(zip, "content.xml")
+        val (title, author) = parseMeta(zip.readTextEntry("meta.xml"))
+        val contentXml = zip.readTextEntry("content.xml")
             ?: error("ODT: missing content.xml")
         val doc = Jsoup.parse(contentXml, "", Parser.xmlParser())
         val styles = collectStyles(doc)
@@ -151,8 +151,4 @@ class OdtParser(
         }
     }
 
-    private fun readEntry(zip: ZipFile, name: String): String? {
-        val entry = zip.getEntry(name) ?: return null
-        return zip.getInputStream(entry).use { it.readBytes() }.toString(Charsets.UTF_8)
-    }
 }
