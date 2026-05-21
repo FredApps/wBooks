@@ -70,6 +70,18 @@ class ReadingStatsRepository(context: Context) {
     suspend fun isFinished(bookId: String): Boolean =
         store.data.first()[intPreferencesKey("finished:$bookId")] == 1
 
+    suspend fun moveBookId(fromBookId: String, toBookId: String) {
+        if (fromBookId == toBookId) return
+        val from = intPreferencesKey("finished:$fromBookId")
+        val to = intPreferencesKey("finished:$toBookId")
+        store.edit { prefs ->
+            if (prefs[from] == 1 && prefs[to] != 1) {
+                prefs[to] = 1
+            }
+            prefs.remove(from)
+        }
+    }
+
     suspend fun recordWpm(wpm: Int) {
         if (wpm <= 0) return
         val now = System.currentTimeMillis()

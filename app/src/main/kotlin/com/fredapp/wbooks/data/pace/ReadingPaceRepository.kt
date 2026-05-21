@@ -39,8 +39,7 @@ class ReadingPaceRepository(context: Context) {
 
     /**
      * Drop the pace entry for [bookId]. Intended to be called when a book is
-     * deleted (TODO: wire from the watch's delete flow + the upload server's
-     * delete endpoint so deleted books don't leave orphaned pace data).
+     * deleted so removed books don't leave orphaned pace data.
      */
     suspend fun clear(bookId: String) {
         val key = stringPreferencesKey("pace:$bookId")
