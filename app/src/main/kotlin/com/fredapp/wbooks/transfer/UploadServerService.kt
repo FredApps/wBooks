@@ -65,6 +65,7 @@ class UploadServerService : Service() {
                     app.readingPaceRepository.moveBookId(fromBookId, toBookId)
                     app.positionsRepository.moveBookId(fromBookId, toBookId)
                     app.bookmarksRepository.moveBookId(fromBookId, toBookId)
+                    app.readingStatsRepository.moveBookId(fromBookId, toBookId)
                     app.documentCache.moveBookId(fromBookId, toBookId)
                 }
             },

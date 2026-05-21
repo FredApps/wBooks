@@ -222,6 +222,7 @@ class BookReceiverService : WearableListenerService() {
         app.readingPaceRepository.moveBookId(id, newId)
         app.positionsRepository.moveBookId(id, newId)
         app.bookmarksRepository.moveBookId(id, newId)
+        app.readingStatsRepository.moveBookId(id, newId)
         app.documentCache.moveBookId(id, newId)
     }
 

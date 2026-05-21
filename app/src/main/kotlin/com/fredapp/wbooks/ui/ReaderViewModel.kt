@@ -437,6 +437,7 @@ class ReaderViewModel(
         paceRepo.moveBookId(oldId, newId)
         positionsRepo.moveBookId(oldId, newId)
         bookmarksRepo.moveBookId(oldId, newId)
+        statsRepo.moveBookId(oldId, newId)
         documentCache.moveBookId(oldId, newId)
     }
 
