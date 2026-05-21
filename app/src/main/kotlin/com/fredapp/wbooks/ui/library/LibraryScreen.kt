@@ -22,10 +22,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -231,16 +229,18 @@ fun LibraryScreen(
                             // with the parent pager's swipe. combinedClickable cooperates
                             // with the gesture system and lets drags propagate.
                             val onFolderClick = { selectedFolder = if (isSelected) null else folder }
+                            // No icon — keeps chips compact so more fit per row.
+                            // Selection is conveyed by background alpha and by the
+                            // book list expanding directly below.
                             CompactChip(
-                                icon = {
-                                    Icon(
-                                        imageVector = if (isSelected) Icons.Default.KeyboardArrowDown
-                                                      else Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                        contentDescription = null,
-                                        tint = FolderGreyText,
+                                label = {
+                                    Text(
+                                        "$folder ($count)",
+                                        color = FolderGreyText,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1,
                                     )
                                 },
-                                label = { Text("$folder ($count)", color = FolderGreyText) },
                                 onClick = onFolderClick,
                                 colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderGreyText),
                                 modifier = Modifier.combinedClickable(
