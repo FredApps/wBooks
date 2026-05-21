@@ -82,6 +82,13 @@ class BookReceiverService : WearableListenerService() {
                         if (id != null) moveBook(id, folder)
                         currentLibraryJson()
                     }
+                    WearProtocol.PATH_RENAME -> {
+                        val json = String(data, Charsets.UTF_8)
+                        val from = parseString(json, "from")
+                        val to = parseString(json, "to")
+                        if (from != null && to != null) renameFolder(from, to)
+                        currentLibraryJson()
+                    }
                     WearProtocol.PATH_STATS -> currentStatsJson()
                     WearProtocol.PATH_SETTINGS_GET -> currentSettingsJson()
                     WearProtocol.PATH_SETTINGS_SET -> {
@@ -213,6 +220,24 @@ class BookReceiverService : WearableListenerService() {
         val app = application as WBooksApp
         val dir = java.io.File(app.booksDir, name)
         if (dir.isInside(app.booksDir) && dir.canonicalFile != app.booksDir.canonicalFile) dir.mkdirs()
+    }
+
+    private suspend fun renameFolder(oldName: String, newName: String) {
+        val app = application as WBooksApp
+        val booksBefore = app.libraryRepository.books.value
+            .filter { it.id.substringBeforeLast('/', "") == oldName }
+            .map { it.id }
+        val resolved = app.libraryRepository.renameFolder(oldName, newName) ?: return
+        // Migrate per-book DataStore state to the new path-prefixed IDs.
+        for (oldId in booksBefore) {
+            val tail = oldId.removePrefix("$oldName/")
+            val newId = "$resolved/$tail"
+            app.readingPaceRepository.moveBookId(oldId, newId)
+            app.positionsRepository.moveBookId(oldId, newId)
+            app.bookmarksRepository.moveBookId(oldId, newId)
+            app.readingStatsRepository.moveBookId(oldId, newId)
+            app.documentCache.moveBookId(oldId, newId)
+        }
     }
 
     private suspend fun moveBook(id: String, targetFolder: String) {

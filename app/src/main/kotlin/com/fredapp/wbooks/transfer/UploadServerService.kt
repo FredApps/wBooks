@@ -70,6 +70,24 @@ class UploadServerService : Service() {
                     app.documentCache.moveBookId(fromBookId, toBookId)
                 }
             },
+            onFolderRenamed = { oldFolder, newFolder ->
+                // The rename is already done on disk by handleRename; re-id all books
+                // that lived under the old folder so per-book DataStore state follows.
+                serviceScope.launch {
+                    val books = app.libraryRepository.books.value
+                    app.libraryRepository.refresh()
+                    for (b in books) {
+                        if (b.id.substringBeforeLast('/', "") != oldFolder) continue
+                        val tail = b.id.removePrefix("$oldFolder/")
+                        val newId = "$newFolder/$tail"
+                        app.readingPaceRepository.moveBookId(b.id, newId)
+                        app.positionsRepository.moveBookId(b.id, newId)
+                        app.bookmarksRepository.moveBookId(b.id, newId)
+                        app.readingStatsRepository.moveBookId(b.id, newId)
+                        app.documentCache.moveBookId(b.id, newId)
+                    }
+                }
+            },
         ).also {
             it.start(NANOHTTPD_TIMEOUT, /* daemon = */ true)
         }

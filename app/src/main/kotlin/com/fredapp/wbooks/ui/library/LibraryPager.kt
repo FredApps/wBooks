@@ -1,5 +1,6 @@
-﻿package com.fredapp.wbooks.ui.library
+package com.fredapp.wbooks.ui.library
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -16,12 +17,16 @@ import kotlinx.coroutines.launch
 
 /**
  * Three-page horizontal pager for the library: Search | Library | Settings.
- * Opens on Library (page 1). Swipe right â†’ title search, swipe left â†’ settings.
+ * Opens on Library (page 1). Swipe right → title search, swipe left → settings.
+ *
+ * Back from Search or Settings returns to the Library page rather than exiting
+ * the app. Back from Library is the default system back (exits to launcher).
  */
 @Composable
 fun LibraryPager(vm: ReaderViewModel) {
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
     val books by vm.books.collectAsState()
+    val folders by vm.folders.collectAsState()
 
     val settledPage by remember {
         derivedStateOf { if (pagerState.isScrollInProgress) -1 else pagerState.currentPage }
@@ -30,6 +35,11 @@ fun LibraryPager(vm: ReaderViewModel) {
     val libraryActive by remember { derivedStateOf { settledPage == 1 } }
     val settingsActive by remember { derivedStateOf { settledPage == 2 } }
     val scope = rememberCoroutineScope()
+    val goToLibrary = { scope.launch { pagerState.animateScrollToPage(1) } ; Unit }
+
+    // Back from search or settings → Library page. From the library page,
+    // BackHandler is not registered, so the system default (exit) applies.
+    BackHandler(enabled = settledPage == 0 || settledPage == 2) { goToLibrary() }
 
     HorizontalPager(
         state = pagerState,
@@ -40,19 +50,24 @@ fun LibraryPager(vm: ReaderViewModel) {
                 books = books,
                 isActive = searchActive,
                 onBookOpen = { vm.openBook(it) },
+                onBack = { goToLibrary() },
             )
             1 -> LibraryScreen(
                 books = books,
+                folderNames = folders,
                 isActive = libraryActive,
                 onBookOpen = { vm.openBook(it) },
                 onRefresh = { vm.refreshLibrary() },
                 onMoveBook = { bookId, folder -> vm.moveBook(bookId, folder) },
                 onDeleteBook = { vm.deleteBook(it) },
+                onCreateFolder = { vm.createFolder(it) },
+                onRenameFolder = { o, n -> vm.renameFolder(o, n) },
+                onDeleteFolder = { vm.deleteFolder(it) },
             )
             2 -> SettingsScreen(
                 vm = vm,
                 isActive = settingsActive,
-                onBack = { scope.launch { pagerState.animateScrollToPage(1) } },
+                onBack = { goToLibrary() },
             )
         }
     }

@@ -126,6 +126,16 @@ class WatchRepository(context: Context) {
         }.getOrElse { Result.Error(it.message ?: "mkdir failed") }
     }
 
+    suspend fun renameFolder(oldName: String, newName: String): Result<LibrarySnapshot> = withContext(Dispatchers.IO) {
+        val node = bestNode() ?: return@withContext Result.NoWatch
+        runCatching {
+            val payload = """{"from":${jsonString(oldName)},"to":${jsonString(newName)}}"""
+                .toByteArray(Charsets.UTF_8)
+            val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_RENAME, payload).await()
+            Result.Ok(LibraryListJson.decode(bytes))
+        }.getOrElse { Result.Error(it.message ?: "rename failed") }
+    }
+
     suspend fun moveBook(bookId: String, targetFolder: String): Result<LibrarySnapshot> =
         withContext(Dispatchers.IO) {
             val node = bestNode() ?: return@withContext Result.NoWatch

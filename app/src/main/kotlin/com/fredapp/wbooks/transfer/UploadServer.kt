@@ -44,6 +44,7 @@ class UploadServer(
     private val assets: AssetManager,
     private val onBookDeleted: (bookId: String) -> Unit = {},
     private val onBookMoved: (fromBookId: String, toBookId: String) -> Unit = { _, _ -> },
+    private val onFolderRenamed: (oldFolder: String, newFolder: String) -> Unit = { _, _ -> },
 ) : NanoHTTPD(port) {
 
     private val pinBytes = pin.toByteArray(Charsets.UTF_8)
@@ -60,6 +61,7 @@ class UploadServer(
             uri == "/delete" -> handleDelete(session)
             uri == "/mkdir" -> handleMkdir(session)
             uri == "/move" -> handleMove(session)
+            uri == "/rename" -> handleRename(session)
             uri == "/settings" -> handleSettings(session)
             // PDF.js shipped in the APK (assets/pdfjs/). Static, unauthenticated:
             // it's a copy of Mozilla's library, not user data.
@@ -94,7 +96,10 @@ class UploadServer(
             val tbId = "f$fIdx"; fIdx++
             rows.append("""<tr class="folder-row drop-zone" data-folder="$folderRelEsc" onclick="toggleFolder('$tbId')">""")
             rows.append("""<td><span id="ch_$tbId" class="chevron">&#x25B6;</span> <span class="folder-icon">folder</span> $folderRelEsc/ <span class="cnt">(${folderBooks.size})</span><div class="drop-hint">Drop files here to upload to this folder</div></td>""")
-            rows.append("""<td>folder</td><td><form method="post" action="/delete" class="inline" data-confirm="Delete folder $folderRelEsc and all its books?" onsubmit="event.stopPropagation();return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$folderRelEsc"><button>delete</button></form></td></tr>""")
+            rows.append("""<td>folder</td><td>""")
+            rows.append("""<button type="button" class="rename-btn" onclick="event.stopPropagation();renameFolder('$folderRelEsc')">rename</button> """)
+            rows.append("""<form method="post" action="/delete" class="inline" data-confirm="Delete folder $folderRelEsc and all its books?" onsubmit="event.stopPropagation();return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$folderRelEsc"><button>delete</button></form>""")
+            rows.append("""</td></tr>""")
             rows.append("""<tbody id="$tbId" style="display:none">""")
             for (book in folderBooks) {
                 val rel = book.relativeTo(booksDir).invariantSeparatorsPath
@@ -399,6 +404,19 @@ class UploadServer(
                 });
               }
               window.addEventListener('DOMContentLoaded', installDropZones);
+              function renameFolder(oldName) {
+                var pin = document.getElementById('pin').value;
+                var newName = prompt('Rename folder "' + oldName + '" to:', oldName);
+                if (newName == null) return;
+                newName = newName.trim();
+                if (!newName || newName === oldName) return;
+                var fd = new FormData();
+                fd.append('from', oldName);
+                fd.append('to', newName);
+                fetch('/rename?pin=' + encodeURIComponent(pin), {method:'POST', body: fd})
+                  .then(function(r){ if (!r.ok) alert('Rename failed: ' + r.status); location.href='/'; })
+                  .catch(function(e){ alert('Rename error: ' + e); });
+              }
               function setColor(value) {
                 document.getElementById('textColorArgb').value = value;
                 document.querySelectorAll('.swatch').forEach(function(s) {
@@ -553,6 +571,26 @@ class UploadServer(
         }
         onBookMoved(from.relativeTo(booksDir).invariantSeparatorsPath, dest.relativeTo(booksDir).invariantSeparatorsPath)
         return redirectToIndex("Moved")
+    }
+
+    private fun handleRename(session: IHTTPSession): Response {
+        if (session.method != Method.POST) return methodNotAllowed()
+        gatePin(session)?.let { return it }
+        val params = parsedForm(session)
+        val from = params["from"]?.firstOrNull().orEmpty()
+        val to = cleanTopLevelFolder(params["to"]?.firstOrNull().orEmpty())
+            ?: return badRequest("name must be a single folder name")
+        if (from.isBlank() || to.isEmpty()) return badRequest("from and to required")
+        if (from == to) return redirectToIndex("Renamed")
+        val src = File(booksDir, from)
+        val dest = File(booksDir, to)
+        if (!src.isInsideBooksDir() || !dest.isInsideBooksDir() || src.isBooksRoot() ||
+            !src.isDirectory || dest.exists()) {
+            return badRequest("invalid rename target")
+        }
+        if (!src.renameTo(dest)) return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Rename failed")
+        onFolderRenamed(from, to)
+        return redirectToIndex("Renamed $from -> $to")
     }
 
     private fun handleSettings(session: IHTTPSession): Response {

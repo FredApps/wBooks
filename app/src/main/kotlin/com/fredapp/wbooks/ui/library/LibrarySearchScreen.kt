@@ -1,5 +1,6 @@
-﻿package com.fredapp.wbooks.ui.library
+package com.fredapp.wbooks.ui.library
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,12 +55,18 @@ import com.fredapp.wbooks.data.book.Book
 /**
  * Page 0 of the LibraryPager. Shows a "Search library" chip; tapping it opens an
  * inline text panel. Results filter book titles (and subfolders) by substring match.
+ *
+ * The screen does *not* scroll back to the top each time it becomes active —
+ * if the user swipes away from a search results list and returns, the scroll
+ * position is preserved, matching the user's mental model of "this is the same
+ * page I was just on."
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun LibrarySearchScreen(
     books: List<Book>,
     onBookOpen: (Book) -> Unit,
+    onBack: () -> Unit,
     isActive: Boolean = true,
 ) {
     var query by remember { mutableStateOf("") }
@@ -72,10 +79,18 @@ fun LibrarySearchScreen(
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
 
+    // Only reclaim rotary focus when this page becomes active. Don't reset the
+    // scroll position — see the screen-level doc for why.
     LaunchedEffect(isActive) {
-        if (isActive) {
-            listState.scrollToItem(0)
-            runCatching { focusRequester.requestFocus() }
+        if (isActive) runCatching { focusRequester.requestFocus() }
+    }
+
+    // Back: close the keyboard panel first; clear the query next; otherwise
+    // bubble up to the pager-level back handler to return to library.
+    BackHandler(enabled = panelOpen || query.isNotBlank()) {
+        when {
+            panelOpen -> panelOpen = false
+            query.isNotBlank() -> query = ""
         }
     }
 
@@ -101,6 +116,7 @@ fun LibrarySearchScreen(
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            item(key = "back") { BackChipRow(onClick = onBack) }
             item {
                 Chip(
                     icon = {
