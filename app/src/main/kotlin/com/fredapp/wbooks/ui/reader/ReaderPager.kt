@@ -23,10 +23,10 @@ import kotlinx.coroutines.launch
 /**
  * Three-page horizontal pager. Tools | Reader | Settings, opens on Reader.
  *
- * "Active" is keyed on the settled page, not currentPage â€” currentPage flips
- * to the new page partway through a swipe, before the InlineSlider in settings
- * has released focus. Using the settled page ensures the reader only tries to
- * reclaim bezel focus once the pager has fully come to rest.
+ * Back behavior is keyed on the settled page, but side-page activation is keyed
+ * on currentPage. Some Wear touch scroll gestures briefly mark the pager as
+ * "scroll in progress"; using that transient state for Tools/Settings activation
+ * would re-run their scroll-to-top effects during normal vertical list scrolling.
  */
 @Composable
 fun ReaderPager(
@@ -38,9 +38,8 @@ fun ReaderPager(
     val settledPage by remember {
         derivedStateOf { if (pagerState.isScrollInProgress) -1 else pagerState.currentPage }
     }
-    val toolsActive by remember { derivedStateOf { settledPage == 0 } }
     val readerActive by remember { derivedStateOf { settledPage == 1 } }
-    val settingsActive by remember { derivedStateOf { settledPage == 2 } }
+    val sidePage by remember { derivedStateOf { pagerState.currentPage } }
     val scope = rememberCoroutineScope()
     var toolsSearchActive by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
@@ -65,14 +64,14 @@ fun ReaderPager(
             0 -> SecondaryScreen(
                 state = state,
                 vm = vm,
-                isActive = toolsActive,
+                isActive = sidePage == 0,
                 onSearchActiveChanged = { toolsSearchActive = it },
                 onReaderPageRequested = goToReader,
             )
             1 -> ReaderScreen(state = state, vm = vm, isActive = readerActive, onExit = onExit)
             2 -> SettingsScreen(
                 vm = vm,
-                isActive = settingsActive,
+                isActive = sidePage == 2,
                 onBack = goToReader,
             )
         }
