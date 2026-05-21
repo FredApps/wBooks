@@ -158,12 +158,18 @@ fun SecondaryScreen(
             return@Scaffold
         }
 
-        val bookmarks by vm.bookmarks.collectAsState()
+        val allBookmarks by vm.bookmarks.collectAsState()
         val eta by vm.readingEta.collectAsState()
         val settings by vm.settings.collectAsState()
+        // Bookmarks are mode-scoped: only show entries saved in the current
+        // reading mode so the chapter/word/sentence label is always meaningful.
+        val bookmarks = remember(allBookmarks, settings.mode) {
+            allBookmarks.filter { it.mode == settings.mode }
+        }
         var pendingDelete by remember { mutableStateOf<BookPosition?>(null) }
         val chapters = remember(state.doc) { chapterJumps(state.doc) }
         val wordProgressLabels = remember(state.doc) { wordProgressLabels(state.doc) }
+        val sentenceProgressLabels = remember(state.doc) { sentenceProgressLabels(state.doc) }
 
         // Swiping into Tools resets the list once, then claims focus after the
         // pager has released the previous rotary owner.
@@ -241,11 +247,15 @@ fun SecondaryScreen(
 
             if (bookmarks.isNotEmpty()) {
                 item { ListHeader { Text(stringResource(R.string.tools_bookmarks)) } }
-                items(bookmarks, key = { "bm:${it.position.chapterIndex}-${it.position.blockIndex}" }) { bm ->
-                    val resolvedLabel = if (settings.mode == ReadingMode.SPEEDREAD) {
-                        wordProgressLabels.labelFor(bm.position)
-                    } else {
-                        bm.label ?: chapterTitleAt(chapters, bm.position) ?: "Start"
+                items(
+                    bookmarks,
+                    key = { "bm:${it.mode.name}:${it.position.chapterIndex}-${it.position.blockIndex}-${it.position.subIndex}" },
+                ) { bm ->
+                    val chapterTitle = bm.label ?: chapterTitleAt(chapters, bm.position) ?: "Start"
+                    val resolvedLabel = when (bm.mode) {
+                        ReadingMode.SPEEDREAD -> "$chapterTitle · ${wordProgressLabels.labelFor(bm.position)}"
+                        ReadingMode.SENTENCE -> "$chapterTitle · ${sentenceProgressLabels.labelFor(bm.position)}"
+                        ReadingMode.NORMAL -> chapterTitle
                     }
                     BookmarkRow(
                         bookmark = bm,
@@ -257,7 +267,7 @@ fun SecondaryScreen(
                         },
                         onRequestDelete = { pendingDelete = bm.position },
                         onConfirmDelete = {
-                            vm.deleteBookmark(bm.position)
+                            vm.deleteBookmark(bm.position, bm.mode)
                             pendingDelete = null
                         },
                         onCancelDelete = { pendingDelete = null },
@@ -409,6 +419,23 @@ private data class WordProgressLabels(private val wordPositions: List<BookPositi
         return "${idx + 1}/${wordPositions.size}"
     }
 }
+
+private data class SentenceProgressLabels(private val positions: List<BookPosition>) {
+    fun labelFor(target: BookPosition): String {
+        if (positions.isEmpty()) return "0/0"
+        val idx = positions.indexOfFirst { p ->
+            when {
+                p.chapterIndex != target.chapterIndex -> p.chapterIndex > target.chapterIndex
+                p.blockIndex != target.blockIndex -> p.blockIndex > target.blockIndex
+                else -> p.subIndex >= target.subIndex
+            }
+        }.let { if (it >= 0) it else positions.lastIndex }
+        return "${idx + 1}/${positions.size}"
+    }
+}
+
+private fun sentenceProgressLabels(doc: Document): SentenceProgressLabels =
+    SentenceProgressLabels(com.fredapp.wbooks.ui.reader.sentencePositions(doc))
 
 private fun wordProgressLabels(doc: Document): WordProgressLabels {
     val ws = Regex("\\s+")

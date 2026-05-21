@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.fredapp.wbooks.data.position.BookPosition
+import com.fredapp.wbooks.data.settings.ReadingMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -29,14 +30,15 @@ class BookmarksRepository(context: Context) {
 
     suspend fun add(bookId: String, bookmark: Bookmark) {
         edit(bookId) { current ->
-            // Avoid storing exact duplicates of the same position.
-            if (current.any { it.position == bookmark.position }) current
+            // Don't store duplicates of the same position+mode pair — the same
+            // spot in different modes is intentionally two separate entries.
+            if (current.any { it.position == bookmark.position && it.mode == bookmark.mode }) current
             else current + bookmark
         }
     }
 
-    suspend fun remove(bookId: String, position: BookPosition) {
-        edit(bookId) { it.filterNot { existing -> existing.position == position } }
+    suspend fun remove(bookId: String, position: BookPosition, mode: ReadingMode) {
+        edit(bookId) { it.filterNot { existing -> existing.position == position && existing.mode == mode } }
     }
 
     /** Remove all bookmarks for a deleted book. */
@@ -75,15 +77,20 @@ class BookmarksRepository(context: Context) {
         val label = b.label.orEmpty().toByteArray(Charsets.UTF_8)
         val labelB64 = Base64.encodeToString(label, Base64.NO_WRAP or Base64.NO_PADDING)
         val p = b.position
-        return "${p.chapterIndex}|${p.blockIndex}|${p.subIndex}|${b.savedAtMs}|$labelB64"
+        return "${p.chapterIndex}|${p.blockIndex}|${p.subIndex}|${b.savedAtMs}|$labelB64|${b.mode.name}"
     }
 
     private fun decodeOne(raw: String): Bookmark? {
+        // Storage has gone through three formats; map each one onto the current
+        // 6-part shape so legacy bookmarks survive an upgrade.
+        // 4-part: ch|bl|ts|label                (subIndex 0, mode NORMAL)
+        // 5-part: ch|bl|sub|ts|label             (mode NORMAL)
+        // 6-part: ch|bl|sub|ts|label|MODE        (current)
         val parts = raw.split('|')
-        // Legacy 4-part records have no sub-index; new 5-part records do.
-        val (ch, bl, sub, ts, labelToken) = when (parts.size) {
-            4 -> Quintuple(parts[0], parts[1], "0", parts[2], parts[3])
-            5 -> Quintuple(parts[0], parts[1], parts[2], parts[3], parts[4])
+        val (ch, bl, sub, ts, labelToken, modeToken) = when (parts.size) {
+            4 -> Sextuple(parts[0], parts[1], "0", parts[2], parts[3], ReadingMode.NORMAL.name)
+            5 -> Sextuple(parts[0], parts[1], parts[2], parts[3], parts[4], ReadingMode.NORMAL.name)
+            6 -> Sextuple(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5])
             else -> return null
         }
         val chI = ch.toIntOrNull() ?: return null
@@ -92,8 +99,11 @@ class BookmarksRepository(context: Context) {
         val tsL = ts.toLongOrNull() ?: return null
         val labelBytes = runCatching { Base64.decode(labelToken, Base64.NO_WRAP or Base64.NO_PADDING) }.getOrNull()
         val label = labelBytes?.toString(Charsets.UTF_8)?.takeIf { it.isNotEmpty() }
-        return Bookmark(BookPosition(chI, blI, subI), tsL, label)
+        val mode = runCatching { ReadingMode.valueOf(modeToken) }.getOrDefault(ReadingMode.NORMAL)
+        return Bookmark(BookPosition(chI, blI, subI), tsL, label, mode)
     }
 
-    private data class Quintuple(val a: String, val b: String, val c: String, val d: String, val e: String)
+    private data class Sextuple(
+        val a: String, val b: String, val c: String, val d: String, val e: String, val f: String,
+    )
 }
