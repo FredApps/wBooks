@@ -700,6 +700,14 @@ class ReaderViewModel(
         )
 
     private fun editSettings(transform: (ReaderSettings) -> ReaderSettings) {
+        // Any settings edit comes from the watch UI (the companion writes
+        // through a different path), so it implies the user is right here and
+        // active. Bumping the interaction timestamp BEFORE the settings update
+        // closes a race: otherwise the new settings value can flow through
+        // keepAwakeActive's flatMapLatest with a stale lastInteractionAt and
+        // emit(false) → moveTaskToBack — booting the user out the moment they
+        // touch a control.
+        noteInteraction()
         viewModelScope.launch { settingsRepo.update(transform) }
     }
 
