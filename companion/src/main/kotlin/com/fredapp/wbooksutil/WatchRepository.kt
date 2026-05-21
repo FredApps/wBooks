@@ -86,6 +86,9 @@ class WatchRepository(context: Context) {
     }
 
     suspend fun uploadBook(uri: Uri, filename: String): Result<Unit> = withContext(Dispatchers.IO) {
+        if (!isSupportedBookFilename(filename)) {
+            return@withContext Result.Error("Unsupported file type")
+        }
         val input = appContext.contentResolver.openInputStream(uri)
             ?: return@withContext Result.Error("Cannot open file")
         uploadStream(input, filename)
@@ -94,6 +97,10 @@ class WatchRepository(context: Context) {
     /** Push [input] to the watch under [filename]; closes [input] when done. */
     suspend fun uploadStream(input: InputStream, filename: String): Result<Unit> =
         withContext(Dispatchers.IO) {
+            if (!isSupportedBookFilename(filename)) {
+                input.close()
+                return@withContext Result.Error("Unsupported file type")
+            }
             val node = bestNode() ?: run { input.close(); return@withContext Result.NoWatch }
             runCatching {
                 input.use { stream ->
@@ -166,5 +173,21 @@ class WatchRepository(context: Context) {
             }
             return sb.append('"').toString()
         }
+
+        private fun isSupportedBookFilename(filename: String): Boolean {
+            val ext = filename.substringAfterLast('.', "").lowercase()
+            return ext in SUPPORTED_BOOK_EXTENSIONS
+        }
+
+        private val SUPPORTED_BOOK_EXTENSIONS = setOf(
+            "epub",
+            "txt",
+            "fb2",
+            "html",
+            "htm",
+            "xhtml",
+            "docx",
+            "odt",
+        )
     }
 }
