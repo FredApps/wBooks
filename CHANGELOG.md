@@ -4,6 +4,25 @@ All notable changes to wBooks are documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-21
+
+### Added
+
+**Experimental PDF support**
+- Utility (companion) app: pick a PDF, see a warning dialog explaining the
+  experimental nature, then have it converted to HTML on the phone using
+  pdfbox-android before upload.
+- LAN web UI: same conversion runs client-side in the browser using PDF.js
+  bundled in the watch APK (`/pdfjs/`), served by the watch itself — no
+  internet required.
+- Heuristic formatting: bold/italic sniffed from PostScript font names;
+  per-paragraph font size promotes runs to h1/h2/h3 against the document
+  median.
+- Converted PDFs land in the library marked `[PDF]` after the title on both
+  the watch and the companion.
+- The warning dialog only appears for the first PDF in a session; subsequent
+  PDFs in the same Utility session or browser page convert without re-prompting.
+
 ## [0.1.0] — 2026-05-21
 
 ### Added

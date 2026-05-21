@@ -207,14 +207,19 @@ class UploadServer(
                 e.preventDefault();
                 await uploadFiles(e.target.querySelector('input[type=file]').files, e.target.querySelector('input[name=folder]').value.trim());
               }
+              // Sticky for the page's lifetime — first PDF upload shows the
+              // warning modal; subsequent ones skip straight to conversion.
+              // Reset on reload, which is the right scope for "this session".
+              var pdfWarningAcknowledged = false;
               async function uploadFiles(files, folder) {
                 var pin = document.getElementById('pin').value;
                 if (!files.length) return;
                 var arr = Array.prototype.slice.call(files);
                 var hasPdf = arr.some(function(f){return /\.pdf$/i.test(f.name);});
-                if (hasPdf) {
+                if (hasPdf && !pdfWarningAcknowledged) {
                   var ok = await confirmPdfWarning();
                   if (!ok) return;
+                  pdfWarningAcknowledged = true;
                 }
                 var prepared = [];
                 for (var i = 0; i < arr.length; i++) {
