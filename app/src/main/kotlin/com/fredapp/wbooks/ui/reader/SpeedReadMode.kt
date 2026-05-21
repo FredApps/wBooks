@@ -39,6 +39,7 @@ import com.fredapp.wbooks.parser.model.Block
 import com.fredapp.wbooks.parser.model.Document
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
+import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -105,8 +106,10 @@ fun SpeedReadMode(
             .focusRequester(focusRequester)
             .focusable()
             .onRotaryScrollEvent { event ->
-                val delta = (event.verticalScrollPixels / 5f).toInt()
-                if (delta != 0) onWpmChange(settings.speedreadWpm + delta)
+                if (abs(event.verticalScrollPixels) >= ROTARY_WPM_THRESHOLD_PX) {
+                    val step = if (event.verticalScrollPixels > 0) WPM_STEP else -WPM_STEP
+                    onWpmChange(settings.speedreadWpm + step)
+                }
                 true
             }
             .pointerInput(Unit) {
@@ -178,6 +181,8 @@ fun SpeedReadMode(
 }
 
 private val FOCAL_COLOR = Color(0xFFF06B5A)
+private const val WPM_STEP = 25
+private const val ROTARY_WPM_THRESHOLD_PX = 5f
 
 private data class WordItem(val text: String, val position: BookPosition)
 
