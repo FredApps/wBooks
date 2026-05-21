@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.ScalingLazyListState
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
@@ -62,6 +63,7 @@ import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.R
 import com.fredapp.wbooks.data.bookmarks.Bookmark
 import com.fredapp.wbooks.data.position.BookPosition
+import com.fredapp.wbooks.data.settings.ReadingMode
 import com.fredapp.wbooks.data.stats.formatDurationMs
 import com.fredapp.wbooks.parser.model.Block
 import com.fredapp.wbooks.parser.model.Document
@@ -90,6 +92,7 @@ fun SecondaryScreen(
     isActive: Boolean = true,
 ) {
     val listState = rememberScalingLazyListState()
+    val searchResultsListState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
 
@@ -104,6 +107,7 @@ fun SecondaryScreen(
         val query by vm.searchQuery.collectAsState()
         val results by vm.searchResults.collectAsState()
         var searchPanelOpen by remember { mutableStateOf(false) }
+        var lastSearchResultsResetQuery by remember { mutableStateOf<String?>(null) }
 
         LaunchedEffect(searchPanelOpen, query) {
             onSearchActiveChanged(searchPanelOpen || query.isNotBlank())
@@ -113,6 +117,9 @@ fun SecondaryScreen(
             SearchResultsList(
                 query = query,
                 results = results,
+                listState = searchResultsListState,
+                shouldResetToTop = lastSearchResultsResetQuery != query,
+                onResetToTop = { lastSearchResultsResetQuery = query },
                 onOpen = { result ->
                     vm.openSearchResult(result)
                     onReaderPageRequested()
@@ -153,8 +160,10 @@ fun SecondaryScreen(
 
         val bookmarks by vm.bookmarks.collectAsState()
         val eta by vm.readingEta.collectAsState()
+        val settings by vm.settings.collectAsState()
         var pendingDelete by remember { mutableStateOf<BookPosition?>(null) }
         val chapters = remember(state.doc) { chapterJumps(state.doc) }
+        val wordProgressLabels = remember(state.doc) { wordProgressLabels(state.doc) }
 
         // Swiping into Tools resets the list once, then claims focus after the
         // pager has released the previous rotary owner.
@@ -233,13 +242,11 @@ fun SecondaryScreen(
             if (bookmarks.isNotEmpty()) {
                 item { ListHeader { Text(stringResource(R.string.tools_bookmarks)) } }
                 items(bookmarks, key = { "bm:${it.position.chapterIndex}-${it.position.blockIndex}" }) { bm ->
-                    // Resolve label from the same heading-derived chapter list the
-                    // user sees in the chapter section â€” using bm.position.chapterIndex
-                    // directly would say "Chapter 2" for a Ch. 6 heading inside the
-                    // single doc.chapter that an EPUB parser sometimes produces.
-                    val resolvedLabel = bm.label
-                        ?: chapterTitleAt(chapters, bm.position)
-                        ?: "Start"
+                    val resolvedLabel = if (settings.mode == ReadingMode.SPEEDREAD) {
+                        wordProgressLabels.labelFor(bm.position)
+                    } else {
+                        bm.label ?: chapterTitleAt(chapters, bm.position) ?: "Start"
+                    }
                     BookmarkRow(
                         bookmark = bm,
                         displayLabel = resolvedLabel,
@@ -278,14 +285,19 @@ fun SecondaryScreen(
 private fun SearchResultsList(
     query: String,
     results: List<SearchResult>,
+    listState: ScalingLazyListState,
+    shouldResetToTop: Boolean,
+    onResetToTop: () -> Unit,
     onOpen: (SearchResult) -> Unit,
     onClear: () -> Unit,
 ) {
-    val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
-    LaunchedEffect(query) {
-        listState.scrollToItem(0)
+    LaunchedEffect(query, results.size, shouldResetToTop) {
+        if (shouldResetToTop) {
+            listState.scrollToItem(0)
+            onResetToTop()
+        }
         claimRotaryFocusAfterSettle(focusRequester)
     }
     ScalingLazyColumn(
@@ -387,6 +399,52 @@ private fun BookmarkRow(
 
 private data class ChapterJump(val title: String, val position: BookPosition)
 
+private data class WordProgressLabels(private val wordPositions: List<BookPosition>) {
+    fun labelFor(position: BookPosition): String {
+        if (wordPositions.isEmpty()) return "0/0"
+        val idx = wordPositions.indexOfFirst { word ->
+            word.chapterIndex > position.chapterIndex ||
+                (word.chapterIndex == position.chapterIndex && word.blockIndex >= position.blockIndex)
+        }.let { if (it >= 0) it else wordPositions.lastIndex }
+        return "${idx + 1}/${wordPositions.size}"
+    }
+}
+
+private fun wordProgressLabels(doc: Document): WordProgressLabels {
+    val ws = Regex("\\s+")
+    val out = mutableListOf<BookPosition>()
+    for ((ci, chapter) in doc.chapters.withIndex()) {
+        for ((bi, block) in chapter.blocks.withIndex()) {
+            val text = when (block) {
+                is Block.Heading -> block.text
+                is Block.Paragraph -> block.runs.joinToString("") { it.text }
+                Block.Divider, is Block.Code -> ""
+            }
+            if (text.isNotBlank()) {
+                val position = BookPosition(ci, bi)
+                repeat(text.trim().split(ws).count { it.isNotEmpty() }) { out += position }
+            }
+        }
+    }
+    return WordProgressLabels(out)
+}
+
+/**
+ * Find the title of the heading-derived chapter that contains [position]. Returns
+ * null if [position] is before the first chapter start. Chapters are assumed to be
+ * in document order (which [chapterJumps] guarantees).
+ */
+private fun chapterTitleAt(chapters: List<ChapterJump>, position: BookPosition): String? {
+    var best: String? = null
+    for (c in chapters) {
+        val cp = c.position
+        val atOrBefore = cp.chapterIndex < position.chapterIndex ||
+            (cp.chapterIndex == position.chapterIndex && cp.blockIndex <= position.blockIndex)
+        if (atOrBefore) best = c.title else break
+    }
+    return best
+}
+
 private fun chapterJumps(doc: Document): List<ChapterJump> {
     val headingJumps = mutableListOf<ChapterJump>()
     for ((ci, chapter) in doc.chapters.withIndex()) {
@@ -405,22 +463,6 @@ private fun chapterJumps(doc: Document): List<ChapterJump> {
     return (explicitChapters.ifEmpty { meaningfulHeadings }).ifEmpty {
         doc.chapters.mapIndexed { idx, _ -> ChapterJump("Chapter ${idx + 1}", BookPosition(idx, 0)) }
     }
-}
-
-/**
- * Find the title of the heading-derived chapter that contains [position]. Returns
- * null if [position] is before the first chapter start. Chapters are assumed to be
- * in document order (which [chapterJumps] guarantees).
- */
-private fun chapterTitleAt(chapters: List<ChapterJump>, position: BookPosition): String? {
-    var best: String? = null
-    for (c in chapters) {
-        val cp = c.position
-        val atOrBefore = cp.chapterIndex < position.chapterIndex ||
-            (cp.chapterIndex == position.chapterIndex && cp.blockIndex <= position.blockIndex)
-        if (atOrBefore) best = c.title else break
-    }
-    return best
 }
 
 private fun String.looksLikeChapterHeading(): Boolean {
