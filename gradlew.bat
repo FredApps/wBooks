@@ -72,20 +72,29 @@ goto fail
 
 set CLASSPATH=%APP_HOME%\gradle\wrapper\gradle-wrapper.jar
 
-@rem -- wBooks AF_UNIX workaround --
-@rem AF_UNIX connect() fails on socket files under this machine's user-profile
-@rem AppData\Local tree (AppContainer/sandbox restriction). The JDK uses java.io.tmpdir
-@rem for its internal NIO pipe sockets, so we redirect TEMP/TMP and java.io.tmpdir
-@rem to a project-local directory that is outside the restricted tree.
-set "WBOOKS_TMP=%APP_HOME%\.gradle\tmp"
+@rem -- wBooks AF_UNIX + OneDrive workaround --
+@rem Two constraints stacked:
+@rem  1) AF_UNIX connect() fails under %LOCALAPPDATA% (AppContainer/sandbox SIDs),
+@rem     so the JDK's java.io.tmpdir cannot live there or NIO pipe init blows up.
+@rem  2) OneDrive grabs files inside the project tree (including .gradle\tmp) and
+@rem     holds them open long enough to break Gradle's file ops.
+@rem Redirect to a local-disk scratch path that satisfies both: outside %LOCALAPPDATA%
+@rem and outside any OneDrive-synced root. %USERNAME% keeps this portable across
+@rem accounts on this machine.
+set "WBOOKS_TMP=C:\GradleTmp\%USERNAME%\wbooks-build\gradle-tmp"
+set "WBOOKS_GRADLE_USER_HOME=C:\GradleTmp\%USERNAME%\wbooks-build\gradle-user-home"
+set "WBOOKS_PROJECT_CACHE=C:\GradleTmp\%USERNAME%\wbooks-build\project-cache"
 if not exist "%WBOOKS_TMP%" mkdir "%WBOOKS_TMP%" >NUL 2>&1
+if not exist "%WBOOKS_GRADLE_USER_HOME%" mkdir "%WBOOKS_GRADLE_USER_HOME%" >NUL 2>&1
+if not exist "%WBOOKS_PROJECT_CACHE%" mkdir "%WBOOKS_PROJECT_CACHE%" >NUL 2>&1
 set "TEMP=%WBOOKS_TMP%"
 set "TMP=%WBOOKS_TMP%"
+set "GRADLE_USER_HOME=%WBOOKS_GRADLE_USER_HOME%"
 set "DEFAULT_JVM_OPTS=%DEFAULT_JVM_OPTS% "-Djava.io.tmpdir=%WBOOKS_TMP%""
 @rem -- end workaround --
 
 @rem Execute Gradle
-"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" org.gradle.wrapper.GradleWrapperMain %*
+"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" org.gradle.wrapper.GradleWrapperMain --project-cache-dir "%WBOOKS_PROJECT_CACHE%" %*
 
 :end
 @rem End local scope for the variables with windows NT shell
