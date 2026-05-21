@@ -312,40 +312,77 @@ class ReaderViewModel(
         position: BookPosition,
         msPerBlock: Double,
     ): ReadingEta? {
-        if (doc.chapters.isEmpty()) return null
+        if (doc.chapters.isEmpty() || msPerBlock <= 0.0) return null
         val ci = position.chapterIndex.coerceIn(0, doc.chapters.lastIndex)
         val bi = position.blockIndex.coerceAtLeast(0)
         val chapter = doc.chapters.getOrNull(ci) ?: return null
 
-        // Remaining-in-chapter is the distance to the next chapter boundary. A
-        // boundary is either the next doc.chapter or â€" for single-chapter TXT/ODF
-        // parses â€" the next in-block Heading. This mirrors what chapterJumps()
-        // shows in the Tools page, so the ETA's "chapter" matches the user's
-        // mental model.
-        var blocksRemainingInChapter = 0
+        // Walking words instead of blocks gives a much more stable estimate:
+        // a heading block has ~3 words while a paragraph block can have ~150,
+        // so block-count multiplied by msPerBlock wildly overweights chapters
+        // that happen to have many short blocks.
+        var totalBlocks = 0
+        var totalWords = 0L
+        for (chap in doc.chapters) {
+            for (block in chap.blocks) {
+                totalBlocks++
+                totalWords += blockWordCount(block)
+            }
+        }
+        if (totalBlocks == 0 || totalWords == 0L) return null
+        val avgWordsPerBlock = totalWords.toDouble() / totalBlocks
+        if (avgWordsPerBlock <= 0.0) return null
+        val msPerWord = msPerBlock / avgWordsPerBlock
+        val derivedWpm = 60_000.0 / msPerWord
+        // Refuse to publish an ETA when the implied reading speed is
+        // physically implausible. Fast initial paging or huge pauses produce
+        // values far outside any human range — better to show "Calculating…"
+        // than mislead the user with a one-minute estimate for Moby Dick.
+        if (derivedWpm !in MIN_TRUSTED_WPM..MAX_TRUSTED_WPM) return null
+
+        // Remaining-in-chapter is the distance to the next chapter boundary,
+        // either the next doc.chapter or — for single-chapter TXT/ODF parses —
+        // the next in-block Heading. Same shape as chapterJumps() in Tools.
+        var wordsRemainingInChapter = 0L
         var foundHeading = false
         for (i in (bi + 1)..chapter.blocks.lastIndex) {
-            blocksRemainingInChapter++
             if (chapter.blocks[i] is Block.Heading) {
                 foundHeading = true
                 break
             }
+            wordsRemainingInChapter += blockWordCount(chapter.blocks[i])
         }
         if (!foundHeading) {
-            // No more headings in this doc.chapter; the next chapter boundary is
-            // the next doc.chapter (or end of book). Count the rest of this
-            // doc.chapter â€" the recipient adds whatever else it needs.
-            blocksRemainingInChapter = (chapter.blocks.size - bi).coerceAtLeast(0)
+            wordsRemainingInChapter = 0L
+            for (i in (bi + 1)..chapter.blocks.lastIndex) {
+                wordsRemainingInChapter += blockWordCount(chapter.blocks[i])
+            }
         }
 
-        var blocksRemainingInBook = (chapter.blocks.size - bi).coerceAtLeast(0)
-        for (i in (ci + 1)..doc.chapters.lastIndex) {
-            blocksRemainingInBook += doc.chapters[i].blocks.size
+        var wordsRemainingInBook = 0L
+        for (i in (bi + 1)..chapter.blocks.lastIndex) {
+            wordsRemainingInBook += blockWordCount(chapter.blocks[i])
         }
+        for (i in (ci + 1)..doc.chapters.lastIndex) {
+            for (block in doc.chapters[i].blocks) {
+                wordsRemainingInBook += blockWordCount(block)
+            }
+        }
+
         return ReadingEta(
-            chapterMs = (blocksRemainingInChapter * msPerBlock).toLong(),
-            bookMs = (blocksRemainingInBook * msPerBlock).toLong(),
+            chapterMs = (wordsRemainingInChapter * msPerWord).toLong(),
+            bookMs = (wordsRemainingInBook * msPerWord).toLong(),
         )
+    }
+
+    private fun blockWordCount(block: Block): Int {
+        val text = when (block) {
+            is Block.Heading -> block.text
+            is Block.Paragraph -> block.runs.joinToString("") { it.text }
+            Block.Divider, is Block.Code -> return 0
+        }
+        if (text.isBlank()) return 0
+        return text.trim().split(WHITESPACE_REGEX).count { it.isNotEmpty() }
     }
 
     // ---- Bookmarks ----
@@ -623,6 +660,9 @@ class ReaderViewModel(
         const val WPM_SAMPLE_DEBOUNCE_MS = 5_000L
         /** Cadence for splitting a session into commit-able chunks. */
         const val SESSION_FLUSH_INTERVAL_MS = 60_000L
+        val WHITESPACE_REGEX = Regex("\\s+")
+        const val MIN_TRUSTED_WPM = 50.0
+        const val MAX_TRUSTED_WPM = 800.0
     }
 
     class Factory(

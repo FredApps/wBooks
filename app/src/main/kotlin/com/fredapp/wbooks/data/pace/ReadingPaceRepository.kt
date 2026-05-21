@@ -97,8 +97,12 @@ class ReadingPaceRepository(context: Context) {
          */
         const val MAX_DELTA_MS = 180_000L
 
-        /** Need at least this many samples before the UI shows the estimate. */
-        const val MIN_READY_SAMPLES = 3
+        /**
+         * Need at least this many natural block advances before showing the
+         * estimate. Three was far too few — a couple of fast initial taps would
+         * produce wildly wrong ETAs. Twenty is enough for the EMA to converge.
+         */
+        const val MIN_READY_SAMPLES = 20
 
         /** Cap the count so the EMA's "weight" stays bounded in the UI. */
         const val MAX_SAMPLE_COUNT = 10_000

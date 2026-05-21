@@ -163,10 +163,22 @@ fun SecondaryScreen(
         val settings by vm.settings.collectAsState()
         // Bookmarks are mode-scoped: only show entries saved in the current
         // reading mode so the chapter/word/sentence label is always meaningful.
+        // Newest first so a just-tapped "Bookmark here" lands at the top of
+        // the list where the user is already looking.
         val bookmarks = remember(allBookmarks, settings.mode) {
-            allBookmarks.filter { it.mode == settings.mode }
+            allBookmarks.filter { it.mode == settings.mode }.sortedByDescending { it.savedAtMs }
         }
         var pendingDelete by remember { mutableStateOf<BookPosition?>(null) }
+        var bookmarkedFlashAt by remember { mutableStateOf(0L) }
+        val flashVisible = remember(bookmarkedFlashAt, allBookmarks) {
+            bookmarkedFlashAt != 0L && allBookmarks.any { it.savedAtMs >= bookmarkedFlashAt }
+        }
+        LaunchedEffect(bookmarkedFlashAt) {
+            if (bookmarkedFlashAt != 0L) {
+                kotlinx.coroutines.delay(1500)
+                bookmarkedFlashAt = 0L
+            }
+        }
         val chapters = remember(state.doc) { chapterJumps(state.doc) }
         val wordProgressLabels = remember(state.doc) { wordProgressLabels(state.doc) }
         val sentenceProgressLabels = remember(state.doc) { sentenceProgressLabels(state.doc) }
@@ -215,22 +227,35 @@ fun SecondaryScreen(
             }
             item {
                 Chip(
-                    label = { Text(stringResource(R.string.tools_bookmark_here)) },
-                    onClick = { vm.bookmarkHere() },
+                    label = {
+                        Text(
+                            if (flashVisible) "Bookmarked"
+                            else stringResource(R.string.tools_bookmark_here),
+                        )
+                    },
+                    onClick = {
+                        vm.bookmarkHere()
+                        bookmarkedFlashAt = System.currentTimeMillis()
+                    },
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
 
-            eta?.let { e ->
-                item { ListHeader { Text("Time left") } }
-                item {
+            item { ListHeader { Text("Time left") } }
+            item {
+                val e = eta
+                if (e == null) {
+                    Text(
+                        text = "Calculating…",
+                        style = MaterialTheme.typography.body2,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                } else {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                     ) {
-                        // Only show "in chapter" when it differs from "in book" â€” a single-chapter
-                        // book (TXT, ODF) would otherwise show the same number on both lines.
                         if (e.chapterMs != e.bookMs) {
                             Text(
                                 text = "~ ${formatDurationMs(e.chapterMs)} in chapter",
