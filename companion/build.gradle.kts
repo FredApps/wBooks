@@ -134,6 +134,7 @@ dependencies {
     implementation(libs.play.services.wearable)
     implementation(libs.sentry.android)
     implementation(libs.jsoup)
+    implementation(libs.pdfbox.android)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 

@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -31,7 +33,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Folders created locally but not yet confirmed by a book assignment.
         // Kept so newly created folders remain visible until the user drags a book in.
         val pendingFolders: Set<String> = emptySet(),
+        // Set when the user picks a .pdf; the UI shows the experimental-PDF
+        // warning before any conversion happens. Cleared on confirm or cancel.
+        val pendingPdf: PendingPdf? = null,
     )
+
+    data class PendingPdf(val uri: Uri, val filename: String)
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
@@ -123,19 +130,77 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         applyResult(repo.deleteBook(id))
     }
 
-    fun upload(uri: Uri) = viewModelScope.launch {
+    fun upload(uri: Uri) {
         val filename = displayNameFor(uri) ?: "book"
+        if (filename.substringAfterLast('.', "").equals("pdf", ignoreCase = true)) {
+            // Defer to confirmPdfConversion() — the warning dialog explains the
+            // experimental nature before we spend time parsing.
+            _state.value = _state.value.copy(pendingPdf = PendingPdf(uri, filename))
+            return
+        }
+        uploadDirect(uri, filename)
+    }
+
+    fun confirmPdfConversion() {
+        val pending = _state.value.pendingPdf ?: return
+        _state.value = _state.value.copy(pendingPdf = null)
+        viewModelScope.launch {
+            _state.value = _state.value.copy(sending = true, errorMessage = null)
+            val converted = convertPdf(pending)
+            if (converted == null) {
+                _state.value = _state.value.copy(
+                    sending = false,
+                    errorMessage = "Could not read PDF. It may be encrypted or corrupted.",
+                )
+                return@launch
+            }
+            val outName = pdfOutputName(pending.filename)
+            val bytes = converted.html.toByteArray(Charsets.UTF_8)
+            val result = repo.uploadStream(bytes.inputStream(), outName)
+            _state.value = _state.value.copy(sending = false)
+            when (result) {
+                is WatchRepository.Result.Ok -> refresh()
+                is WatchRepository.Result.NoWatch ->
+                    _state.value = _state.value.disconnectedCopy()
+                is WatchRepository.Result.Error ->
+                    _state.value = _state.value.copy(errorMessage = result.message)
+            }
+        }
+    }
+
+    fun cancelPdfConversion() {
+        _state.value = _state.value.copy(pendingPdf = null)
+    }
+
+    private fun uploadDirect(uri: Uri, filename: String) = viewModelScope.launch {
         _state.value = _state.value.copy(sending = true, errorMessage = null)
         val result = repo.uploadBook(uri, filename)
         _state.value = _state.value.copy(sending = false)
         when (result) {
             is WatchRepository.Result.Ok -> refresh()
             is WatchRepository.Result.NoWatch ->
-                _state.value = _state.value.copy(noWatch = true)
+                _state.value = _state.value.disconnectedCopy()
             is WatchRepository.Result.Error ->
                 _state.value = _state.value.copy(errorMessage = result.message)
         }
     }
+
+    private suspend fun convertPdf(pending: PendingPdf): PdfConverter.Result? = withContext(Dispatchers.IO) {
+        val resolver = getApplication<Application>().contentResolver
+        runCatching {
+            resolver.openInputStream(pending.uri)?.use { input ->
+                PdfConverter.convert(input, baseTitle(pending.filename))
+            }
+        }.getOrNull()
+    }
+
+    private fun baseTitle(filename: String): String {
+        val dot = filename.lastIndexOf('.')
+        return if (dot > 0) filename.substring(0, dot) else filename
+    }
+
+    private fun pdfOutputName(filename: String): String =
+        "${baseTitle(filename)} [PDF].html"
 
     fun dismissError() {
         _state.value = _state.value.copy(errorMessage = null)
@@ -180,6 +245,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loading = false,
         noWatch = true,
         pendingFolders = emptySet(),
+        pendingPdf = null,
     )
 
     private fun displayNameFor(uri: Uri): String? {
