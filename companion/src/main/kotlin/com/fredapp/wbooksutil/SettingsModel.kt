@@ -22,6 +22,7 @@ object SettingsRanges {
     val AUTOSCROLL_SPEED = 1..60
     val SCREEN_BRIGHTNESS = 10..100
     val WPM = 100..900
+    val KEEP_AWAKE_MINUTES = 1..10
 
     /** Same curated palette as the watch. Stays in sync by hand. */
     val TEXT_COLOR_PALETTE: List<Int> = listOf(

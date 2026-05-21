@@ -87,6 +87,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setAutoscrollSpeed(value: Int) = sendUpdate("autoscrollSpeed", value)
     fun setScreenBrightness(value: Int) = sendUpdate("screenBrightness", value)
     fun setSpeedreadWpm(value: Int) = sendUpdate("speedreadWpm", value)
+    fun setKeepAwakeMinutes(value: Int) = sendUpdate("keepAwakeMinutes", value)
     fun setCrashReportingEnabled(value: Boolean) = sendUpdate("crashReportingEnabled", value)
 
     private fun sendUpdate(key: String, value: Any) = viewModelScope.launch {

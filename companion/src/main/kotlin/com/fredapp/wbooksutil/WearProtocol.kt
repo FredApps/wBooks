@@ -32,6 +32,7 @@ data class SettingsSnapshot(
     val autoscrollSpeed: Int,
     val screenBrightness: Int,
     val speedreadWpm: Int,
+    val keepAwakeMinutes: Int,
     val theme: String,
     val crashReportingEnabled: Boolean,
 )
@@ -62,6 +63,10 @@ object SettingsJson {
             autoscrollSpeed = (readLong(json, "autoscrollSpeed") ?: return null).toInt(),
             screenBrightness = (readLong(json, "screenBrightness") ?: return null).toInt(),
             speedreadWpm = (readLong(json, "speedreadWpm") ?: return null).toInt(),
+            // Tolerate older watch builds that don't send this field yet —
+            // fall back to the watch's own default rather than rejecting the
+            // whole snapshot.
+            keepAwakeMinutes = readLong(json, "keepAwakeMinutes")?.toInt() ?: 5,
             theme = readString(json, "theme") ?: return null,
             crashReportingEnabled = readBool(json, "crashReportingEnabled") ?: return null,
         )
