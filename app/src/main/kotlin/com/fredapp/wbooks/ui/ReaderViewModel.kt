@@ -419,12 +419,23 @@ class ReaderViewModel(
         viewModelScope.launch {
             val newId = libraryRepo.move(bookId, targetFolder) ?: return@launch
             migrateBookState(bookId, newId)
+            val state = _document.value
+            if (state is DocumentState.Loaded && state.book.id == bookId) {
+                val movedBook = libraryRepo.books.value.firstOrNull { it.id == newId } ?: return@launch
+                _document.value = state.copy(book = movedBook, initialPosition = currentPosition.value)
+            }
         }
     }
 
     fun deleteBook(bookId: String) {
         viewModelScope.launch {
             if (libraryRepo.delete(bookId)) {
+                if ((_document.value as? DocumentState.Loaded)?.book?.id == bookId) {
+                    closeBook()
+                    positionsRepo.setLastOpenedBookId(null)
+                } else if (positionsRepo.readLastOpenedBookId() == bookId) {
+                    positionsRepo.setLastOpenedBookId(null)
+                }
                 paceRepo.clear(bookId)
                 positionsRepo.clear(bookId)
                 bookmarksRepo.clear(bookId)
