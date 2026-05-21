@@ -68,6 +68,8 @@ import com.fredapp.wbooks.parser.model.Document
 import com.fredapp.wbooks.ui.DocumentState
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.SearchResult
+import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
+import com.fredapp.wbooks.ui.focus.claimRotaryFocusAfterSettle
 import java.text.DateFormat
 import java.util.Date
 
@@ -154,14 +156,13 @@ fun SecondaryScreen(
         var pendingDelete by remember { mutableStateOf<BookPosition?>(null) }
         val chapters = remember(state.doc) { chapterJumps(state.doc) }
 
-        // Swiping into Tools resets the list to the top (per UX spec) and
-        // reclaims rotary focus from whatever was holding it before.
-        LaunchedEffect(isActive) {
-            if (isActive) {
-                listState.scrollToItem(0)
-                runCatching { focusRequester.requestFocus() }
-            }
-        }
+        // Swiping into Tools resets the list once, then claims focus after the
+        // pager has released the previous rotary owner.
+        ClaimRotaryFocusOnActive(
+            active = isActive,
+            focusRequester = focusRequester,
+            onActivated = { listState.scrollToItem(0) },
+        )
 
         ScalingLazyColumn(
             modifier = Modifier
@@ -285,7 +286,7 @@ private fun SearchResultsList(
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
     LaunchedEffect(query) {
         listState.scrollToItem(0)
-        runCatching { focusRequester.requestFocus() }
+        claimRotaryFocusAfterSettle(focusRequester)
     }
     ScalingLazyColumn(
         modifier = Modifier

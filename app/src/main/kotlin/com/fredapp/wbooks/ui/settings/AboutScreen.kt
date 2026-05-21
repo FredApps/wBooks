@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -27,13 +26,14 @@ import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.BuildConfig
+import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    ClaimRotaryFocusOnActive(active = true, focusRequester = focusRequester)
 
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(

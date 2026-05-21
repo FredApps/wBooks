@@ -64,6 +64,7 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.R
 import com.fredapp.wbooks.data.book.Book
+import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 
 // Neutral grey folder tabs — the old saturated yellow was too bright against
 // the watch's black background. Same palette is mirrored in :companion
@@ -168,13 +169,15 @@ fun LibraryScreen(
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
-    val resumeTick = rememberResumeTick()
     // Re-claim rotary focus on page activation AND on Activity resume —
     // backgrounding the app dropped focus silently, leaving the bezel inert
     // until the user touched the screen. Keyed on isActive plus resume tick.
-    LaunchedEffect(isActive, resumeTick, books.isNotEmpty()) {
-        if (isActive && books.isNotEmpty()) runCatching { focusRequester.requestFocus() }
-    }
+    ClaimRotaryFocusOnActive(
+        isActive,
+        focusRequester,
+        books.size,
+        folderNames.size,
+    )
 
     val uncategorized = grouped[""] ?: emptyList()
     var selectedFolder by rememberSaveable { mutableStateOf<String?>(null) }
@@ -303,8 +306,7 @@ private fun ConfirmDeleteScreen(
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
-    val resumeTick = rememberResumeTick()
-    LaunchedEffect(resumeTick) { runCatching { focusRequester.requestFocus() } }
+    ClaimRotaryFocusOnActive(active = true, focusRequester = focusRequester)
 
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
@@ -365,8 +367,7 @@ private fun FolderPickerScreen(
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
-    val resumeTick = rememberResumeTick()
-    LaunchedEffect(resumeTick) { runCatching { focusRequester.requestFocus() } }
+    ClaimRotaryFocusOnActive(active = true, focusRequester = focusRequester)
 
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
@@ -439,8 +440,7 @@ private fun FolderActionsScreen(
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
-    val resumeTick = rememberResumeTick()
-    LaunchedEffect(resumeTick) { runCatching { focusRequester.requestFocus() } }
+    ClaimRotaryFocusOnActive(active = true, focusRequester = focusRequester)
 
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(

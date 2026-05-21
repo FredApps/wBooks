@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +53,7 @@ import com.fredapp.wbooks.WBooksApp
 import com.fredapp.wbooks.data.settings.FontChoice
 import com.fredapp.wbooks.data.settings.ReaderSettings
 import com.fredapp.wbooks.ui.ReaderViewModel
+import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.theme.toFontFamily
 
 private val FolderGrey = Color(0xFFB0B0B0)
@@ -78,22 +78,13 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = state)
     val settings by vm.settings.collectAsState()
 
-    // When the user swipes into Settings, reset the scroll to the top and
-    // reclaim rotary focus from whatever was holding it (a reader-mode focusable
-    // or â€” going the other direction â€” an InlineSlider in this very list).
-    // Reclaim rotary focus whenever Settings becomes active again OR the
-    // Activity resumes from background. The resume tick covers the "open app,
-    // bezel dead until I tap" case.
-    val resumeTick = com.fredapp.wbooks.ui.library.rememberResumeTick()
-    LaunchedEffect(isActive) {
-        if (isActive) {
-            state.scrollToItem(0)
-            runCatching { focusRequester.requestFocus() }
-        }
-    }
-    LaunchedEffect(resumeTick) {
-        if (isActive) runCatching { focusRequester.requestFocus() }
-    }
+    // Swipe-in starts at the top once, then focus is reclaimed after the pager
+    // settles. Resume refocus does not re-run the scroll-to-top side effect.
+    ClaimRotaryFocusOnActive(
+        active = isActive,
+        focusRequester = focusRequester,
+        onActivated = { state.scrollToItem(0) },
+    )
 
     // Hoisted out of the lazy item so it survives the row scrolling off-screen between
     // the user tapping the toggle and the system permission dialog returning.

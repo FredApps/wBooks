@@ -29,6 +29,7 @@ import com.fredapp.wbooks.parser.model.Document
 import com.fredapp.wbooks.parser.model.flatIndexOf
 import com.fredapp.wbooks.parser.model.positionAt
 import com.fredapp.wbooks.ui.ReaderViewModel
+import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -65,12 +66,7 @@ fun NormalMode(
     val scope = rememberCoroutineScope()
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
 
-    LaunchedEffect(isActive) {
-        // isActive is gated on pagerState.settledPage in ReaderPager, so by the
-        // time this fires the swipe is done and whatever InlineSlider held focus
-        // in settings is no longer animating. Claim focus immediately.
-        if (isActive) runCatching { focusRequester.requestFocus() }
-    }
+    ClaimRotaryFocusOnActive(active = isActive, focusRequester = focusRequester)
 
     // ---- Restore last position when the document changes (i.e. a new book opens). ----
     LaunchedEffect(document) {

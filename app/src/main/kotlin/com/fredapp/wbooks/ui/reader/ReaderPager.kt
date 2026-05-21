@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -12,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import com.fredapp.wbooks.ui.DocumentState
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.secondary.SecondaryScreen
@@ -41,6 +43,12 @@ fun ReaderPager(
     val settingsActive by remember { derivedStateOf { settledPage == 2 } }
     val scope = rememberCoroutineScope()
     var toolsSearchActive by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+
+    LaunchedEffect(pagerState.isScrollInProgress) {
+        if (pagerState.isScrollInProgress) focusManager.clearFocus(force = true)
+    }
+
     BackHandler(onBack = onExit)
     HorizontalPager(
         state = pagerState,
