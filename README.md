@@ -320,9 +320,17 @@ Replace `<watch-ip>:<port>` with your watch's ADB connection details (e.g., `192
 
 ## Known Issues and Limitations
 
-### PDF support: will not be implemented
+### PDF support: not implemented as a native format
 
-PDF is a rendering format, not a content format. It encodes exact pixel positions and fonts, not logical structure (chapters, paragraphs, sections). On a small round Wear OS screen with variable text sizes and reflow, PDF either requires shrinking to unreadable sizes or horizontal scrolling to see full lines — both worsen the reading experience. The supported formats (TXT, HTML, EPUB, FB2, DOCX, ODT) preserve semantic structure and reflow naturally to any screen size. Adding PDF would contradict the app's design principle that every text should be readable at any font size on any watch.
+PDF is a rendering format, not a content format. It encodes exact pixel positions and fonts, not logical structure (chapters, paragraphs, sections). On a small round Wear OS screen with variable text sizes and reflow, native PDF requires either shrinking to unreadable sizes or horizontal scrolling to see full lines — both worsen the reading experience.
+
+**Workaround:** If you have PDFs you want to read on wBooks, the companion app (wBooks Utility) can convert PDFs to HTML, EPUB, or TXT before uploading them to the watch. Tools like:
+- Command-line: `pandoc`, `pdftotext`, `calibre`
+- Web-based: PDF-to-HTML converters, e-book converters
+
+Convert your PDF, then upload the result via the companion app's file picker or Gutenberg browser.
+
+**Why not native support:** The supported formats (TXT, HTML, EPUB, FB2, DOCX, ODT) preserve semantic structure and reflow naturally to any screen size. Adding native PDF would contradict the app's design principle that every text should be readable at any font size on any watch.
 
 ## Support the project
 
