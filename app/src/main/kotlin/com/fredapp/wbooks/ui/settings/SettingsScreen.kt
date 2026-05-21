@@ -85,7 +85,13 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
     // Activity resumes from background. The resume tick covers the "open app,
     // bezel dead until I tap" case.
     val resumeTick = com.fredapp.wbooks.ui.library.rememberResumeTick()
-    LaunchedEffect(isActive, resumeTick) {
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            state.scrollToItem(0)
+            runCatching { focusRequester.requestFocus() }
+        }
+    }
+    LaunchedEffect(resumeTick) {
         if (isActive) runCatching { focusRequester.requestFocus() }
     }
 
@@ -108,7 +114,7 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
             state = state,
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
+            contentPadding = PaddingValues(start = 4.dp, top = 12.dp, end = 4.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item {
@@ -132,6 +138,47 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
             }
             item { ListHeader { Text(stringResource(R.string.page_settings)) } }
 
+            item {
+                val transfer by vm.transferState.collectAsState()
+                ToggleChip(
+                    checked = transfer.running,
+                    onCheckedChange = { enabled ->
+                        if (enabled) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                vm.startTransfer()
+                            }
+                        } else {
+                            vm.stopTransfer()
+                        }
+                    },
+                    label = {
+                        Text(
+                            if (transfer.running) stringResource(R.string.settings_transfer_stop)
+                            else stringResource(R.string.settings_transfer_start)
+                        )
+                    },
+                    secondaryLabel = {
+                        Text(
+                            transfer.url ?: stringResource(R.string.settings_transfer_subtitle)
+                        )
+                    },
+                    toggleControl = { Switch(checked = transfer.running) },
+                    colors = ToggleChipDefaults.toggleChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
+                val transfer by vm.transferState.collectAsState()
+                if (transfer.running && transfer.pin != null) {
+                    Text(
+                        text = "PIN ${transfer.pin}",
+                        style = MaterialTheme.typography.title3,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+            }
             item {
                 CyclerChip(
                     label = stringResource(R.string.settings_reading_mode),
@@ -221,48 +268,6 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                 )
             }
 
-            item { ListHeader { Text(" ") } }
-            item {
-                val transfer by vm.transferState.collectAsState()
-                ToggleChip(
-                    checked = transfer.running,
-                    onCheckedChange = { enabled ->
-                        if (enabled) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else {
-                                vm.startTransfer()
-                            }
-                        } else {
-                            vm.stopTransfer()
-                        }
-                    },
-                    label = {
-                        Text(
-                            if (transfer.running) stringResource(R.string.settings_transfer_stop)
-                            else stringResource(R.string.settings_transfer_start)
-                        )
-                    },
-                    secondaryLabel = {
-                        Text(
-                            transfer.url ?: stringResource(R.string.settings_transfer_subtitle)
-                        )
-                    },
-                    toggleControl = { Switch(checked = transfer.running) },
-                    colors = ToggleChipDefaults.toggleChipColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            item {
-                val transfer by vm.transferState.collectAsState()
-                if (transfer.running && transfer.pin != null) {
-                    Text(
-                        text = "PIN ${transfer.pin}",
-                        style = MaterialTheme.typography.title3,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
-                }
-            }
             item {
                 Chip(
                     label = { Text(stringResource(R.string.settings_changelog)) },
@@ -373,7 +378,7 @@ private fun StaticChip(label: String) {
 
 private fun colorName(argb: Int): String = when (argb) {
     0xFFD4C19C.toInt() -> "Sepia"
-    0xFFFFFFFF.toInt() -> "White"
+    0xFFFFFFFF.toInt() -> "Cold white"
     0xFFB0B0B0.toInt() -> "Grey"
     0xFFE8E6E1.toInt() -> "Warm white"
     0xFF9CB5D4.toInt() -> "Pale blue"
