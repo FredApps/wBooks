@@ -28,8 +28,8 @@ import java.security.MessageDigest
  * endpoint after [MAX_PIN_FAILURES] wrong attempts inside [PIN_WINDOW_MS] to
  * make a 10k-combo brute force impractical.
  *
- * Books live under [booksDir]. Subdirectories are treated as folders for sorting;
- * arbitrary nesting is allowed but the UI flattens it for now.
+ * Books live under [booksDir]. Top-level subdirectories are treated as folders
+ * for sorting, matching the watch and companion UIs.
  *
  * [onBookDeleted] is called (on the NanoHTTPD thread) with each book's ID after
  * it is removed via the web UI so callers can clean up associated DataStore state.
@@ -261,7 +261,8 @@ class UploadServer(
         session.parseBody(tempFiles)
         val params = session.parameters
 
-        val folder = params["folder"]?.firstOrNull().orEmpty().trim().trim('/', '\\')
+        val folder = cleanTopLevelFolder(params["folder"]?.firstOrNull().orEmpty())
+            ?: return badRequest("folder must be a single folder name")
         val targetDir = if (folder.isEmpty()) booksDir else File(booksDir, folder)
         if (!targetDir.isInsideBooksDir()) {
             return forbidden("folder escapes books dir")
@@ -311,7 +312,8 @@ class UploadServer(
         if (session.method != Method.POST) return methodNotAllowed()
         gatePin(session)?.let { return it }
         val params = parsedForm(session)
-        val name = params["name"]?.firstOrNull().orEmpty().trim().trim('/', '\\')
+        val name = cleanTopLevelFolder(params["name"]?.firstOrNull().orEmpty())
+            ?: return badRequest("folder must be a single folder name")
         if (name.isEmpty()) return badRequest("folder name required")
         val target = File(booksDir, name)
         if (!target.isInsideBooksDir() || target.isBooksRoot()) {
@@ -328,7 +330,9 @@ class UploadServer(
         val fromPath = params["from"]?.firstOrNull().orEmpty()
         if (fromPath.isBlank()) return badRequest("source path required")
         val from = File(booksDir, fromPath)
-        val toDir = File(booksDir, params["to"]?.firstOrNull().orEmpty().trim('/', '\\'))
+        val toFolder = cleanTopLevelFolder(params["to"]?.firstOrNull().orEmpty())
+            ?: return badRequest("folder must be a single folder name")
+        val toDir = if (toFolder.isEmpty()) booksDir else File(booksDir, toFolder)
         if (!from.isInsideBooksDir() ||
             !toDir.isInsideBooksDir() ||
             !from.exists() ||
@@ -456,6 +460,12 @@ class UploadServer(
 
     private fun intParam(params: Map<String, List<String>>, name: String, fallback: Int): Int =
         params[name]?.firstOrNull()?.toIntOrNull() ?: fallback
+
+    private fun cleanTopLevelFolder(raw: String): String? {
+        val folder = raw.trim().trim('/', '\\')
+        if (folder.contains('/') || folder.contains('\\')) return null
+        return folder
+    }
 
     private fun argbCss(argb: Int): String = "#%06X".format(argb and 0x00FFFFFF)
 
