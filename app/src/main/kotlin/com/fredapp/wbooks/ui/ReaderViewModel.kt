@@ -271,6 +271,7 @@ class ReaderViewModel(
         position: BookPosition,
         msPerBlock: Double,
     ): ReadingEta? {
+        if (doc.chapters.isEmpty()) return null
         val ci = position.chapterIndex.coerceIn(0, doc.chapters.lastIndex)
         val bi = position.blockIndex.coerceAtLeast(0)
         val chapter = doc.chapters.getOrNull(ci) ?: return null
