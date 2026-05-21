@@ -44,12 +44,18 @@ fun ReaderPager(
     val scope = rememberCoroutineScope()
     var toolsSearchActive by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val goToReader = {
+        toolsSearchActive = false
+        scope.launch { pagerState.animateScrollToPage(1) }
+        Unit
+    }
 
     LaunchedEffect(pagerState.isScrollInProgress) {
         if (pagerState.isScrollInProgress) focusManager.clearFocus(force = true)
     }
 
-    BackHandler(onBack = onExit)
+    BackHandler(enabled = settledPage == 0 || settledPage == 2, onBack = goToReader)
+    BackHandler(enabled = readerActive, onBack = onExit)
     HorizontalPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),
@@ -61,13 +67,13 @@ fun ReaderPager(
                 vm = vm,
                 isActive = toolsActive,
                 onSearchActiveChanged = { toolsSearchActive = it },
-                onReaderPageRequested = { scope.launch { pagerState.animateScrollToPage(1) } },
+                onReaderPageRequested = goToReader,
             )
             1 -> ReaderScreen(state = state, vm = vm, isActive = readerActive, onExit = onExit)
             2 -> SettingsScreen(
                 vm = vm,
                 isActive = settingsActive,
-                onBack = { scope.launch { pagerState.animateScrollToPage(1) } },
+                onBack = goToReader,
             )
         }
     }
