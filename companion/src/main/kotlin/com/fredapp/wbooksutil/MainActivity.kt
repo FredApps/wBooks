@@ -134,7 +134,14 @@ private fun CompanionScreen(
                         Icon(Icons.Default.DateRange, contentDescription = "Reading stats")
                     }
                     IconButton(onClick = onBrowseGutenberg) {
-                        Icon(Icons.Default.Search, contentDescription = "Project Gutenberg")
+                        // PG monogram (drawable/ic_gutenberg_pg) instead of a generic
+                        // search glyph — the Project Gutenberg button now reads as the
+                        // PG brand mark, distinct from the in-library title search.
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_gutenberg_pg),
+                            contentDescription = "Project Gutenberg",
+                            tint = androidx.compose.ui.graphics.Color.Unspecified,
+                        )
                     }
                     IconButton(onClick = { showNewFolderDialog = true }) {
                         Icon(Icons.Default.CreateNewFolder, contentDescription = stringResource(R.string.new_folder))
