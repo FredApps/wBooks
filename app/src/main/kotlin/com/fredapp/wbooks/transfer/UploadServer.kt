@@ -78,7 +78,13 @@ class UploadServer(
 
     private fun renderIndex(session: IHTTPSession, flash: String): Response {
         if (!hasValidPin(session)) {
-            return renderPinGate(flash)
+            // Tick the rate-limit counter so probing the index page is not a free oracle.
+            // Don't surface the 429 here — just show the pin gate; throttling kicks in
+            // for mutating endpoints. Also clear any stale cookie from a prior server run.
+            if (pinFromRequest(session).isNotEmpty()) recordFailedAttempt()
+            val resp = renderPinGate(flash)
+            resp.addHeader("Set-Cookie", "$WEB_PIN_COOKIE=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0")
+            return resp
         }
         val allEntries = booksDir.walkTopDown().filter { it != booksDir }.toList()
         val topFolders = allEntries
@@ -721,6 +727,7 @@ class UploadServer(
             if (BookFormat.fromExtension(ext) == null) continue
             val safeName = originalName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
             val dest = uniqueFile(targetDir, safeName)
+            if (!dest.isInsideBooksDir() || dest.canonicalFile == booksDir.canonicalFile) continue
             File(tempPath).copyTo(dest, overwrite = false)
             written++
         }
@@ -851,7 +858,7 @@ class UploadServer(
         if (session.method != Method.GET) return methodNotAllowed()
         gatePin(session)?.let { return it }
         val resp = newFixedLengthResponse(Response.Status.OK, "text/plain", "OK")
-        resp.addHeader("Set-Cookie", "$WEB_PIN_COOKIE=${URLEncoder.encode(pin, "UTF-8")}; Path=/; SameSite=Strict")
+        resp.addHeader("Set-Cookie", "$WEB_PIN_COOKIE=${URLEncoder.encode(pin, "UTF-8")}; Path=/; HttpOnly; SameSite=Strict")
         return resp
     }
 
@@ -1040,12 +1047,15 @@ class UploadServer(
     private fun gatePin(session: IHTTPSession): Response? {
         val supplied = pinFromRequest(session).toByteArray(Charsets.UTF_8)
         if (MessageDigest.isEqual(supplied, pinBytes)) return null
-        return if (recordFailedAttempt()) {
+        val resp = if (recordFailedAttempt()) {
             newFixedLengthResponse(TOO_MANY_REQUESTS, "text/plain", "Too many bad PIN attempts; restart the server from the watch")
                 .also { it.addHeader("Retry-After", (PIN_WINDOW_MS / 1000).toString()) }
         } else {
             forbidden("bad PIN")
         }
+        // Clear any stale cookie so a browser doesn't keep hammering with a dead PIN.
+        resp.addHeader("Set-Cookie", "$WEB_PIN_COOKIE=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0")
+        return resp
     }
 
     private fun hasValidPin(session: IHTTPSession): Boolean =
@@ -1095,6 +1105,9 @@ class UploadServer(
             while (failedAttempts.isNotEmpty() && now - failedAttempts.first() > PIN_WINDOW_MS) {
                 failedAttempts.removeFirst()
             }
+            // Hard cap so a throttled attacker can't grow the deque indefinitely
+            // between window evictions.
+            if (failedAttempts.size >= MAX_PIN_FAILURES * 4) return true
             failedAttempts.addLast(now)
             return failedAttempts.size > MAX_PIN_FAILURES
         }

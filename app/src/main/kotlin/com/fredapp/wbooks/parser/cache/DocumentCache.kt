@@ -8,6 +8,8 @@ import java.io.DataOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
 /**
@@ -60,9 +62,13 @@ class DocumentCache(private val dir: File) {
                 dos.writeLong(key.mtimeMs)
                 DocumentCodec.write(dos, doc)
             }
-            // Atomic-ish rename so a half-written cache file can never be read.
-            if (file.exists()) file.delete()
-            tmp.renameTo(file)
+            // Atomic replace so a half-written cache file can never be read, and a
+            // crash mid-store never leaves the entry missing if the prior one was good.
+            try {
+                Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
         } catch (e: Exception) {
             tmp.delete()
             throw e
