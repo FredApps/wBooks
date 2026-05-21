@@ -16,6 +16,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -31,10 +32,14 @@ import androidx.wear.compose.material.CompactChip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import com.fredapp.wbooks.data.position.BookPosition
 import com.fredapp.wbooks.data.settings.ReaderSettings
 import com.fredapp.wbooks.parser.model.Block
 import com.fredapp.wbooks.parser.model.Document
+import com.fredapp.wbooks.ui.ReaderViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 
 /**
  * RSVP â€” one word at a time, focal letter coloured and pinned to screen centre.
@@ -51,7 +56,9 @@ import kotlinx.coroutines.delay
 @Composable
 fun SpeedReadMode(
     document: Document,
+    initialPosition: BookPosition,
     settings: ReaderSettings,
+    vm: ReaderViewModel,
     isActive: Boolean,
     onWpmChange: (Int) -> Unit,
 ) {
@@ -63,9 +70,20 @@ fun SpeedReadMode(
         return
     }
 
-    var index by remember(document) { mutableIntStateOf(0) }
+    var index by remember(document) { mutableIntStateOf(wordIndexFor(words, initialPosition)) }
     var playing by remember { mutableStateOf(true) }
     val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(document) {
+        vm.jumps.collect { target -> index = wordIndexFor(words, target) }
+    }
+
+    LaunchedEffect(document, words) {
+        snapshotFlow { words[index].position }
+            .drop(1)
+            .distinctUntilChanged()
+            .collect { position -> vm.reportPosition(position) }
+    }
 
     LaunchedEffect(playing, settings.speedreadWpm) {
         if (!playing) return@LaunchedEffect
@@ -107,7 +125,7 @@ fun SpeedReadMode(
                 style = MaterialTheme.typography.caption2,
             )
             FocalWord(
-                word = words[index],
+                word = words[index].text,
                 fontSizeSp = settings.textSizeSp + 10,
                 baseColor = Color(settings.textColorArgb),
                 focalColor = FOCAL_COLOR,
@@ -141,6 +159,8 @@ fun SpeedReadMode(
 }
 
 private val FOCAL_COLOR = Color(0xFFF06B5A)
+
+private data class WordItem(val text: String, val position: BookPosition)
 
 @Composable
 private fun FocalWord(
@@ -204,20 +224,29 @@ internal fun focalIndex(word: String): Int = when (word.length) {
     else -> 4
 }.coerceAtMost(word.lastIndex.coerceAtLeast(0))
 
-private fun tokenize(doc: Document): List<String> {
+private fun tokenize(doc: Document): List<WordItem> {
     val ws = Regex("\\s+")
-    val out = mutableListOf<String>()
-    for (chapter in doc.chapters) {
-        for (block in chapter.blocks) {
+    val out = mutableListOf<WordItem>()
+    for ((ci, chapter) in doc.chapters.withIndex()) {
+        for ((bi, block) in chapter.blocks.withIndex()) {
             val text = when (block) {
                 is Block.Heading -> block.text
                 is Block.Paragraph -> block.runs.joinToString("") { it.text }
                 Block.Divider, is Block.Code -> ""
             }
             if (text.isNotBlank()) {
-                out.addAll(text.trim().split(ws).filter { it.isNotEmpty() })
+                val position = BookPosition(ci, bi)
+                out.addAll(text.trim().split(ws).filter { it.isNotEmpty() }.map { WordItem(it, position) })
             }
         }
     }
     return out
+}
+
+private fun wordIndexFor(words: List<WordItem>, target: BookPosition): Int {
+    val i = words.indexOfFirst { word ->
+        word.position.chapterIndex > target.chapterIndex ||
+            (word.position.chapterIndex == target.chapterIndex && word.position.blockIndex >= target.blockIndex)
+    }
+    return if (i >= 0) i else 0
 }
