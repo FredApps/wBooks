@@ -32,7 +32,7 @@ Using a watch with a bezel is recommended but not required for smooth scrolling.
 
 ```
 app/                             Watch app (Wear OS)
-└── src/main/kotlin/com/wbooks/
+`-- src/main/kotlin/com/fredapp/wbooks/
     ├── MainActivity.kt               Compose host; auto-resumes last book
     ├── WBooksApp.kt                  Application class; copies seed books on first run
     ├── ui/
@@ -65,26 +65,21 @@ app/                             Watch app (Wear OS)
     │   ├── EpubParser.kt             ZIP → container → OPF spine → HtmlParser
     │   ├── Fb2Parser.kt              Jsoup XML over FictionBook
     │   ├── highlight/                Regex syntax colouring for <pre><code>
-    │   └── cache/                    DocumentCache: ObjectOutputStream w/ fingerprint
+    │   └── cache/                    Binary DocumentCache with file fingerprint
     ├── transfer/
     │   ├── UploadServer.kt           NanoHTTPD endpoints, PIN-gated
     │   ├── UploadServerService.kt    Foreground service holding the server
     │   └── TransferController.kt     App-scope state (running / url / pin)
     └── tile/
-        ├── ResumeTileService.kt      "Resume reading" Wear tile
-        ├── ReadingTimeTileService.kt Today's reading minutes Wear tile
-        ├── ReadingTimeComplicationService.kt Watch face complication
-        └── stats/                    Daily/30-day reading stats tracking
+        └── BooksTileService.kt       Combined library/resume + reading-time Wear tile
 
 companion/                       Phone app (Android 7.0+, optional)
-└── src/main/kotlin/com/wbooks/companion/
+`-- src/main/kotlin/com/fredapp/wbooksutil/
     ├── MainActivity.kt               Book list + Gutenberg browser + stats dashboard
-    ├── transfer/                     Wear Data Layer (MessageClient / ChannelClient)
-    ├── stats/                        Reading statistics repository
-    └── ui/
-        ├── BookListScreen.kt         Mirror of watch library
-        ├── GutenbergBrowser.kt       OPDS search + download
-        └── StatsScreen.kt            Daily + 30-day trends
+    ├── WatchRepository.kt            Wear Data Layer (MessageClient / ChannelClient)
+    ├── GutenbergRepository.kt        OPDS search + download
+    ├── SettingsScreen.kt             Watch-authoritative settings UI
+    └── StatsScreen.kt                Reading statistics dashboard
 ```
 
 ## Design decisions
@@ -167,26 +162,19 @@ A small Material 3 phone app (`:companion`, minSdk 24, branded as "wBooks Utilit
 
 Both APKs are required only to use the companion transport. The watch app alone is fully functional via the LAN server.
 
-### Resume tile
+### Books tile + complication
 
-`ResumeTileService` shows the title of the last-opened book and a Resume chip; tapping launches `MainActivity`, which auto-resumes via the same path that runs on cold launch. No special intent extras — the "last opened" state is shared via DataStore.
+`BooksTileService` combines reading time, the last-opened book title, and a Resume chip. The chip opens the reader, while tapping the tile background opens the library by passing `MainActivity.EXTRA_SHOW_LIBRARY`.
 
-### Reading-time tile + complication
-
-`ReadingTimeTileService` is a sibling tile that surfaces today's accumulated reading minutes alongside a Resume chip. `ReadingTimeComplicationService` is a watch-face complication that supports `SHORT_TEXT` ("Xm") and `RANGED_VALUE` (progress toward a 30-minute daily goal). Both read from `ReadingStatsRepository`, which accumulates daily totals from the reader's `DisposableEffect` start/end pair.
+`ReadingTimeComplicationService` is a watch-face complication that supports `SHORT_TEXT` ("Xm") and `RANGED_VALUE` (progress toward a 30-minute daily goal). It reads from `ReadingStatsRepository`, which accumulates daily totals from the reader's `DisposableEffect` start/end pair.
 
 ### Time-to-finish estimate
 
 `ReadingPaceRepository` keeps a per-book exponential moving average of ms-per-block-advance — every time the renderer reports a new position we feed it the inter-position interval (outliers above 60 s / below 0.5 s are dropped as idle / double-tap glitches). The Tools page shows `~12m in chapter / ~2h 40m in book` derived from remaining-block counts.
 
-### Developer tools (Devtools tile)
+### Developer tools
 
-A Wear OS tile for developers includes shortcuts to:
-- Android Developer Options
-- Bluetooth settings
-- Wi-Fi settings
-
-Accessible via the Wear tile picker. Intended for testing and debugging on development watches.
+Developer watch shortcuts live outside this repo so wBooks remains focused on the reader and companion apps.
 
 ### Seed library
 

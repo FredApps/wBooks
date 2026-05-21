@@ -1,7 +1,7 @@
 package com.fredapp.wbooksutil
 
 /**
- * Mirror of `app/src/main/kotlin/com/wbooks/transfer/WearProtocol.kt`. There's no
+ * Mirror of `app/src/main/kotlin/com/fredapp/wbooks/transfer/WearProtocol.kt`. There's no
  * shared module; the constants are few enough that mirroring is cheaper than
  * extracting one. When adding or renaming a path, update both files.
  */

@@ -6,7 +6,7 @@ package com.fredapp.wbooks.transfer
  * with JSON payloads; upload goes over [com.google.android.gms.wearable.ChannelClient]
  * with the filename URL-encoded into the channel path.
  *
- * **Mirrored in `companion/src/main/kotlin/com/wbooks/companion/WearProtocol.kt`** â€"
+ * **Mirrored in `companion/src/main/kotlin/com/fredapp/wbooksutil/WearProtocol.kt`** -
  * there's no shared module; the constants are few enough that mirroring them is
  * cheaper than introducing one. When adding or renaming a path, update both files.
  */
