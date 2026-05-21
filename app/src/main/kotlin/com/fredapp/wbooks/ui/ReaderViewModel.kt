@@ -386,12 +386,16 @@ class ReaderViewModel(
     }
 
     // ---- Bookmarks ----
+    // Bookmarks are stored in three separate buckets — one per reading mode —
+    // so switching modes shows a structurally different list, not a filter of
+    // a shared list. The flow re-subscribes when either the open book or the
+    // current mode changes.
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val bookmarks: StateFlow<List<Bookmark>> = _document
         .flatMapLatest { state ->
-            when (state) {
-                is DocumentState.Loaded -> bookmarksRepo.bookmarksFlow(state.book.id)
-                else -> emptyFlow()
+            if (state !is DocumentState.Loaded) emptyFlow()
+            else settings.flatMapLatest { s ->
+                bookmarksRepo.bookmarksFlow(state.book.id, s.mode)
             }
         }
         .stateIn(
