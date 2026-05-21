@@ -25,21 +25,6 @@ class BookmarksRepository(context: Context) {
 
     private val store: DataStore<Preferences> = context.applicationContext.bookmarksDataStore
 
-    /** One-shot: drop any pre-mode-bucket bookmark keys still in the store. */
-    suspend fun clearLegacyBookmarks() {
-        store.edit { prefs ->
-            val toRemove = prefs.asMap().keys.filter {
-                val n = it.name
-                if (!n.startsWith("bm:")) return@filter false
-                // Per-mode keys have a known ReadingMode in the second segment.
-                val secondSegment = n.removePrefix("bm:").substringBefore(':', missingDelimiterValue = "")
-                val isBucket = runCatching { ReadingMode.valueOf(secondSegment) }.isSuccess
-                !isBucket
-            }
-            for (k in toRemove) prefs.remove(k)
-        }
-    }
-
     fun bookmarksFlow(bookId: String, mode: ReadingMode): Flow<List<Bookmark>> {
         val bucket = bucketKey(bookId, mode)
         return store.data.map { prefs -> decodeAll(prefs[bucket].orEmpty(), mode) }
