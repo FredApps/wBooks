@@ -41,6 +41,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -595,17 +596,23 @@ private fun FolderIcon() {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BookChip(book: Book, onClick: () -> Unit, onLongPress: () -> Unit) {
-    // combinedClickable wins over the prior pointerInput approach: it integrates
-    // with Compose's gesture system so vertical scrolls reach the parent column
-    // and horizontal swipes reach the pager, instead of being swallowed and
-    // re-emitted as a long-press.
-    Chip(
-        label = { Text(book.title) },
-        secondaryLabel = { Text(book.format.name) },
-        onClick = onClick,
-        colors = ChipDefaults.secondaryChipColors(),
+    // Use a single combinedClickable owner for both tap and long-press so the
+    // move-menu gesture is not preempted by Chip's internal click handler.
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongPress),
-    )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongPress,
+                role = Role.Button,
+            ),
+    ) {
+        Chip(
+            label = { Text(book.title) },
+            secondaryLabel = { Text(book.format.name) },
+            onClick = {},
+            colors = ChipDefaults.secondaryChipColors(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
