@@ -32,7 +32,7 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
             is WatchRepository.Result.Ok ->
                 _state.value = _state.value.copy(stats = result.value, noWatch = false, loading = false)
             is WatchRepository.Result.NoWatch ->
-                _state.value = _state.value.copy(noWatch = true, loading = false)
+                _state.value = _state.value.copy(stats = null, noWatch = true, loading = false)
             is WatchRepository.Result.Error ->
                 _state.value = _state.value.copy(errorMessage = result.message, loading = false)
         }
