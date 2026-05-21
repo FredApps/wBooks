@@ -63,6 +63,7 @@ class UploadServer(
             uri == "/move" -> handleMove(session)
             uri == "/rename" -> handleRename(session)
             uri == "/settings" -> handleSettings(session)
+            uri == "/pin-check" -> handlePinCheck(session)
             // PDF.js shipped in the APK (assets/pdfjs/). Static, unauthenticated:
             // it's a copy of Mozilla's library, not user data.
             uri.startsWith("/pdfjs/") && session.method == Method.GET -> servePdfJsAsset(uri)
@@ -84,8 +85,25 @@ class UploadServer(
             .filter { it.isFile && it.parentFile?.canonicalPath == booksDir.canonicalPath && BookFormat.fromExtension(it.extension) != null }
             .sortedBy { it.name.lowercase() }
 
-        val rows = StringBuilder()
+        val library = StringBuilder()
         var fIdx = 0
+
+        val rootId = "root"
+        library.append("""<section class="library-section root-section drop-zone" data-folder="">""")
+        library.append("""<button type="button" class="folder-head" onclick="toggleFolder('$rootId')">""")
+        library.append("""<span class="folder-mark">root</span><span class="folder-title">Root</span><span class="count">${rootBooks.size} book${if (rootBooks.size == 1) "" else "s"}</span></button>""")
+        library.append("""<div id="$rootId" class="book-list open">""")
+        if (rootBooks.isEmpty()) {
+            library.append("""<p class="empty-state">Drop files here to upload them at the top level.</p>""")
+        } else {
+            for (book in rootBooks) {
+                val rel = book.relativeTo(booksDir).invariantSeparatorsPath
+                val relEsc = htmlEscape(rel)
+                val size = htmlEscape(humanBytes(book.length()))
+                library.append(bookCard(book, rel, relEsc, size, topFolders, ""))
+            }
+        }
+        library.append("</div></section>")
 
         for (dir in topFolders) {
             val folderRel = dir.relativeTo(booksDir).invariantSeparatorsPath
@@ -94,40 +112,30 @@ class UploadServer(
                 .filter { it.isFile && it.parentFile?.canonicalPath == dir.canonicalPath && BookFormat.fromExtension(it.extension) != null }
                 .sortedBy { it.name.lowercase() }
             val tbId = "f$fIdx"; fIdx++
-            rows.append("""<tr class="folder-row drop-zone" data-folder="$folderRelEsc" onclick="toggleFolder('$tbId')">""")
-            rows.append("""<td><span id="ch_$tbId" class="chevron">&#x25B6;</span> <span class="folder-icon">folder</span> $folderRelEsc/ <span class="cnt">(${folderBooks.size})</span><div class="drop-hint">Drop files here to upload to this folder</div></td>""")
-            rows.append("""<td>folder</td><td>""")
-            rows.append("""<button type="button" class="rename-btn" onclick="event.stopPropagation();renameFolder('$folderRelEsc')">rename</button> """)
-            rows.append("""<form method="post" action="/delete" class="inline" data-confirm="Delete folder $folderRelEsc and all its books?" onsubmit="event.stopPropagation();return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$folderRelEsc"><button>delete</button></form>""")
-            rows.append("""</td></tr>""")
-            rows.append("""<tbody id="$tbId" style="display:none">""")
-            for (book in folderBooks) {
-                val rel = book.relativeTo(booksDir).invariantSeparatorsPath
-                val relEsc = htmlEscape(rel)
-                val size = htmlEscape(humanBytes(book.length()))
-                rows.append(bookRow(rel, relEsc, size, topFolders, folderRel))
+            library.append("""<section class="library-section drop-zone" data-folder="$folderRelEsc">""")
+            library.append("""<div class="folder-shell">""")
+            library.append("""<button type="button" class="folder-head" onclick="toggleFolder('$tbId')">""")
+            library.append("""<span class="folder-mark">folder</span><span class="folder-title">$folderRelEsc</span><span class="count">${folderBooks.size} book${if (folderBooks.size == 1) "" else "s"}</span></button>""")
+            library.append("""<div class="folder-actions">""")
+            library.append("""<button type="button" onclick="renameFolder(${jsString(folderRel)})">Rename</button>""")
+            library.append("""<form method="post" action="/delete" class="inline" data-confirm="Delete folder $folderRelEsc and all its books?" onsubmit="return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$folderRelEsc"><button class="danger">Delete</button></form>""")
+            library.append("""</div></div>""")
+            library.append("""<div id="$tbId" class="book-list">""")
+            if (folderBooks.isEmpty()) {
+                library.append("""<p class="empty-state">Drop files here to upload to this folder.</p>""")
+            } else {
+                for (book in folderBooks) {
+                    val rel = book.relativeTo(booksDir).invariantSeparatorsPath
+                    val relEsc = htmlEscape(rel)
+                    val size = htmlEscape(humanBytes(book.length()))
+                    library.append(bookCard(book, rel, relEsc, size, topFolders, folderRel))
+                }
             }
-            rows.append("</tbody>")
+            library.append("</div></section>")
         }
-
-        val rootId = "root"
-        rows.append("""<tr class="folder-row root-row drop-zone" data-folder="" onclick="toggleFolder('$rootId')">""")
-        rows.append("""<td><span id="ch_$rootId" class="chevron open">&#x25B6;</span> <span class="folder-icon">folder</span> Root <span class="cnt">(${rootBooks.size})</span><div class="drop-hint">Drop files here to upload to Root</div></td>""")
-        rows.append("""<td>root</td><td></td></tr>""")
-        rows.append("""<tbody id="$rootId">""")
-        for (book in rootBooks) {
-            val rel = book.relativeTo(booksDir).invariantSeparatorsPath
-            val relEsc = htmlEscape(rel)
-            val size = htmlEscape(humanBytes(book.length()))
-            rows.append(bookRow(rel, relEsc, size, topFolders, ""))
-        }
-        if (rootBooks.isEmpty()) {
-            rows.append("""<tr><td class="empty-root" colspan="3">Root is empty. Drop files here to upload them at the top level.</td></tr>""")
-        }
-        rows.append("</tbody>")
 
         val flashHtml = if (flash.isNotEmpty())
-            """<p class="flash">${htmlEscape(flash)}</p>""" else ""
+            """<p class="flash" role="status">${htmlEscape(flash)}</p>""" else ""
         val webSettings = runBlocking { settingsRepository.snapshot() }
         val settingsHtml = renderSettingsPanel(webSettings)
         val bodyStyle = "font-family:${webFontCss(webSettings.font)},system-ui,sans-serif;color:${argbCss(webSettings.textColorArgb)};${webThemeCss(webSettings)}"
@@ -135,58 +143,76 @@ class UploadServer(
             <!doctype html>
             <html><head><meta charset="utf-8"><title>wBooks transfer</title>
             <style>
-              body{font-family:system-ui,sans-serif;max-width:760px;margin:24px auto;padding:0 12px;}
-              table{width:100%;border-collapse:collapse;margin-top:12px}
-              td{padding:6px 4px;border-bottom:1px solid #eee;vertical-align:middle}
+              :root{--bg:#f3f0e8;--panel:#fffdf8;--panel-2:#f7f2e6;--ink:#211d18;--muted:#756b5e;--line:#ded2bf;--accent:#b35318;--accent-2:#1f6f69;--danger:#a83232;--shadow:0 14px 36px rgba(52,37,20,0.12)}
+              *{box-sizing:border-box}
+              body{margin:0;min-height:100vh;background:radial-gradient(circle at top left,#fff8e8 0,#f3f0e8 42%,#ebe7de 100%);font-family:system-ui,sans-serif;color:var(--ink)}
+              .page{max-width:1120px;margin:0 auto;padding:28px 18px 44px}
+              .hero{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;align-items:stretch;margin-bottom:18px}
+              .brand,.pin-card,.upload-card,.library-section,.settings{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}
+              .brand{padding:22px 24px}
+              .brand h1{margin:0;font-size:2.1rem;line-height:1.05}
+              .brand p{margin:10px 0 0;color:var(--muted);max-width:58ch}
+              .pin-card{padding:18px;display:flex;flex-direction:column;gap:10px}
+              .pin-card label,.upload-card label,.setting label{font-weight:700}
+              .pin-row{display:flex;gap:8px}
+              input[type=text],input[type=password],input[type=number],select{width:100%;border:1px solid var(--line);border-radius:6px;background:#fff;padding:10px 11px;color:var(--ink)}
+              button{border:1px solid var(--line);border-radius:6px;background:#fffaf1;color:var(--ink);padding:9px 12px;font-weight:700;cursor:pointer}
+              button:hover{border-color:var(--accent);color:var(--accent)}
+              button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+              button.danger{color:var(--danger)}
+              .note,.pdf-note,.drop-copy,.empty-state,.meta,.setting small{color:var(--muted);font-size:0.9rem}
+              .flash{background:#e8f5e9;border:1px solid #9fcca2;border-radius:8px;padding:10px 12px;margin:0 0 16px}
+              .workspace{display:grid;grid-template-columns:330px 1fr;gap:18px;align-items:start}
+              .upload-card{padding:18px;position:sticky;top:16px}
+              .upload-card h2,.library h2,.settings h2{margin:0 0 12px}
+              .upload-form{display:grid;gap:12px}
+              .file-picker{border:1px dashed var(--accent);border-radius:8px;background:#fff8ed;padding:14px}
+              .file-picker input{width:100%}
+              .library{display:grid;gap:12px}
+              .library-top{display:flex;justify-content:space-between;gap:12px;align-items:end}
+              .library-top p{margin:0}
+              .library-section{overflow:hidden}
+              .library-section.drag-over,.file-picker.drag-over{outline:3px solid rgba(179,83,24,.24);background:#fff4e4}
+              .folder-shell,.folder-head{display:flex;align-items:center;gap:10px}
+              .folder-shell{justify-content:space-between;background:var(--panel-2);border-bottom:1px solid var(--line);padding:12px}
+              .root-section>.folder-head{width:100%;background:var(--panel-2);border-bottom:1px solid var(--line);padding:12px}
+              .folder-head{border:0;background:transparent;flex:1;text-align:left;padding:0}
+              .folder-mark{position:relative;display:inline-flex;flex:0 0 auto;width:34px;height:24px;border-radius:3px 5px 5px 5px;background:linear-gradient(160deg,#f3c85a,#ce8c22);color:transparent;font-size:0;box-shadow:0 3px 8px rgba(86,48,8,.24)}
+              .folder-mark:before{content:"";position:absolute;left:3px;top:-5px;width:16px;height:7px;border-radius:4px 4px 0 0;background:#f5d476}
+              .folder-title{font-size:1.05rem;font-weight:800}
+              .count{margin-left:auto;color:var(--muted);font-weight:600}
+              .folder-actions,.book-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+              .book-list{display:none;padding:10px;gap:8px}
+              .book-list.open{display:grid}
+              .book-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;background:#fff;padding:12px}
+              .book-title{display:block;font-weight:800;overflow-wrap:anywhere}
+              .book-path{display:block;color:var(--muted);font-size:.86rem;overflow-wrap:anywhere}
               form.inline{display:inline}
-              form.move{display:inline-flex;gap:4px;align-items:center;margin-right:6px}
-              .row{margin:12px 0}
-              input[type=text],input[type=password],input[type=number],select{padding:6px}
-              button{padding:6px 12px}
-              .note{color:#666;font-size:0.85em}
-              .flash{background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:8px 12px;margin:8px 0;}
-              /* Neutral grey folder tabs — kept in sync with FolderGrey in
-                 LibraryScreen.kt (watch) and MainActivity.kt (utility). The
-                 prior saturated yellow was too bright against the dark UI. */
-              .folder-row{cursor:pointer;background:#e6e6e6;font-weight:650;box-shadow:inset 0 0 0 1px #bdbdbd;}
-              .root-row{background:#d8d8d8;}
-              .folder-row:hover,.folder-row.drag-over{background:#cfcfcf;}
-              .folder-icon{display:inline-flex;align-items:center;justify-content:center;background:#888;color:#fff;border-radius:5px;padding:2px 7px;margin-right:4px;font-size:0.72em;text-transform:uppercase;box-shadow:0 1px 3px rgba(0,0,0,0.22);}
-              .drop-hint{font-size:0.78em;color:#555;font-weight:500;margin:2px 0 0 26px;}
-              .chevron{display:inline-block;transition:transform 0.15s;}
-              .chevron.open{transform:rotate(90deg);}
-              .cnt{font-weight:normal;color:#666;font-size:0.9em;}
-              .book-indent{padding-left:28px;}
-              .empty-root{color:#777;font-style:italic;padding-left:28px;}
-              .settings{margin-top:24px;padding:14px;border:1px solid #ddd;border-radius:10px;background:#fafafa}
+              form.move{display:flex;gap:8px;align-items:center}
+              .settings{margin-top:18px;padding:18px}
               .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:10px}
-              .setting label{display:block;font-weight:650;margin-bottom:4px}
-              .setting small{display:block;color:#666;margin-top:3px}
+              .setting small{display:block;margin-top:4px}
               .checkbox-row{display:flex;align-items:center;gap:8px;margin-top:22px}
-              .swatches{display:flex;gap:6px;flex-wrap:wrap}
-              .swatch{width:30px;height:30px;border-radius:50%;border:2px solid #777;cursor:pointer}
-              .swatch.selected{outline:3px solid #111}
+              .swatches{display:flex;gap:8px;flex-wrap:wrap}
+              .swatch{width:32px;height:32px;border-radius:50%;border:2px solid var(--line);cursor:pointer}
+              .swatch.selected{outline:3px solid var(--accent)}
               .modal{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:none;align-items:center;justify-content:center;z-index:100}
               .modal.show{display:flex}
-              .modal-card{background:#fff;color:#111;padding:18px 20px;border-radius:8px;max-width:480px;width:calc(100% - 24px);box-shadow:0 10px 36px rgba(0,0,0,0.35)}
+              .modal-card{background:var(--panel);color:var(--ink);padding:20px;border-radius:8px;max-width:520px;width:calc(100% - 24px);box-shadow:0 10px 36px rgba(0,0,0,0.35)}
               .modal-card h3{margin-top:0}
               .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
-              .pdf-note{color:#666;font-size:0.85em;margin:6px 0 0}
               @media (prefers-color-scheme: dark) {
-                body{background:#111;color:#eee}
-                td{border-bottom-color:#333}
-                .folder-row{background:#3a3a3a;box-shadow:inset 0 0 0 1px #5a5a5a;}
-                .root-row{background:#454545;}
-                .folder-row:hover,.folder-row.drag-over{background:#555;}
-                .folder-icon{background:#9a9a9a;color:#111;box-shadow:0 1px 4px rgba(0,0,0,0.55);}
-                .drop-hint,.cnt,.note,.empty-root{color:#b8b8b8}
-                input,select,button{background:#222;color:#eee;border:1px solid #555}
+                :root{--bg:#111;--panel:#191919;--panel-2:#232323;--ink:#eee;--muted:#b8b8b8;--line:#3b3b3b;--accent:#df7f34;--accent-2:#6cc1ba;--shadow:0 14px 36px rgba(0,0,0,.35)}
+                body{background:linear-gradient(135deg,#101010,#1c1a17 55%,#111)}
+                input,select,button,.book-card{background:#222;color:#eee;border-color:#555}
+                .file-picker{background:#211b15}
                 .flash{background:#18351d;border-color:#426b45}
-                .settings{background:#181818;border-color:#3a3a3a}
-                .setting small{color:#b8b8b8}
-                .swatch.selected{outline-color:#fff}
-                .modal-card{background:#1c1c1c;color:#eee}
-                .pdf-note{color:#b8b8b8}
+              }
+              @media (max-width: 760px) {
+                .hero,.workspace{grid-template-columns:1fr}
+                .upload-card{position:static}
+                .library-top{display:block}
+                .book-card{grid-template-columns:1fr}
               }
             </style>
             <!--
@@ -200,14 +226,56 @@ class UploadServer(
               function toggleFolder(id) {
                 var tb = document.getElementById(id);
                 var ch = document.getElementById('ch_' + id);
-                var open = tb.style.display === '';
-                tb.style.display = open ? 'none' : '';
-                if (ch) { if (open) ch.classList.remove('open'); else ch.classList.add('open'); }
+                var open = tb.classList.contains('open');
+                tb.classList.toggle('open', !open);
+              }
+              function pinValue() { return (document.getElementById('pin').value || '').trim(); }
+              function storePin(pin) {
+                document.getElementById('pin').value = pin;
+                sessionStorage.setItem('wbooksPin', pin);
+              }
+              var pendingPinResolve = null;
+              function showPinModal() {
+                return new Promise(function(resolve) {
+                  pendingPinResolve = resolve;
+                  var modal = document.getElementById('pin-modal');
+                  var input = document.getElementById('pin-modal-input');
+                  input.value = pinValue();
+                  document.getElementById('pin-modal-error').textContent = '';
+                  modal.classList.add('show');
+                  setTimeout(function(){ input.focus(); input.select(); }, 0);
+                });
+              }
+              function closePinModal(value) {
+                var modal = document.getElementById('pin-modal');
+                modal.classList.remove('show');
+                if (pendingPinResolve) {
+                  var resolve = pendingPinResolve;
+                  pendingPinResolve = null;
+                  resolve(value);
+                }
+              }
+              async function ensurePin() {
+                var pin = pinValue();
+                if (pin) return pin;
+                pin = await showPinModal();
+                if (!pin) return null;
+                storePin(pin);
+                return pin;
               }
               function attachPin(form) {
-                var p = document.getElementById('pin').value;
-                form.action = form.getAttribute('action').split('?')[0] + '?pin=' + encodeURIComponent(p);
-                return true;
+                var p = pinValue();
+                if (p) {
+                  form.action = form.getAttribute('action').split('?')[0] + '?pin=' + encodeURIComponent(p);
+                  return true;
+                }
+                showPinModal().then(function(pin) {
+                  if (!pin) return;
+                  storePin(pin);
+                  form.action = form.getAttribute('action').split('?')[0] + '?pin=' + encodeURIComponent(pin);
+                  form.submit();
+                });
+                return false;
               }
               function confirmAndAttachPin(form) {
                 if (!confirm(form.dataset.confirm)) return false;
@@ -222,10 +290,12 @@ class UploadServer(
               // Reset on reload, which is the right scope for "this session".
               var pdfWarningAcknowledged = false;
               async function uploadFiles(files, folder) {
-                var pin = document.getElementById('pin').value;
+                var pin = await ensurePin();
+                if (pin == null) return;
                 if (!files.length) return;
                 var arr = Array.prototype.slice.call(files);
                 var hasPdf = arr.some(function(f){return /\.pdf$/i.test(f.name);});
+                if (!(await checkPin(pin))) return;
                 if (hasPdf && !pdfWarningAcknowledged) {
                   var ok = await confirmPdfWarning();
                   if (!ok) return;
@@ -254,9 +324,28 @@ class UploadServer(
                 }
                 try {
                   var resp = await fetch('/upload?pin=' + encodeURIComponent(pin), {method:'POST', body: fd});
-                  if (!resp.ok) { alert('Upload failed: ' + resp.status); return; }
+                  if (!resp.ok) {
+                    alert(resp.status === 403 ? 'Upload failed: wrong PIN.' : 'Upload failed: ' + resp.status);
+                    return;
+                  }
                 } catch(err) { alert('Upload error: ' + err); return; }
                 location.href = '/';
+              }
+              async function checkPin(pin) {
+                if (!pin) pin = await ensurePin();
+                if (!pin) return false;
+                try {
+                  var resp = await fetch('/pin-check?pin=' + encodeURIComponent(pin), {method:'GET'});
+                  if (resp.ok) {
+                    storePin(pin);
+                    return true;
+                  }
+                  alert(resp.status === 403 ? 'Wrong PIN. Check the watch and try again.' : 'PIN check failed: ' + resp.status);
+                  return false;
+                } catch (err) {
+                  alert('PIN check failed: ' + err);
+                  return false;
+                }
               }
               // ----- PDF conversion (mirrors PdfConverter.kt on phone) -----
               // PDF.js served from the watch APK at /pdfjs/. Heuristics: font
@@ -402,10 +491,31 @@ class UploadServer(
                     uploadFiles(e.dataTransfer.files, zone.dataset.folder || '');
                   });
                 });
+                var pin = document.getElementById('pin');
+                pin.value = sessionStorage.getItem('wbooksPin') || '';
+                pin.addEventListener('input', function(){ sessionStorage.setItem('wbooksPin', pin.value.trim()); });
+                document.getElementById('pin-modal-cancel').addEventListener('click', function(){ closePinModal(null); });
+                document.getElementById('pin-modal-ok').addEventListener('click', function(){ closePinModal((document.getElementById('pin-modal-input').value || '').trim()); });
+                document.getElementById('pin-modal-input').addEventListener('keydown', function(e) {
+                  if (e.key === 'Enter') closePinModal((e.target.value || '').trim());
+                  if (e.key === 'Escape') closePinModal(null);
+                });
+                var picker = document.querySelector('.file-picker');
+                if (picker) {
+                  picker.addEventListener('dragover', function(e){ e.preventDefault(); picker.classList.add('drag-over'); });
+                  picker.addEventListener('dragleave', function(){ picker.classList.remove('drag-over'); });
+                  picker.addEventListener('drop', function(e){
+                    if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+                    e.preventDefault();
+                    picker.classList.remove('drag-over');
+                    uploadFiles(e.dataTransfer.files, document.querySelector('input[name=folder]').value.trim());
+                  });
+                }
               }
               window.addEventListener('DOMContentLoaded', installDropZones);
-              function renameFolder(oldName) {
-                var pin = document.getElementById('pin').value;
+              async function renameFolder(oldName) {
+                var pin = await ensurePin();
+                if (pin == null) return;
                 var newName = prompt('Rename folder "' + oldName + '" to:', oldName);
                 if (newName == null) return;
                 newName = newName.trim();
@@ -431,25 +541,49 @@ class UploadServer(
               }
             </script>
             </head><body style="$bodyStyle">
-            <h1>wBooks transfer</h1>
-            $flashHtml
-            <div class="row">
-              <label>PIN: <input id="pin" type="password" autocomplete="off" inputmode="numeric"></label>
-              <span class="note">Shown on the watch.</span>
-            </div>
-            <form method="post" action="/upload" enctype="multipart/form-data" class="row"
-                  onsubmit="submitUpload(event)">
-              <label>Folder (optional): <input type="text" name="folder" placeholder="e.g. fiction"></label>
-              <input type="file" name="file" multiple accept=".epub,.txt,.fb2,.html,.htm,.xhtml,.docx,.odt,.pdf,application/pdf">
-              <button>Upload</button>
-              <p class="pdf-note">PDF support is experimental - the browser converts to HTML before upload. Scanned PDFs convert to nothing useful (no OCR).</p>
-            </form>
-            <form method="post" action="/mkdir" class="row" onsubmit="return attachPin(this)">
-              <label>New folder: <input type="text" name="name" required></label>
-              <button>Create</button>
-            </form>
-            <table>$rows</table>
-            $settingsHtml
+            <main class="page">
+              <section class="hero">
+                <div class="brand">
+                  <h1>wBooks web interface</h1>
+                  <p>Send books to the watch, organize folders, and tune reader settings from this browser.</p>
+                </div>
+                <div class="pin-card">
+                  <label for="pin">Watch PIN</label>
+                  <div class="pin-row">
+                    <input id="pin" type="password" autocomplete="off" inputmode="numeric" placeholder="Shown on watch">
+                    <button type="button" onclick="checkPin(pinValue())">Check</button>
+                  </div>
+                  <span class="note">Required for uploads, moves, deletes, folders, and settings.</span>
+                </div>
+              </section>
+              $flashHtml
+              <section class="workspace">
+                <aside class="upload-card">
+                  <h2>Add books</h2>
+                  <form method="post" action="/upload" enctype="multipart/form-data" class="upload-form" onsubmit="submitUpload(event)">
+                    <label>Destination folder<input type="text" name="folder" placeholder="Root, or a folder name"></label>
+                    <label class="file-picker">Choose or drop files<input type="file" name="file" multiple accept=".epub,.txt,.fb2,.html,.htm,.xhtml,.docx,.odt,.pdf,application/pdf"></label>
+                    <button class="primary">Upload to watch</button>
+                    <p class="pdf-note">PDFs are converted to HTML in this browser before upload. Scanned PDFs need OCR elsewhere.</p>
+                  </form>
+                  <form method="post" action="/mkdir" class="upload-form" onsubmit="return attachPin(this)">
+                    <label>New folder<input type="text" name="name" required placeholder="Folder name"></label>
+                    <button>Create folder</button>
+                  </form>
+                </aside>
+                <section class="library">
+                  <div class="library-top">
+                    <div>
+                      <h2>Library</h2>
+                      <p class="note">${rootBooks.size + topFolders.sumOf { dir -> allEntries.count { it.isFile && it.parentFile?.canonicalPath == dir.canonicalPath && BookFormat.fromExtension(it.extension) != null } }} books across ${topFolders.size + 1} locations</p>
+                    </div>
+                    <p class="drop-copy">Drop files on any folder card to upload there.</p>
+                  </div>
+                  $library
+                </section>
+              </section>
+              $settingsHtml
+            </main>
             <div id="pdf-modal" class="modal" role="dialog" aria-modal="true">
               <div class="modal-card">
                 <h3>Experimental: convert PDF</h3>
@@ -466,6 +600,18 @@ class UploadServer(
                 </div>
               </div>
             </div>
+            <div id="pin-modal" class="modal" role="dialog" aria-modal="true">
+              <div class="modal-card">
+                <h3>Enter watch PIN</h3>
+                <p>The PIN is shown on the watch while the web interface is running.</p>
+                <input id="pin-modal-input" type="password" autocomplete="off" inputmode="numeric" placeholder="Watch PIN">
+                <p id="pin-modal-error" class="pdf-note" role="status"></p>
+                <div class="modal-actions">
+                  <button type="button" id="pin-modal-cancel">Cancel</button>
+                  <button type="button" id="pin-modal-ok" class="primary">Continue</button>
+                </div>
+              </div>
+            </div>
             </body></html>
         """.trimIndent()
         return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
@@ -475,7 +621,7 @@ class UploadServer(
         if (session.method != Method.POST) return methodNotAllowed()
         gatePin(session)?.let { return it }
         // NanoHTTPD writes uploaded files to temp paths and populates this map keyed by the form field.
-        // The JS upload function uses unique field names (file0, file1, â€¦) so all files survive in
+        // The JS upload function uses unique field names (file0, file1, ...) so all files survive in
         // this map even when multiple are uploaded at once. Runs only after PIN passes so
         // unauthenticated peers can't fill storage by spamming uploads.
         val tempFiles = HashMap<String, String>()
@@ -624,7 +770,14 @@ class UploadServer(
 
     // --- helpers ---
 
-    private fun bookRow(
+    private fun handlePinCheck(session: IHTTPSession): Response {
+        if (session.method != Method.GET) return methodNotAllowed()
+        gatePin(session)?.let { return it }
+        return newFixedLengthResponse(Response.Status.OK, "text/plain", "OK")
+    }
+
+    private fun bookCard(
+        book: File,
         rel: String,
         relEsc: String,
         size: String,
@@ -641,7 +794,26 @@ class UploadServer(
                 append("""<option value="$folderEsc"$selected>$folderEsc</option>""")
             }
         }
-        return """<tr><td class="book-indent">$relEsc</td><td>$size</td><td><form method="post" action="/move" class="move" onsubmit="return attachPin(this)"><input type="hidden" name="from" value="$relEsc"><select name="to">$options</select><button>move</button></form><form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$relEsc"><button>delete</button></form></td></tr>"""
+        val title = htmlEscape(book.name)
+        return """
+            <article class="book-card">
+              <div>
+                <span class="book-title">$title</span>
+                <span class="book-path">$relEsc - $size</span>
+              </div>
+              <div class="book-actions">
+                <form method="post" action="/move" class="move" onsubmit="return attachPin(this)">
+                  <input type="hidden" name="from" value="$relEsc">
+                  <select name="to" aria-label="Move $relEsc to folder">$options</select>
+                  <button>Move</button>
+                </form>
+                <form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)">
+                  <input type="hidden" name="path" value="$relEsc">
+                  <button class="danger">Delete</button>
+                </form>
+              </div>
+            </article>
+        """.trimIndent()
     }
 
     private fun renderSettingsPanel(s: ReaderSettings): String {
@@ -839,6 +1011,27 @@ class UploadServer(
                 else -> out.append(c)
             }
         }
+        return out.toString()
+    }
+
+    private fun jsString(s: String): String {
+        val out = StringBuilder(s.length + 2)
+        out.append('"')
+        for (c in s) {
+            when (c) {
+                '\\' -> out.append("\\\\")
+                '"' -> out.append("\\\"")
+                '\n' -> out.append("\\n")
+                '\r' -> out.append("\\r")
+                '\t' -> out.append("\\t")
+                else -> if (c.code < 0x20) {
+                    out.append("\\u%04x".format(c.code))
+                } else {
+                    out.append(c)
+                }
+            }
+        }
+        out.append('"')
         return out.toString()
     }
 
