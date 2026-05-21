@@ -106,7 +106,7 @@ fun SpeedReadMode(
             .focusRequester(focusRequester)
             .focusable()
             .onRotaryScrollEvent { event ->
-                if (abs(event.verticalScrollPixels) >= ROTARY_WPM_THRESHOLD_PX) {
+                if (abs(event.verticalScrollPixels) > 0f) {
                     val step = if (event.verticalScrollPixels > 0) WPM_STEP else -WPM_STEP
                     onWpmChange(settings.speedreadWpm + step)
                 }
@@ -182,7 +182,6 @@ fun SpeedReadMode(
 
 private val FOCAL_COLOR = Color(0xFFF06B5A)
 private const val WPM_STEP = 25
-private const val ROTARY_WPM_THRESHOLD_PX = 5f
 
 private data class WordItem(val text: String, val position: BookPosition)
 
