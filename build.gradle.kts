@@ -10,7 +10,8 @@ plugins {
 // Windows we move every subproject's build dir to a local-disk scratch path.
 // Skipped on other OSes (e.g. Linux CI runners) where OneDrive isn't a factor.
 if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
-    val wbooksBuildRoot = file("C:/GradleTmp/wbooks-build")
+    val userName = System.getenv("USERNAME") ?: System.getProperty("user.name")
+    val wbooksBuildRoot = file("C:/GradleTmp/$userName/wbooks-build")
     subprojects {
         layout.buildDirectory.set(file("$wbooksBuildRoot/${project.name}"))
     }
