@@ -60,7 +60,7 @@ fun ChangelogScreen(onBack: () -> Unit) {
                 item(key = "v-${entry.version}") { VersionHeader(entry) }
                 items(entry.notes, key = { "n-${entry.version}-${it.hashCode()}" }) { note ->
                     Text(
-                        text = "â€¢ $note",
+                        text = "- $note",
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
                         style = MaterialTheme.typography.caption1,
                     )
@@ -73,7 +73,7 @@ fun ChangelogScreen(onBack: () -> Unit) {
 @Composable
 private fun VersionHeader(entry: ChangelogEntry) {
     Text(
-        text = "${entry.version} Â· ${entry.date}",
+        text = "${entry.version} - ${entry.date}",
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
     )

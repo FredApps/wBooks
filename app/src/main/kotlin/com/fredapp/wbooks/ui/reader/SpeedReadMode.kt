@@ -120,7 +120,7 @@ fun SpeedReadMode(
             modifier = Modifier.padding(12.dp).fillMaxWidth(),
         ) {
             Text(
-                text = "${settings.speedreadWpm} wpm  Â·  ${index + 1}/${words.size}",
+                text = "${settings.speedreadWpm} wpm - ${index + 1}/${words.size}",
                 color = Color(settings.textColorArgb).copy(alpha = 0.5f),
                 style = MaterialTheme.typography.caption2,
             )
@@ -138,7 +138,7 @@ fun SpeedReadMode(
                     horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                 ) {
                     CompactChip(
-                        label = { Text("âˆ’25") },
+                        label = { Text("-25") },
                         onClick = { onWpmChange(settings.speedreadWpm - 25) },
                         colors = ChipDefaults.secondaryChipColors(),
                     )
