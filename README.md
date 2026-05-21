@@ -4,7 +4,7 @@ An Android Wear OS ebook reader. Targets standalone watches running Wear OS 3 or
 
 ## Status
 
-Feature-complete against the original spec. The library ships pre-populated with one book of each supported format (Project Gutenberg public-domain editions).
+Feature-complete with library organization, chapter navigation, reading stats, and folder management. The library ships pre-populated with one book of each supported format (Project Gutenberg public-domain editions).
 
 ## Watch compatibility
 
@@ -127,6 +127,21 @@ Unsupported elements in any format (tables, images, frames, fields, lists, drawi
 
 Search uses the platform `RecognizerIntent.ACTION_RECOGNIZE_SPEECH` so voice input works on any Wear OS install with the standard speech recognizer (the wide majority). Results show inline on the Tools page; tapping one resets reading mode to Normal and jumps to the position.
 
+### Library organization
+
+Books can be organized into folders. Create folders, move books with drag-and-drop, and sync with the companion app:
+
+- **On the watch**: Long-press a book → Move to folder. Folders appear at the top of the library. Tap a folder to browse its contents.
+- **In the companion**: Drag-and-drop books between folders. Folder structure syncs to the watch via the Wear Data Layer. The "Utility" app on the phone provides a dedicated folder management interface.
+- **Reading state**: Switching between folders or moving a book during active reading preserves your position and progress.
+
+### Chapter navigation
+
+Books with chapter headings (Heading 1 level in supported formats) support instant chapter jumps:
+
+- **On the Tools page** (page 0): Chapter list shows section headings. Tap to jump instantly to that chapter.
+- **Heading-aware ETA**: Tools page displays estimated reading time for the current chapter and for the entire book, aware of document structure. Estimates update as you read and adjust the text size / font.
+
 ### File transfer
 
 wBooks is designed watch-first and works fully standalone. The watch has two optional transports for adding books:
@@ -136,14 +151,18 @@ wBooks is designed watch-first and works fully standalone. The watch has two opt
 
 You don't need a phone to use wBooks. The LAN server is always available on the watch itself. The companion is an alternative transport for users with a paired phone — pick whichever fits your workflow.
 
-### Companion app
+### Companion app (wBooks Utility)
 
-A small Material 3 phone app (`:companion`, minSdk 24) that mirrors the watch's library:
+A small Material 3 phone app (`:companion`, minSdk 24, branded as "wBooks Utility") that mirrors the watch's library and provides utilities:
 
+**Library management:**
 - Tap **+** → SAF picker → file streams to the watch via `ChannelClient`.
 - Long-press on a book → delete from the watch.
 - Pull-down / Refresh → re-fetch the library.
+- **Folder management**: Drag-and-drop books between folders. Create folders. Folder structure syncs to the watch in real-time.
 - **Project Gutenberg browser** (🔍 in the top app bar): search PG's OPDS catalogue, tap **Send** on a result to download + push to the watch in one step. Prefers EPUB, falls back to TXT.
+
+**Reading insights:**
 - **Reading-stats dashboard** (📅 in the top app bar): total / today / books-finished cards, plus a 30-day daily-minutes bar chart and a WPM-trend line chart. Data fetched from the watch via `MessageClient.sendRequest("/wbooks/stats")`.
 
 Both APKs are required only to use the companion transport. The watch app alone is fully functional via the LAN server.
@@ -159,6 +178,15 @@ Both APKs are required only to use the companion transport. The watch app alone 
 ### Time-to-finish estimate
 
 `ReadingPaceRepository` keeps a per-book exponential moving average of ms-per-block-advance — every time the renderer reports a new position we feed it the inter-position interval (outliers above 60 s / below 0.5 s are dropped as idle / double-tap glitches). The Tools page shows `~12m in chapter / ~2h 40m in book` derived from remaining-block counts.
+
+### Developer tools (Devtools tile)
+
+A Wear OS tile for developers includes shortcuts to:
+- Android Developer Options
+- Bluetooth settings
+- Wi-Fi settings
+
+Accessible via the Wear tile picker. Intended for testing and debugging on development watches.
 
 ### Seed library
 
