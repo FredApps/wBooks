@@ -1,6 +1,7 @@
 ﻿package com.fredapp.wbooksutil
 
 import android.app.Application
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,6 +26,9 @@ class CompanionApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Required before the first PDDocument.load() — without it pdfbox-android
+        // can't resolve its bundled font/cmap resources and PDF conversion crashes.
+        PDFBoxResourceLoader.init(this)
         crashReportingPref.initIfEnabled()
         appScope.launch {
             val repo = WatchRepository(this@CompanionApp)

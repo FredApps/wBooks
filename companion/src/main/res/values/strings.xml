@@ -18,4 +18,7 @@
     <string name="remove_from_folder">Remove from folder</string>
     <string name="confirm_delete_folder">Delete folder and all books inside?</string>
     <string name="no_folders_hint">No folders yet. Use the folder button in the toolbar to create one.</string>
+    <string name="pdf_warning_title">Experimental: convert PDF</string>
+    <string name="pdf_warning_body">PDF support is experimental.\n\n• If the PDF contains real text, it will be converted and sent to the watch with basic formatting.\n\n• If the PDF only contains scanned images, the result will be empty or garbled — there is no OCR.\n\nConverted PDFs appear in your library marked [PDF] after the title.</string>
+    <string name="pdf_warning_convert">Convert</string>
 </resources>

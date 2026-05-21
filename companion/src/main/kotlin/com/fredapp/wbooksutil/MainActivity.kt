@@ -252,6 +252,24 @@ private fun CompanionScreen(
         )
     }
 
+    state.pendingPdf?.let { pending ->
+        AlertDialog(
+            onDismissRequest = vm::cancelPdfConversion,
+            title = { Text(stringResource(R.string.pdf_warning_title)) },
+            text = { Text(stringResource(R.string.pdf_warning_body)) },
+            confirmButton = {
+                TextButton(onClick = vm::confirmPdfConversion) {
+                    Text(stringResource(R.string.pdf_warning_convert))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::cancelPdfConversion) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
     state.errorMessage?.let { msg ->
         AlertDialog(
             onDismissRequest = vm::dismissError,
@@ -488,7 +506,9 @@ private fun CenteredText(text: String) {
     ) { Text(text) }
 }
 
-/** MIME types that SAF should offer. Matches the parsers in `:app`. */
+/** MIME types that SAF should offer. Matches the parsers in `:app`, plus
+ *  application/pdf for the experimental PDF→HTML converter (handled in this
+ *  utility app only; the watch never receives a raw PDF). */
 private val SUPPORTED_MIME = arrayOf(
     "application/epub+zip",
     "text/plain",
@@ -497,5 +517,6 @@ private val SUPPORTED_MIME = arrayOf(
     "application/xhtml+xml",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.oasis.opendocument.text",
+    "application/pdf",
     "application/octet-stream",
 )
