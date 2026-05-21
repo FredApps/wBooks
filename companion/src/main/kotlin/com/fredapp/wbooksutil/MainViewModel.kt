@@ -48,8 +48,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (watchPollingJob?.isActive == true) return
         watchPollingJob = viewModelScope.launch {
             while (isActive) {
-                delay(WATCH_POLL_INTERVAL_MS)
                 pollWatchConnection()
+                delay(WATCH_POLL_INTERVAL_MS)
             }
         }
     }
@@ -104,7 +104,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             reachable && state.noWatch -> refreshLibrary(showLoading = false)
             reachable && !state.noWatch -> refreshLibrary(showLoading = false)
             !reachable && !state.noWatch -> {
-                _state.value = state.copy(noWatch = true, books = emptyList(), loading = false)
+                _state.value = state.disconnectedCopy()
             }
         }
     }
@@ -167,11 +167,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             is WatchRepository.Result.NoWatch ->
-                _state.value = _state.value.copy(noWatch = true, books = emptyList())
+                _state.value = _state.value.disconnectedCopy()
             is WatchRepository.Result.Error ->
                 _state.value = _state.value.copy(errorMessage = result.message)
         }
     }
+
+    private fun UiState.disconnectedCopy(): UiState = copy(
+        books = emptyList(),
+        folders = emptyList(),
+        bookFolders = emptyMap(),
+        loading = false,
+        noWatch = true,
+        pendingFolders = emptySet(),
+    )
 
     private fun displayNameFor(uri: Uri): String? {
         val resolver = getApplication<Application>().contentResolver
