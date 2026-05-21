@@ -33,6 +33,7 @@ private val LightColors = Colors(
 @Composable
 fun WBooksTheme(
     choice: ThemeChoice = ThemeChoice.DARK,
+    textColor: Color? = null,
     content: @Composable () -> Unit,
 ) {
     val dark = when (choice) {
@@ -40,5 +41,13 @@ fun WBooksTheme(
         ThemeChoice.LIGHT -> false
         ThemeChoice.SYSTEM -> isSystemInDarkTheme()
     }
-    MaterialTheme(colors = if (dark) DarkColors else LightColors, content = content)
+    val base = if (dark) DarkColors else LightColors
+    val colors = textColor?.let {
+        base.copy(
+            primary = it,
+            onBackground = it,
+            onSurface = it,
+        )
+    } ?: base
+    MaterialTheme(colors = colors, content = content)
 }

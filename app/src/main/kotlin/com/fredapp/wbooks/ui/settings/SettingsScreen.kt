@@ -6,10 +6,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +26,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
@@ -47,9 +50,13 @@ import com.fredapp.wbooks.WBooksApp
 import com.fredapp.wbooks.data.settings.FontChoice
 import com.fredapp.wbooks.data.settings.ReaderSettings
 import com.fredapp.wbooks.ui.ReaderViewModel
+import com.fredapp.wbooks.ui.theme.toFontFamily
+
+private val FolderGrey = Color(0xFFB0B0B0)
+private val FolderGreyText = Color(0xFF1C1C1C)
 
 @Composable
-fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true) {
+fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> Unit) {
     var showChangelog by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     if (showChangelog) {
@@ -97,6 +104,16 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true) {
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    Chip(
+                        label = { Text("Back", color = FolderGreyText) },
+                        onClick = onBack,
+                        colors = ChipDefaults.chipColors(backgroundColor = FolderGrey, contentColor = FolderGreyText),
+                        modifier = Modifier.width(92.dp),
+                    )
+                }
+            }
             item { ListHeader { Text(stringResource(R.string.page_settings)) } }
 
             item {
@@ -172,6 +189,7 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true) {
                 val font = FontChoice.entries[idx]
                 ChoiceChip(
                     label = font.familyName,
+                    fontFamily = font.toFontFamily(),
                     selected = settings.font == font,
                     onClick = { vm.setFont(font) },
                 )
@@ -277,9 +295,9 @@ private fun CyclerChip(label: String, value: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun ChoiceChip(label: String, fontFamily: FontFamily? = null, selected: Boolean, onClick: () -> Unit) {
     Chip(
-        label = { Text(if (selected) "$label (selected)" else label) },
+        label = { Text(if (selected) "$label (selected)" else label, fontFamily = fontFamily) },
         onClick = onClick,
         colors = if (selected) ChipDefaults.primaryChipColors() else ChipDefaults.secondaryChipColors(),
         modifier = Modifier.fillMaxWidth(),
@@ -334,9 +352,10 @@ private fun StaticChip(label: String) {
 }
 
 private fun colorName(argb: Int): String = when (argb) {
-    0xFFE8E6E1.toInt() -> "Warm white"
-    0xFFFFFFFF.toInt() -> "White"
     0xFFD4C19C.toInt() -> "Sepia"
+    0xFFFFFFFF.toInt() -> "White"
+    0xFFB0B0B0.toInt() -> "Grey"
+    0xFFE8E6E1.toInt() -> "Warm white"
     0xFF9CB5D4.toInt() -> "Pale blue"
     0xFFA8D49C.toInt() -> "Pale green"
     0xFFD49C9C.toInt() -> "Pale red"

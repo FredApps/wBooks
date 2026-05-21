@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.foundation.text.BasicTextField
@@ -38,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -68,6 +70,9 @@ import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.SearchResult
 import java.text.DateFormat
 import java.util.Date
+
+private val FolderGrey = Color(0xFFB0B0B0)
+private val FolderGreyText = Color(0xFF1C1C1C)
 
 /**
  * Page 0 â€” Tools. Either the standard tools/bookmarks/chapters list, or, when
@@ -168,6 +173,16 @@ fun SecondaryScreen(
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Chip(
+                        label = { Text("Back", color = FolderGreyText) },
+                        onClick = onReaderPageRequested,
+                        colors = ChipDefaults.chipColors(backgroundColor = FolderGrey, contentColor = FolderGreyText),
+                        modifier = Modifier.width(92.dp),
+                    )
+                }
+            }
             item {
                 Chip(
                     icon = {

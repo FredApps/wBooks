@@ -56,7 +56,11 @@ fun ReaderPager(
                 onReaderPageRequested = { scope.launch { pagerState.animateScrollToPage(1) } },
             )
             1 -> ReaderScreen(state = state, vm = vm, isActive = readerActive, onExit = onExit)
-            2 -> SettingsScreen(vm = vm, isActive = settingsActive)
+            2 -> SettingsScreen(
+                vm = vm,
+                isActive = settingsActive,
+                onBack = { scope.launch { pagerState.animateScrollToPage(1) } },
+            )
         }
     }
 }

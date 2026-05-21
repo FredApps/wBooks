@@ -41,7 +41,7 @@ data class ReaderSettings(
     val font: FontChoice = FontChoice.SERIF,
     val textSizeSp: Int = 16,
     val sentenceTextSizeSp: Int = 22,
-    val textColorArgb: Int = 0xFFE8E6E1.toInt(),
+    val textColorArgb: Int = 0xFFD4C19C.toInt(),
     val autoscrollEnabled: Boolean = false,
     val autoscrollSpeed: Int = 20,
     val screenBrightness: Int = 100,
@@ -58,9 +58,10 @@ data class ReaderSettings(
 
         /** Curated text-colour palette the user can cycle through in settings. */
         val TEXT_COLOR_PALETTE: List<Int> = listOf(
-            0xFFE8E6E1.toInt(), // warm white (default)
+            0xFFD4C19C.toInt(), // sepia (default)
             0xFFFFFFFF.toInt(), // pure white
-            0xFFD4C19C.toInt(), // sepia
+            0xFFB0B0B0.toInt(), // grey
+            0xFFE8E6E1.toInt(), // warm white legacy value
             0xFF9CB5D4.toInt(), // pale blue
             0xFFA8D49C.toInt(), // pale green
             0xFFD49C9C.toInt(), // pale red

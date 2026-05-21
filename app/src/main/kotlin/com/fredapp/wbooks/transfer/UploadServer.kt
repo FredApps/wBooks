@@ -123,7 +123,9 @@ class UploadServer(
 
         val flashHtml = if (flash.isNotEmpty())
             """<p class="flash">${htmlEscape(flash)}</p>""" else ""
-        val settingsHtml = renderSettingsPanel()
+        val webSettings = runBlocking { settingsRepository.snapshot() }
+        val settingsHtml = renderSettingsPanel(webSettings)
+        val bodyStyle = "font-family:${webFontCss(webSettings.font)},system-ui,sans-serif;color:${argbCss(webSettings.textColorArgb)};${webThemeCss(webSettings)}"
         val html = """
             <!doctype html>
             <html><head><meta charset="utf-8"><title>wBooks transfer</title>
@@ -138,11 +140,14 @@ class UploadServer(
               button{padding:6px 12px}
               .note{color:#666;font-size:0.85em}
               .flash{background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:8px 12px;margin:8px 0;}
-              .folder-row{cursor:pointer;background:#fff8d8;font-weight:650;box-shadow:inset 0 0 0 1px #ead278;}
-              .root-row{background:#fff2b7;}
-              .folder-row:hover,.folder-row.drag-over{background:#ffe58a;}
-              .folder-icon{display:inline-flex;align-items:center;justify-content:center;background:#e5ad22;color:#3e2a00;border-radius:5px;padding:2px 7px;margin-right:4px;font-size:0.72em;text-transform:uppercase;box-shadow:0 1px 3px rgba(0,0,0,0.22);}
-              .drop-hint{font-size:0.78em;color:#775b00;font-weight:500;margin:2px 0 0 26px;}
+              /* Neutral grey folder tabs — kept in sync with FolderGrey in
+                 LibraryScreen.kt (watch) and MainActivity.kt (utility). The
+                 prior saturated yellow was too bright against the dark UI. */
+              .folder-row{cursor:pointer;background:#e6e6e6;font-weight:650;box-shadow:inset 0 0 0 1px #bdbdbd;}
+              .root-row{background:#d8d8d8;}
+              .folder-row:hover,.folder-row.drag-over{background:#cfcfcf;}
+              .folder-icon{display:inline-flex;align-items:center;justify-content:center;background:#888;color:#fff;border-radius:5px;padding:2px 7px;margin-right:4px;font-size:0.72em;text-transform:uppercase;box-shadow:0 1px 3px rgba(0,0,0,0.22);}
+              .drop-hint{font-size:0.78em;color:#555;font-weight:500;margin:2px 0 0 26px;}
               .chevron{display:inline-block;transition:transform 0.15s;}
               .chevron.open{transform:rotate(90deg);}
               .cnt{font-weight:normal;color:#666;font-size:0.9em;}
@@ -165,11 +170,11 @@ class UploadServer(
               @media (prefers-color-scheme: dark) {
                 body{background:#111;color:#eee}
                 td{border-bottom-color:#333}
-                .folder-row{background:#4a3a13;box-shadow:inset 0 0 0 1px #8b6a1b;}
-                .root-row{background:#5a4314;}
-                .folder-row:hover,.folder-row.drag-over{background:#6a5019;}
-                .folder-icon{background:#d1961b;color:#241700;box-shadow:0 1px 4px rgba(0,0,0,0.55);}
-                .drop-hint,.cnt,.note,.empty-root{color:#c9b783}
+                .folder-row{background:#3a3a3a;box-shadow:inset 0 0 0 1px #5a5a5a;}
+                .root-row{background:#454545;}
+                .folder-row:hover,.folder-row.drag-over{background:#555;}
+                .folder-icon{background:#9a9a9a;color:#111;box-shadow:0 1px 4px rgba(0,0,0,0.55);}
+                .drop-hint,.cnt,.note,.empty-root{color:#b8b8b8}
                 input,select,button{background:#222;color:#eee;border:1px solid #555}
                 .flash{background:#18351d;border-color:#426b45}
                 .settings{background:#181818;border-color:#3a3a3a}
@@ -399,9 +404,15 @@ class UploadServer(
                 document.querySelectorAll('.swatch').forEach(function(s) {
                   s.classList.toggle('selected', s.dataset.value === value);
                 });
+                submitSettings(document.getElementById('settings-form'));
+              }
+              function submitSettings(form) {
+                if (!attachPin(form)) return false;
+                form.submit();
+                return false;
               }
             </script>
-            </head><body>
+            </head><body style="$bodyStyle">
             <h1>wBooks transfer</h1>
             $flashHtml
             <div class="row">
@@ -595,8 +606,7 @@ class UploadServer(
         return """<tr><td class="book-indent">$relEsc</td><td>$size</td><td><form method="post" action="/move" class="move" onsubmit="return attachPin(this)"><input type="hidden" name="from" value="$relEsc"><select name="to">$options</select><button>move</button></form><form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$relEsc"><button>delete</button></form></td></tr>"""
     }
 
-    private fun renderSettingsPanel(): String {
-        val s = runBlocking { settingsRepository.snapshot() }
+    private fun renderSettingsPanel(s: ReaderSettings): String {
         val crash = crashReportingPref.enabled.value
         val swatches = ReaderSettings.TEXT_COLOR_PALETTE.joinToString("") { color ->
             val value = color.toString()
@@ -607,11 +617,11 @@ class UploadServer(
             <section class="settings">
               <h2>Watch settings</h2>
               <p class="note">These controls read from and save to the watch. The watch remains authoritative.</p>
-              <form method="post" action="/settings" onsubmit="return attachPin(this)">
+              <form id="settings-form" method="post" action="/settings" onsubmit="return attachPin(this)">
                 <div class="settings-grid">
                   ${selectSetting("Reading mode", "mode", ReadingMode.entries.map { it.name }, s.mode.name)}
                   ${selectSetting("Theme", "theme", ThemeChoice.entries.map { it.name }, s.theme.name)}
-                  ${selectSetting("Font", "font", FontChoice.entries.map { it.name }, s.font.name)}
+                  ${fontSetting(s.font)}
                   ${numberSetting("Text size", "textSizeSp", s.textSizeSp, ReaderSettings.TEXT_SIZE_RANGE)}
                   ${numberSetting("Sentence text size", "sentenceTextSizeSp", s.sentenceTextSizeSp, ReaderSettings.SENTENCE_TEXT_SIZE_RANGE)}
                   <div class="setting">
@@ -636,15 +646,37 @@ class UploadServer(
             val sel = if (value == selected) " selected" else ""
             """<option value="$value"$sel>${htmlEscape(value.lowercase().replaceFirstChar { it.titlecase() })}</option>"""
         }
-        return """<div class="setting"><label>$label</label><select name="$name">$optionHtml</select></div>"""
+        return """<div class="setting"><label>$label</label><select name="$name" onchange="submitSettings(this.form)">$optionHtml</select></div>"""
+    }
+
+    private fun fontSetting(selected: FontChoice): String {
+        val optionHtml = FontChoice.entries.joinToString("") { value ->
+            val sel = if (value == selected) " selected" else ""
+            """<option value="${value.name}"$sel style="font-family:${webFontCss(value)},system-ui,sans-serif">${htmlEscape(value.familyName)}</option>"""
+        }
+        return """<div class="setting"><label>Font</label><select name="font" onchange="submitSettings(this.form)" style="font-family:${webFontCss(selected)},system-ui,sans-serif">$optionHtml</select></div>"""
     }
 
     private fun numberSetting(label: String, name: String, value: Int, range: IntRange, suffix: String = ""): String =
-        """<div class="setting"><label>$label</label><input type="number" name="$name" value="$value" min="${range.first}" max="${range.last}"><small>${range.first}-${range.last}$suffix</small></div>"""
+        """<div class="setting"><label>$label</label><input type="number" name="$name" value="$value" min="${range.first}" max="${range.last}" onchange="submitSettings(this.form)"><small>${range.first}-${range.last}$suffix</small></div>"""
 
     private fun checkboxSetting(label: String, name: String, checked: Boolean): String {
         val attr = if (checked) " checked" else ""
-        return """<div class="setting checkbox-row"><input type="checkbox" name="$name"$attr><label>$label</label></div>"""
+        return """<div class="setting checkbox-row"><input type="checkbox" name="$name"$attr onchange="submitSettings(this.form)"><label>$label</label></div>"""
+    }
+
+    private fun webFontCss(font: FontChoice): String = when (font) {
+        FontChoice.DEFAULT -> "system-ui"
+        FontChoice.SERIF -> "Georgia,serif"
+        FontChoice.SANS -> "Arial"
+        FontChoice.MONO -> "\"Courier New\",monospace"
+        FontChoice.CURSIVE -> "cursive"
+    }
+
+    private fun webThemeCss(settings: ReaderSettings): String = when (settings.theme) {
+        ThemeChoice.LIGHT -> "background:#f7f7f7;"
+        ThemeChoice.DARK -> "background:#111;"
+        ThemeChoice.SYSTEM -> ""
     }
 
     private inline fun <reified E : Enum<E>> enumParam(params: Map<String, List<String>>, name: String, fallback: E): E =
