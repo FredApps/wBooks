@@ -1,5 +1,6 @@
 package com.fredapp.wbooks.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -613,10 +614,21 @@ class ReaderViewModel(
         book: Book,
     ): Result<Document> = try {
         Result.success(
-            withTimeout(20_000) {
-                documentCache.load(key) ?: parseBook(book).also { parsed ->
+            withTimeout(CACHE_LOAD_TIMEOUT_MS) {
+                documentCache.load(key)
+            } ?: withTimeout(COLD_PARSE_TIMEOUT_MS) {
+                val startedAt = System.currentTimeMillis()
+                parseBook(book).also { parsed ->
+                    Log.i(TAG, "Parsed ${book.id} (${book.format}) in ${System.currentTimeMillis() - startedAt}ms")
                     appScope.launch(Dispatchers.IO) {
+                        val storeStartedAt = System.currentTimeMillis()
                         runCatching { documentCache.store(key, parsed) }
+                            .onSuccess {
+                                Log.i(TAG, "Cached ${book.id} in ${System.currentTimeMillis() - storeStartedAt}ms")
+                            }
+                            .onFailure {
+                                Log.w(TAG, "Failed to cache ${book.id}", it)
+                            }
                     }
                 }
             }
@@ -733,6 +745,9 @@ class ReaderViewModel(
     }
 
     private companion object {
+        const val TAG = "ReaderViewModel"
+        const val CACHE_LOAD_TIMEOUT_MS = 5_000L
+        const val COLD_PARSE_TIMEOUT_MS = 60_000L
         const val WPM_SAMPLE_DEBOUNCE_MS = 5_000L
         /** Cadence for splitting a session into commit-able chunks. */
         const val SESSION_FLUSH_INTERVAL_MS = 60_000L
