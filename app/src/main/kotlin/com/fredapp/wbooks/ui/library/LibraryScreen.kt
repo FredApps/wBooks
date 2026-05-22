@@ -43,6 +43,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -65,10 +66,12 @@ import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.R
+import com.fredapp.wbooks.WBooksApp
 import com.fredapp.wbooks.data.book.Book
 import com.fredapp.wbooks.data.folder.FolderPolicy
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.layout.watchListPadding
+import com.fredapp.wbooks.ui.settings.InstructionsScreen
 
 // Neutral grey folder tabs — the old saturated yellow was too bright against
 // the watch's black background. Same palette is mirrored in :companion
@@ -101,6 +104,21 @@ fun LibraryScreen(
     var folderToRename by remember { mutableStateOf<String?>(null) }
     var pendingFolderDelete by remember { mutableStateOf<String?>(null) }
     var showNewFolder by remember { mutableStateOf(false) }
+
+    // One-shot "How to use" hint above the New folder button. Visible only on
+    // the first launch after install — FirstRunPref marks the launch consumed
+    // the moment it's first read, so subsequent process starts return false.
+    // Local state lets the chip disappear immediately on tap within this run.
+    val context = LocalContext.current
+    val app = remember(context) { context.applicationContext as WBooksApp }
+    var showFirstRunHint by rememberSaveable { mutableStateOf(app.firstRunPref.isFirstRun) }
+    var showInstructions by rememberSaveable { mutableStateOf(false) }
+
+    if (showInstructions) {
+        BackHandler { showInstructions = false }
+        InstructionsScreen(onBack = { showInstructions = false })
+        return
+    }
 
     // Derived collections are stable across recompositions caused by unrelated
     // state (selectedFolder taps, dialog flips) — only the books/folderNames
@@ -235,6 +253,19 @@ fun LibraryScreen(
             contentPadding = watchListPadding(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            if (showFirstRunHint) {
+                item(key = "how_to_use_hint") {
+                    Chip(
+                        label = { Text("How to use") },
+                        onClick = {
+                            showFirstRunHint = false
+                            showInstructions = true
+                        },
+                        colors = ChipDefaults.secondaryChipColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
             // Explicit "New folder +" button at the top — discoverable affordance
             // that replaces the long-press-empty-area gesture. Centered, compact.
             item(key = "new_folder_btn") {
