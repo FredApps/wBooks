@@ -304,17 +304,19 @@ fun SecondaryScreen(
                 }
             }
 
-            item { ListHeader { Text(stringResource(R.string.tools_chapters)) } }
-            items(chapters, key = { "${it.position.chapterIndex}-${it.position.blockIndex}" }) { chapter ->
-                Chip(
-                    label = { Text(chapter.title) },
-                    onClick = {
-                        vm.jumpTo(chapter.position)
-                        onReaderPageRequested()
-                    },
-                    colors = ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            if (chapters.isNotEmpty()) {
+                item { ListHeader { Text(stringResource(R.string.tools_chapters)) } }
+                items(chapters, key = { "${it.position.chapterIndex}-${it.position.blockIndex}" }) { chapter ->
+                    Chip(
+                        label = { Text(chapter.title) },
+                        onClick = {
+                            vm.jumpTo(chapter.position)
+                            onReaderPageRequested()
+                        },
+                        colors = ChipDefaults.secondaryChipColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
     }

@@ -119,9 +119,20 @@ private fun buildChapterJumps(doc: Document): List<ChapterJump> {
     val distinct = headingJumps.distinctBy { it.position }
     val explicitChapters = distinct.filter { it.title.looksLikeChapterHeading() }
     val meaningfulHeadings = distinct.filterNot { it.title.looksLikeBoilerplateHeading() }
-    return (explicitChapters.ifEmpty { meaningfulHeadings }).ifEmpty {
+    val result = (explicitChapters.ifEmpty { meaningfulHeadings }).ifEmpty {
         doc.chapters.mapIndexed { idx, _ -> ChapterJump("Chapter ${idx + 1}", BookPosition(idx, 0)) }
     }
+    // Suppress trivial single-entry lists where the only "chapter" is the book
+    // itself (e.g. short stories with no internal divisions). The user gains
+    // nothing from a one-row list whose label duplicates the book title.
+    if (result.size == 1) {
+        val only = result.single()
+        val matchesBookTitle = doc.title.isNotBlank() &&
+            only.title.trim().equals(doc.title.trim(), ignoreCase = true)
+        val atStart = only.position.chapterIndex == 0 && only.position.blockIndex == 0
+        if (matchesBookTitle && atStart) return emptyList()
+    }
+    return result
 }
 
 private fun String.looksLikeChapterHeading(): Boolean {
