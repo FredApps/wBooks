@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
@@ -288,12 +289,15 @@ fun SecondaryScreen(
                             vm.jumpTo(bm.position)
                             onReaderPageRequested()
                         },
-                        onRequestDelete = { pendingDelete = bm.position },
+                        onToggleDelete = {
+                            // Long-press toggles the trashcan: same bookmark
+                            // clears it, any other bookmark replaces it.
+                            pendingDelete = if (pendingDelete == bm.position) null else bm.position
+                        },
                         onConfirmDelete = {
                             vm.deleteBookmark(bm.position, bm.mode)
                             pendingDelete = null
                         },
-                        onCancelDelete = { pendingDelete = null },
                     )
                 }
             }
@@ -380,9 +384,8 @@ private fun BookmarkRow(
     displayLabel: String,
     pendingDelete: BookPosition?,
     onJump: () -> Unit,
-    onRequestDelete: () -> Unit,
+    onToggleDelete: () -> Unit,
     onConfirmDelete: () -> Unit,
-    onCancelDelete: () -> Unit,
 ) {
     val isPending = pendingDelete == bookmark.position
     val label = displayLabel
@@ -390,43 +393,42 @@ private fun BookmarkRow(
         DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(bookmark.savedAtMs))
     }
 
-    if (isPending) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(MaterialTheme.colors.surface)
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-        ) {
-            Text(text = "Delete?", modifier = Modifier.padding(end = 4.dp))
-            Chip(
-                label = { Text("Yes") },
-                onClick = onConfirmDelete,
-                colors = ChipDefaults.primaryChipColors(),
-                modifier = Modifier.weight(1f),
-            )
-            Chip(
-                label = { Text("No") },
-                onClick = onCancelDelete,
-                colors = ChipDefaults.secondaryChipColors(),
-                modifier = Modifier.weight(1f),
-            )
-        }
-    } else {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         Chip(
             label = { Text(label) },
             secondaryLabel = { Text(subtitle) },
             onClick = onJump,
             colors = ChipDefaults.secondaryChipColors(),
             modifier = Modifier
-                .fillMaxWidth()
+                .weight(1f)
                 .combinedClickable(
                     onClick = onJump,
-                    onLongClick = onRequestDelete,
+                    onLongClick = onToggleDelete,
                 ),
         )
+        if (isPending) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFFD32F2F))
+                    .combinedClickable(
+                        onClick = onConfirmDelete,
+                        onLongClick = onToggleDelete,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_trash),
+                    contentDescription = "Delete bookmark",
+                    tint = Color.White,
+                )
+            }
+        }
     }
 }
 
