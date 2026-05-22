@@ -236,14 +236,19 @@ export ANDROID_HOME=/path/to/android-sdk
 
 ### Optional: Local configuration
 
-Create `local.properties` in the project root (gitignored) for optional settings:
+Create `local.properties` in the project root (gitignored). The Android
+`applicationId` is read from here so the package name isn't carried in the
+public repo; the build fails fast if it's missing.
 
 ```properties
-# Sentry crash reporting (optional; build works without this)
-sentry.dsn=https://<key>@<region>.sentry.io/<project-id>
-```
+# Required: Android applicationId for both modules.
+wbooks.applicationId=com.fredapp.wbooks
 
-If not set, the Sentry SDK is included but no-ops (logs a warning, drops events).
+# Optional: Sentry crash reporting. If absent, the SDK is included but no-ops
+# (logs a warning at startup and drops events).
+sentry.dsn=https://<key>@<region>.sentry.io/<project-id>
+sentry.auth.token=<token-with-project:write-and-org:read>
+```
 
 ### Build from command line
 
