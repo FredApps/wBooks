@@ -125,7 +125,10 @@ fun NormalMode(
                         scope.launch {
                             val info = listState.layoutInfo
                             val pageStep = (info.viewportEndOffset - info.viewportStartOffset).toFloat()
-                            if (pageStep > 0f) listState.animateScrollBy(pageStep * 0.9f)
+                            // Half-viewport step (~6 rows at default font size).
+                            // Previously 0.9 × viewport, which felt like the
+                            // user was losing their place between taps.
+                            if (pageStep > 0f) listState.animateScrollBy(pageStep * 0.45f)
                         }
                     }
                 })
