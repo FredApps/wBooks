@@ -23,8 +23,10 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -386,6 +388,7 @@ private fun FolderPickerScreen(
     onDelete: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    var moveExpanded by rememberSaveable(bookTitle) { mutableStateOf(false) }
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
@@ -420,39 +423,47 @@ private fun FolderPickerScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            item(key = "root") {
-                val bg = if (currentFolder.isEmpty()) FolderGrey.copy(alpha = 0.55f) else FolderGrey
+            item(key = "move") {
                 Chip(
-                    icon = { FolderIcon() },
-                    label = { Text(stringResource(R.string.uncategorized), color = FolderGreyText) },
-                    onClick = { onPick("") },
-                    colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderGreyText),
+                    icon = {
+                        Icon(
+                            imageVector = if (moveExpanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                        )
+                    },
+                    label = { Text("Move book") },
+                    onClick = { moveExpanded = !moveExpanded },
+                    colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            items(folders, key = { "f_$it" }) { folder ->
-                val bg = if (folder == currentFolder) FolderGrey.copy(alpha = 0.55f) else FolderGrey
-                Chip(
-                    icon = { FolderIcon() },
-                    label = { Text(folder, color = FolderGreyText) },
-                    onClick = { onPick(folder) },
-                    colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderGreyText),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            if (moveExpanded) {
+                item(key = "root") {
+                    val bg = if (currentFolder.isEmpty()) FolderGrey.copy(alpha = 0.55f) else FolderGrey
+                    Chip(
+                        icon = { FolderIcon() },
+                        label = { Text(stringResource(R.string.uncategorized), color = FolderGreyText) },
+                        onClick = { onPick("") },
+                        colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderGreyText),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                items(folders, key = { "f_$it" }) { folder ->
+                    val bg = if (folder == currentFolder) FolderGrey.copy(alpha = 0.55f) else FolderGrey
+                    Chip(
+                        icon = { FolderIcon() },
+                        label = { Text(folder, color = FolderGreyText) },
+                        onClick = { onPick(folder) },
+                        colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderGreyText),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
             item(key = "delete") {
                 Chip(
                     label = { Text("Delete book", color = Color.White) },
                     onClick = onDelete,
                     colors = ChipDefaults.chipColors(backgroundColor = DeleteRed, contentColor = Color.White),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            item(key = "cancel") {
-                Chip(
-                    label = { Text("Cancel") },
-                    onClick = onCancel,
-                    colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
