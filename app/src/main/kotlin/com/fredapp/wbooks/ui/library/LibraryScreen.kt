@@ -242,6 +242,11 @@ fun LibraryScreen(
     )
 
     var selectedFolder by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(allFolderNames, selectedFolder) {
+        if (selectedFolder != null && selectedFolder !in allFolderNames) {
+            selectedFolder = null
+        }
+    }
 
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
