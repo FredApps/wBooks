@@ -508,6 +508,18 @@ class ReaderViewModel(
         }
     }
 
+    fun renameBook(bookId: String, newTitle: String) {
+        viewModelScope.launch {
+            val newId = libraryRepo.renameBook(bookId, newTitle) ?: return@launch
+            migrateBookState(bookId, newId)
+            val state = _document.value
+            if (state is DocumentState.Loaded && state.book.id == bookId) {
+                val renamedBook = libraryRepo.books.value.firstOrNull { it.id == newId } ?: return@launch
+                _document.value = state.copy(book = renamedBook, initialPosition = currentPosition.value)
+            }
+        }
+    }
+
     fun deleteBook(bookId: String) {
         viewModelScope.launch {
             if (libraryRepo.delete(bookId)) {
