@@ -51,6 +51,7 @@ import com.fredapp.wbooks.R
 import com.fredapp.wbooks.WBooksApp
 import com.fredapp.wbooks.data.settings.FontChoice
 import com.fredapp.wbooks.data.settings.ReaderSettings
+import com.fredapp.wbooks.data.settings.ReadingMode
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.layout.watchListPadding
@@ -251,15 +252,21 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                     onChange = vm::setScreenBrightness,
                 )
             }
-            item {
-                SliderRow(
-                    label = stringResource(R.string.settings_keep_awake),
-                    value = settings.keepAwakeMinutes,
-                    range = ReaderSettings.KEEP_AWAKE_MINUTES_RANGE,
-                    step = 1,
-                    suffix = " min",
-                    onChange = vm::setKeepAwakeMinutes,
-                )
+            // Speedread mode emits a steady stream of frames itself, which keeps
+            // the display awake without an explicit wakelock — hide the
+            // keep-awake slider while it's the active mode so the user isn't
+            // tweaking a value that has no effect.
+            if (settings.mode != ReadingMode.SPEEDREAD) {
+                item {
+                    SliderRow(
+                        label = stringResource(R.string.settings_keep_awake),
+                        value = settings.keepAwakeMinutes,
+                        range = ReaderSettings.KEEP_AWAKE_MINUTES_RANGE,
+                        step = 1,
+                        suffix = " min",
+                        onChange = vm::setKeepAwakeMinutes,
+                    )
+                }
             }
 
             item { ListHeader { Text(stringResource(R.string.settings_font)) } }

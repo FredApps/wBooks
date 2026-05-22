@@ -112,7 +112,7 @@ fun InstructionsScreen(onBack: () -> Unit) {
 
             item {
                 Chip(
-                    label = { Text("Back to settings") },
+                    label = { Text("Back") },
                     onClick = onBack,
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),

@@ -85,15 +85,6 @@ fun NormalMode(
         }
     }
 
-    LaunchedEffect(document) {
-        vm.pendingNormalJump.collect { target ->
-            if (target == null) return@collect
-            val flat = document.flatIndexOf(target)
-            if (flat in blocks.indices) listState.scrollToItem(flat)
-            vm.consumePendingNormalJump(target)
-        }
-    }
-
     // ---- Save position as the user scrolls. drop(1) skips the initial restore. ----
     LaunchedEffect(document) {
         snapshotFlow { listState.firstVisibleItemIndex }

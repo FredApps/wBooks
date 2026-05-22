@@ -172,19 +172,13 @@ class ReaderViewModel(
      */
     private val _jumps = Channel<BookPosition>(capacity = Channel.CONFLATED)
     val jumps: Flow<BookPosition> = _jumps.receiveAsFlow()
-    private val _pendingNormalJump = MutableStateFlow<BookPosition?>(null)
-    val pendingNormalJump: StateFlow<BookPosition?> = _pendingNormalJump.asStateFlow()
 
     fun jumpTo(position: BookPosition) {
-        // Invalidate the pace baseline â€" the next reportPosition is the jump
+        // Invalidate the pace baseline — the next reportPosition is the jump
         // target arriving, not a natural advance, and its near-instant delta
         // would otherwise pull the EMA artificially low.
         lastAdvancePosition = null
         viewModelScope.launch { _jumps.send(position) }
-    }
-
-    fun consumePendingNormalJump(position: BookPosition) {
-        if (_pendingNormalJump.value == position) _pendingNormalJump.value = null
     }
 
     /** Called by the renderer when the visible block changes. Debounced upstream. */
@@ -447,13 +441,14 @@ class ReaderViewModel(
     }
 
     fun openSearchResult(result: SearchResult) {
-        // Search-result open is a jump too â€" see jumpTo for why we invalidate.
+        // Search-result open is a jump too — see jumpTo for why we invalidate.
+        // Stay in the user's current reading mode (normal / sentence / speedread)
+        // and let that mode's vm.jumps collector handle the scroll/scan. Every
+        // reader mode already listens on the jumps channel, so we don't need to
+        // force ReadingMode.NORMAL the way the previous implementation did.
         lastAdvancePosition = null
         viewModelScope.launch {
-            // Search results open in Normal mode; keep the jump pending until that
-            // mode is composed so the previous reader mode cannot consume it.
-            settingsRepo.update { it.copy(mode = ReadingMode.NORMAL) }
-            _pendingNormalJump.value = result.position
+            _jumps.send(result.position)
             clearSearch()
         }
     }
@@ -475,8 +470,11 @@ class ReaderViewModel(
                 if (idx < 0) continue
                 val start = (idx - 20).coerceAtLeast(0)
                 val end = (idx + q.length + 20).coerceAtMost(text.length)
-                val pre = if (start > 0) "â€¦" else ""
-                val post = if (end < text.length) "â€¦" else ""
+                // Use plain "..." rather than the U+2026 ellipsis: an earlier
+                // copy of this file picked up a UTF-8 → cp1252 transcoding bug
+                // ("â€¦") that rendered as mojibake on the watch.
+                val pre = if (start > 0) "... " else ""
+                val post = if (end < text.length) " ..." else ""
                 out += SearchResult(
                     position = com.fredapp.wbooks.data.position.BookPosition(ci, bi),
                     snippet = pre + text.substring(start, end).replace(Regex("\\s+"), " ") + post,
