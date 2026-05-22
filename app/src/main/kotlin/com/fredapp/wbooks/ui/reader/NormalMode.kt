@@ -70,7 +70,13 @@ fun NormalMode(
     val scope = rememberCoroutineScope()
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
 
-    ClaimRotaryFocusOnActive(active = isActive, focusRequester = focusRequester)
+    ClaimRotaryFocusOnActive(
+        active = isActive,
+        focusRequester = focusRequester,
+        document,
+        initialPosition,
+        settings.mode,
+    )
 
     // ---- Restore last position when the document changes (i.e. a new book opens). ----
     LaunchedEffect(document) {

@@ -22,6 +22,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val ROTARY_FOCUS_SETTLE_DELAY_MS = 80L
+private val ROTARY_FOCUS_RETRY_DELAYS_MS = longArrayOf(0L, 80L, 200L, 450L, 900L)
 
 /**
  * A counter that increments on every Activity ON_RESUME. Use it as a key so
@@ -46,10 +47,20 @@ internal fun rememberResumeTick(): Int {
  * settle/disposal. Immediate requestFocus() calls can lose to an outgoing menu
  * or InlineSlider during horizontal swipe-back, leaving the bezel unowned.
  */
-internal suspend fun claimRotaryFocusAfterSettle(focusRequester: FocusRequester) {
+private suspend fun claimRotaryFocusOnce(focusRequester: FocusRequester, delayMs: Long) {
     withFrameNanos { }
-    delay(ROTARY_FOCUS_SETTLE_DELAY_MS)
+    if (delayMs > 0L) delay(delayMs)
     runCatching { focusRequester.requestFocus() }
+}
+
+internal suspend fun claimRotaryFocusAfterSettle(focusRequester: FocusRequester) {
+    claimRotaryFocusOnce(focusRequester, ROTARY_FOCUS_SETTLE_DELAY_MS)
+}
+
+private suspend fun claimRotaryFocusWithRetries(focusRequester: FocusRequester) {
+    for (delayMs in ROTARY_FOCUS_RETRY_DELAYS_MS) {
+        claimRotaryFocusOnce(focusRequester, delayMs)
+    }
 }
 
 /**
@@ -70,13 +81,13 @@ internal fun ClaimRotaryFocusOnActive(
     LaunchedEffect(active) {
         if (active) {
             latestOnActivated()
-            claimRotaryFocusAfterSettle(focusRequester)
+            claimRotaryFocusWithRetries(focusRequester)
         }
     }
 
     LaunchedEffect(active, resumeTick, refocusKeys.toList()) {
         if (active) {
-            claimRotaryFocusAfterSettle(focusRequester)
+            claimRotaryFocusWithRetries(focusRequester)
         }
     }
 }
