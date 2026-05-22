@@ -113,7 +113,7 @@ class UploadServer(
             library.append("""<button type="button" onclick="renameFolder(${jsString(folderRel)})">Rename</button>""")
             library.append("""<form method="post" action="/delete" class="inline" data-confirm="Delete folder $folderRelEsc and all its books?" onsubmit="return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$folderRelEsc"><button class="danger">Delete</button></form>""")
             library.append("""</div></div>""")
-            library.append("""<div id="$tbId" class="book-list">""")
+            library.append("""<div id="$tbId" class="book-list" data-folder-key="$folderRelEsc">""")
             if (folderBooks.isEmpty()) {
                 library.append("""<p class="empty-state">Drop files here to upload to this folder.</p>""")
             } else {
@@ -131,7 +131,7 @@ class UploadServer(
         library.append("""<section class="library-section root-section drop-zone" data-folder="">""")
         library.append("""<button type="button" class="folder-head" onclick="toggleFolder('$rootId')">""")
         library.append("""<span class="chev" id="ch_$rootId">▾</span><span class="folder-mark">root</span><span class="folder-title">Root</span><span class="count">${rootBooks.size} book${if (rootBooks.size == 1) "" else "s"}</span></button>""")
-        library.append("""<div id="$rootId" class="book-list open">""")
+        library.append("""<div id="$rootId" class="book-list open" data-folder-key="(root)">""")
         if (rootBooks.isEmpty()) {
             library.append("""<p class="empty-state">Drop files here to upload them at the top level.</p>""")
         } else {
@@ -186,6 +186,8 @@ class UploadServer(
               .library-top p{margin:0}
               .library-section{overflow:hidden}
               .library-section.drag-over,.file-picker.drag-over{outline:3px solid rgba(179,83,24,.24);background:#fff4e4}
+              .book-card[draggable="true"]{cursor:grab}
+              .book-card.dragging{opacity:.45}
               .chev{display:inline-flex;width:14px;justify-content:center;color:var(--muted);font-size:0.9rem;flex:0 0 auto}
               .folder-shell,.folder-head{display:flex;align-items:center;gap:10px}
               .folder-shell{justify-content:space-between;background:var(--panel-2);border-bottom:1px solid var(--line);padding:12px}
@@ -241,8 +243,26 @@ class UploadServer(
                 var tb = document.getElementById(id);
                 var ch = document.getElementById('ch_' + id);
                 var open = tb.classList.contains('open');
-                tb.classList.toggle('open', !open);
-                if (ch) ch.textContent = open ? '▸' : '▾';
+                var nowOpen = !open;
+                tb.classList.toggle('open', nowOpen);
+                if (ch) ch.textContent = nowOpen ? '▾' : '▸';
+                var key = tb.dataset.folderKey;
+                if (key !== undefined) {
+                  try { sessionStorage.setItem('wbooksOpen:' + key, nowOpen ? '1' : '0'); } catch (e) {}
+                }
+              }
+              function restoreFolderState() {
+                document.querySelectorAll('.book-list').forEach(function(tb){
+                  var key = tb.dataset.folderKey;
+                  if (key === undefined) return;
+                  var saved = null;
+                  try { saved = sessionStorage.getItem('wbooksOpen:' + key); } catch (e) {}
+                  if (saved === null) return;
+                  var open = saved === '1';
+                  tb.classList.toggle('open', open);
+                  var ch = document.getElementById('ch_' + tb.id);
+                  if (ch) ch.textContent = open ? '▾' : '▸';
+                });
               }
               function pinValue() { return (document.getElementById('pin').value || '').trim(); }
               function storePin(pin) {
@@ -577,21 +597,58 @@ class UploadServer(
                 var modal = document.getElementById('help-modal');
                 modal.classList.remove('show');
               }
+              var BOOK_DRAG_TYPE = 'application/x-wbooks-book';
+              // Some browsers omit custom types from dataTransfer.types during
+              // dragover for security. Track the active in-page drag so we can
+              // still highlight valid drop targets while a book is being moved.
+              var activeBookDrag = null;
               function installDropZones() {
                 document.querySelectorAll('.drop-zone').forEach(function(zone) {
                   zone.addEventListener('dragover', function(e) {
-                    if (e.dataTransfer && e.dataTransfer.types && Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') >= 0) {
+                    var types = (e.dataTransfer && e.dataTransfer.types) ? e.dataTransfer.types : null;
+                    var hasFile = types && Array.prototype.indexOf.call(types, 'Files') >= 0;
+                    var hasBook = activeBookDrag !== null || (types && Array.prototype.indexOf.call(types, BOOK_DRAG_TYPE) >= 0);
+                    if (hasFile || hasBook) {
                       e.preventDefault();
+                      if (hasBook && !hasFile) e.dataTransfer.dropEffect = 'move';
                       zone.classList.add('drag-over');
                     }
                   });
                   zone.addEventListener('dragleave', function() { zone.classList.remove('drag-over'); });
                   zone.addEventListener('drop', function(e) {
-                    if (!e.dataTransfer || !e.dataTransfer.files.length) return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    zone.classList.remove('drag-over');
-                    uploadFiles(e.dataTransfer.files, zone.dataset.folder || '');
+                    if (!e.dataTransfer) return;
+                    if (e.dataTransfer.files && e.dataTransfer.files.length) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      zone.classList.remove('drag-over');
+                      uploadFiles(e.dataTransfer.files, zone.dataset.folder || '');
+                      return;
+                    }
+                    var rel = e.dataTransfer.getData(BOOK_DRAG_TYPE) || activeBookDrag;
+                    if (rel) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      zone.classList.remove('drag-over');
+                      moveBookTo(rel, zone.dataset.folder || '');
+                    }
+                  });
+                });
+                document.querySelectorAll('.book-card[draggable="true"]').forEach(function(card) {
+                  card.addEventListener('dragstart', function(e) {
+                    var rel = card.dataset.rel || '';
+                    if (!rel) return;
+                    activeBookDrag = rel;
+                    try {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData(BOOK_DRAG_TYPE, rel);
+                      e.dataTransfer.setData('text/plain', rel);
+                    } catch (err) { /* ignore - effectAllowed may be read-only in some flows */ }
+                    card.classList.add('dragging');
+                  });
+                  card.addEventListener('dragend', function() {
+                    card.classList.remove('dragging');
+                    activeBookDrag = null;
+                    document.querySelectorAll('.drop-zone.drag-over').forEach(function(z){ z.classList.remove('drag-over'); });
                   });
                 });
                 var pin = document.getElementById('pin');
@@ -615,7 +672,7 @@ class UploadServer(
                   });
                 }
               }
-              window.addEventListener('DOMContentLoaded', installDropZones);
+              window.addEventListener('DOMContentLoaded', function(){ restoreFolderState(); installDropZones(); });
               var serverDisabledMessageShown = false;
               async function checkServerStillRunning() {
                 if (serverDisabledMessageShown) return;
@@ -645,16 +702,15 @@ class UploadServer(
                   .then(function(r){ if (!r.ok) alert('Rename failed: ' + r.status); location.href='/'; })
                   .catch(function(e){ alert('Rename error: ' + e); });
               }
-              async function moveBook(rel, currentFolder) {
+              async function moveBookTo(rel, destFolder) {
+                if (!rel) return;
+                var curr = rel.indexOf('/') >= 0 ? rel.substring(0, rel.lastIndexOf('/')) : '';
+                if (curr === destFolder) return;
                 var pin = await ensurePin();
                 if (pin == null) return;
-                var dest = prompt('Move "' + rel + '" to folder. Leave blank for Root:', currentFolder || '');
-                if (dest == null) return;
-                dest = dest.trim();
-                if (dest === currentFolder) return;
                 var fd = new FormData();
                 fd.append('from', rel);
-                fd.append('to', dest);
+                fd.append('to', destFolder);
                 try {
                   var resp = await fetch('/move?pin=' + encodeURIComponent(pin), {method:'POST', body: fd});
                   if (!resp.ok) {
@@ -1045,14 +1101,14 @@ class UploadServer(
             baseNoExt to book.extension.uppercase()
         }
         val title = htmlEscape("$displayBase [$tag]")
+        val folderEsc = htmlEscape(currentFolder)
         return """
-            <article class="book-card">
+            <article class="book-card" draggable="true" data-rel="$relEsc" data-folder="$folderEsc">
               <div>
                 <span class="book-title">$title</span>
                 <span class="book-path">$size</span>
               </div>
               <div class="book-actions">
-                <button type="button" onclick="moveBook(${jsString(rel)}, ${jsString(currentFolder)})">Move</button>
                 <form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)">
                   <input type="hidden" name="path" value="$relEsc">
                   <button class="danger">Delete</button>
