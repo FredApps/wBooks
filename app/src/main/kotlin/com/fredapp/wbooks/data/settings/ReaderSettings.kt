@@ -36,7 +36,7 @@ data class ReaderSettings(
     val textColorArgb: Int = 0xFFD4C19C.toInt(),
     val autoscrollEnabled: Boolean = false,
     val autoscrollSpeed: Int = 20,
-    val screenBrightness: Int = 100,
+    val screenBrightness: Int = 80,
     /** Words per minute in speedread mode. */
     val speedreadWpm: Int = 300,
     /**

@@ -18,17 +18,21 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.rotary.onPreRotaryScrollEvent
+import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.ScalingLazyListState
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.foundation.rotary.rotaryScrollable
@@ -57,6 +61,7 @@ import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.layout.watchListPadding
 import com.fredapp.wbooks.ui.theme.toFontFamily
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private val FolderGrey = Color(0xFFB0B0B0)
@@ -84,6 +89,7 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
     }
     val state = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = state)
     val settings by vm.settings.collectAsState()
     // Hoisted out of the items below: a separate collectAsState per item costs
@@ -109,10 +115,18 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
         vm.startTransfer()
     }
 
+    fun scrollSettingsBy(scrollPixels: Float): Boolean {
+        if (scrollPixels == 0f) return false
+        scope.launch { state.scrollBy(scrollPixels) }
+        return true
+    }
+
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .onPreRotaryScrollEvent { event -> scrollSettingsBy(event.verticalScrollPixels) }
+                .onRotaryScrollEvent { event -> scrollSettingsBy(event.verticalScrollPixels) }
                 .focusRequester(focusRequester)
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
@@ -319,6 +333,10 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
             }
         }
     }
+}
+
+private suspend fun ScalingLazyListState.scrollBy(pixels: Float) {
+    scroll { scrollBy(pixels) }
 }
 
 @Composable
