@@ -27,6 +27,7 @@ import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.data.changelog.CHANGELOG
 import com.fredapp.wbooks.data.changelog.ChangelogEntry
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
+import com.fredapp.wbooks.ui.focus.pageRotaryScrollOwner
 import com.fredapp.wbooks.ui.layout.watchListPadding
 
 @Composable
@@ -40,6 +41,7 @@ fun ChangelogScreen(onBack: () -> Unit) {
         ScalingLazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .pageRotaryScrollOwner(listState)
                 .focusRequester(focusRequester)
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),

@@ -26,6 +26,7 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.data.folder.FolderPolicy
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
+import com.fredapp.wbooks.ui.focus.pageRotaryScrollOwner
 import com.fredapp.wbooks.ui.layout.watchListPadding
 
 @Composable
@@ -39,6 +40,7 @@ fun InstructionsScreen(onBack: () -> Unit) {
         ScalingLazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .pageRotaryScrollOwner(listState)
                 .focusRequester(focusRequester)
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),

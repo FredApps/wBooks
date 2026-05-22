@@ -70,6 +70,7 @@ import com.fredapp.wbooks.WBooksApp
 import com.fredapp.wbooks.data.book.Book
 import com.fredapp.wbooks.data.folder.FolderPolicy
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
+import com.fredapp.wbooks.ui.focus.pageRotaryScrollOwner
 import com.fredapp.wbooks.ui.layout.watchListPadding
 import com.fredapp.wbooks.ui.settings.InstructionsScreen
 
@@ -246,6 +247,7 @@ fun LibraryScreen(
         ScalingLazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .pageRotaryScrollOwner(listState)
                 .focusRequester(focusRequester)
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
@@ -377,6 +379,7 @@ private fun ConfirmDeleteScreen(
         ScalingLazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .pageRotaryScrollOwner(listState)
                 .focusRequester(focusRequester)
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
@@ -440,6 +443,7 @@ private fun FolderPickerScreen(
         ScalingLazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .pageRotaryScrollOwner(listState)
                 .focusRequester(focusRequester)
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
@@ -532,6 +536,7 @@ private fun FolderActionsScreen(
         ScalingLazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .pageRotaryScrollOwner(listState)
                 .focusRequester(focusRequester)
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
