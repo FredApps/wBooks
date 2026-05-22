@@ -93,6 +93,7 @@ fun ReaderScreen(
                     settings = settings,
                     vm = vm,
                     isActive = isActive,
+                    onAutoscrollSpeedChange = vm::setAutoscrollSpeed,
                 )
                 ReadingMode.SPEEDREAD -> SpeedReadMode(
                     document = state.doc,
@@ -108,6 +109,7 @@ fun ReaderScreen(
                     settings = settings,
                     vm = vm,
                     isActive = isActive,
+                    onAutoscrollSpeedChange = vm::setAutoscrollSpeed,
                 )
             }
         }

@@ -47,6 +47,7 @@ import kotlin.math.abs
 
 private data class SentenceItem(val text: String, val position: BookPosition)
 private const val SENTENCE_SWIPE_THRESHOLD_PX = 36f
+private const val AUTOSCROLL_SPEED_STEP = 1
 
 /**
  * One sentence at a time, larger text.
@@ -69,6 +70,7 @@ fun SentenceMode(
     settings: ReaderSettings,
     vm: ReaderViewModel,
     isActive: Boolean,
+    onAutoscrollSpeedChange: (Int) -> Unit,
 ) {
     val sentences = remember(document) { segmentSentences(document) }
     if (sentences.isEmpty()) {
@@ -115,6 +117,14 @@ fun SentenceMode(
         return true
     }
 
+    fun stepAutoscrollSpeed(scrollPixels: Float): Boolean {
+        if (!settings.autoscrollEnabled || autoscrollPaused || abs(scrollPixels) <= 0f) return false
+        val step = if (scrollPixels > 0) AUTOSCROLL_SPEED_STEP else -AUTOSCROLL_SPEED_STEP
+        val next = (settings.autoscrollSpeed + step).coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE)
+        if (next != settings.autoscrollSpeed) onAutoscrollSpeedChange(next)
+        return true
+    }
+
     fun advanceSentence() {
         index = (index + 1).coerceAtMost(sentences.size - 1)
     }
@@ -126,9 +136,11 @@ fun SentenceMode(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .onPreRotaryScrollEvent { event -> stepSentence(event.verticalScrollPixels) }
+            .onPreRotaryScrollEvent { event ->
+                stepAutoscrollSpeed(event.verticalScrollPixels) || stepSentence(event.verticalScrollPixels)
+            }
             .onRotaryScrollEvent { event ->
-                stepSentence(event.verticalScrollPixels)
+                stepAutoscrollSpeed(event.verticalScrollPixels) || stepSentence(event.verticalScrollPixels)
             }
             .focusRequester(focusRequester)
             .focusable()
