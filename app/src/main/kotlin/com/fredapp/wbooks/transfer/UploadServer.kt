@@ -830,10 +830,6 @@ class UploadServer(
 
                 <p><strong>Adjust watch settings:</strong> Scroll down to "Settings" below the library. All changes sync to the watch immediately.</p>
 
-                <p><strong>Touch-first design:</strong> The watch app works entirely with touch. If your watch has a rotary bezel or crown, you can use it to scroll—it's optional.</p>
-
-                <p><strong>No internet needed:</strong> This interface runs on your local network. PDF.js and all book data stay on the watch.</p>
-
                 <div class="modal-actions">
                   <button type="button" onclick="closeInstructions()">Close</button>
                 </div>
