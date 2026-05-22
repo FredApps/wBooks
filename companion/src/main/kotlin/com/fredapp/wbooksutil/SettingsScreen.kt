@@ -141,15 +141,6 @@ private fun SettingsList(
             onSelect = vm::setMode,
         )
 
-        SectionHeader("Theme")
-        EnumPicker(
-            options = ThemeChoice.entries,
-            selected = runCatching { ThemeChoice.valueOf(snapshot.theme) }.getOrDefault(ThemeChoice.DARK),
-            labelFor = { it.name.lowercase().replaceFirstChar { c -> c.titlecase() } },
-            enabled = enabled,
-            onSelect = vm::setTheme,
-        )
-
         SectionHeader("Font")
         EnumPicker(
             options = FontChoice.entries,
@@ -343,7 +334,7 @@ private fun InstructionsBlock() {
             modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
         )
         Text(
-            text = "Tap the settings icon (top) to adjust font, text size, color, theme, and reading modes on the watch without picking up your watch.",
+            text = "Tap the settings icon (top) to adjust font, text size, color, and reading modes on the watch without picking up your watch.",
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(start = 8.dp, top = 2.dp),
         )

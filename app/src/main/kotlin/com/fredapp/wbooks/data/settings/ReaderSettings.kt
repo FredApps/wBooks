@@ -9,14 +9,6 @@ fun ReadingMode.next(): ReadingMode = when (this) {
     ReadingMode.SENTENCE -> ReadingMode.NORMAL
 }
 
-enum class ThemeChoice {
-    DARK,
-    LIGHT,
-    SYSTEM;
-
-    fun next(): ThemeChoice = entries[(ordinal + 1) % entries.size]
-}
-
 enum class FontChoice(val familyName: String) {
     DEFAULT("default"),
     SERIF("serif"),
@@ -53,7 +45,6 @@ data class ReaderSettings(
      * stays awake indefinitely while it is the active mode.
      */
     val keepAwakeMinutes: Int = 5,
-    val theme: ThemeChoice = ThemeChoice.DARK,
 ) {
     companion object {
         val TEXT_SIZE_RANGE = 10..36

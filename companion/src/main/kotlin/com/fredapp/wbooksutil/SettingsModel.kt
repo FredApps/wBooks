@@ -2,12 +2,11 @@
 
 /**
  * Companion-side mirror of `:app`'s settings enums and ranges. Duplicated by
- * hand following the project's "no shared module" convention â€” same as
- * [WearProtocol]. When the watch adds a new ReadingMode/FontChoice/ThemeChoice
- * value or shifts a range, mirror it here so the phone UI stays in sync.
+ * hand following the project's “no shared module” convention — same as
+ * [WearProtocol]. When the watch adds a new ReadingMode / FontChoice value or
+ * shifts a range, mirror it here so the phone UI stays in sync.
  */
 enum class ReadingMode { NORMAL, SPEEDREAD, SENTENCE }
-enum class ThemeChoice { DARK, LIGHT, SYSTEM }
 enum class FontChoice(val familyName: String) {
     DEFAULT("default"),
     SERIF("serif"),

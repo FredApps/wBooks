@@ -79,7 +79,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setMode(mode: ReadingMode) = sendUpdate("mode", mode.name)
     fun setFont(font: FontChoice) = sendUpdate("font", font.name)
-    fun setTheme(theme: ThemeChoice) = sendUpdate("theme", theme.name)
     fun setTextSize(value: Int) = sendUpdate("textSizeSp", value)
     fun setSentenceTextSize(value: Int) = sendUpdate("sentenceTextSizeSp", value)
     fun setTextColor(argb: Int) = sendUpdate("textColorArgb", argb)

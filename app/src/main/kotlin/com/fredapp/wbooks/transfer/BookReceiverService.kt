@@ -138,7 +138,6 @@ class BookReceiverService : WearableListenerService() {
             screenBrightness = s.screenBrightness,
             speedreadWpm = s.speedreadWpm,
             keepAwakeMinutes = s.keepAwakeMinutes,
-            theme = s.theme.name,
             crashReportingEnabled = app.crashReportingPref.enabled.value,
         )
         return SettingsJson.encode(snapshot).toByteArray(Charsets.UTF_8)

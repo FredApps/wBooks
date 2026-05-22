@@ -12,7 +12,7 @@ import org.junit.Test
  */
 class SettingsJsonTest {
 
-    private val fullJson = """{"mode":"NORMAL","font":"SERIF","textSizeSp":16,"sentenceTextSizeSp":22,"textColorArgb":-1517599,"autoscrollEnabled":false,"autoscrollSpeed":20,"screenBrightness":100,"speedreadWpm":300,"theme":"DARK","crashReportingEnabled":true}"""
+    private val fullJson = """{"mode":"NORMAL","font":"SERIF","textSizeSp":16,"sentenceTextSizeSp":22,"textColorArgb":-1517599,"autoscrollEnabled":false,"autoscrollSpeed":20,"screenBrightness":100,"speedreadWpm":300,"crashReportingEnabled":true}"""
 
     @Test
     fun decodes_full_payload() {
@@ -28,7 +28,6 @@ class SettingsJsonTest {
         assertEquals(20, s.autoscrollSpeed)
         assertEquals(100, s.screenBrightness)
         assertEquals(300, s.speedreadWpm)
-        assertEquals("DARK", s.theme)
         assertEquals(true, s.crashReportingEnabled)
     }
 
