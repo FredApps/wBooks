@@ -129,7 +129,7 @@ class MainActivity : ComponentActivity() {
             }
 
             val contentColor = Color(settings.textColorArgb)
-            WBooksTheme(choice = settings.theme, textColor = contentColor) {
+            WBooksTheme(textColor = contentColor) {
                 CompositionLocalProvider(LocalContentColor provides contentColor) {
                     ProvideTextStyle(TextStyle(color = contentColor, fontFamily = settings.font.toFontFamily())) {
                         WBooksRoot(vm = vm)

@@ -7,7 +7,6 @@ import com.fredapp.wbooks.data.settings.FontChoice
 import com.fredapp.wbooks.data.settings.ReaderSettings
 import com.fredapp.wbooks.data.settings.ReadingMode
 import com.fredapp.wbooks.data.settings.SettingsRepository
-import com.fredapp.wbooks.data.settings.ThemeChoice
 import com.fredapp.wbooks.data.telemetry.CrashReportingPref
 import com.fredapp.wbooks.util.uniqueFile
 import fi.iki.elonen.NanoHTTPD
@@ -148,7 +147,7 @@ class UploadServer(
             """<p class="flash" role="status">${htmlEscape(flash)}</p>""" else ""
         val webSettings = runBlocking { settingsRepository.snapshot() }
         val settingsHtml = renderSettingsPanel(webSettings)
-        val bodyStyle = "font-family:${webFontCss(webSettings.font)},system-ui,sans-serif;color:${argbCss(webSettings.textColorArgb)};${webThemeCss(webSettings)}"
+        val bodyStyle = "font-family:${webFontCss(webSettings.font)},system-ui,sans-serif;color:${argbCss(webSettings.textColorArgb)};background:#111;"
         val html = """
             <!doctype html>
             <html><head><meta charset="utf-8"><title>wBooks transfer</title>
@@ -881,7 +880,6 @@ class UploadServer(
                 current.copy(
                     mode = enumParam(params, "mode", current.mode),
                     font = enumParam(params, "font", current.font),
-                    theme = enumParam(params, "theme", current.theme),
                     textSizeSp = intParam(params, "textSizeSp", current.textSizeSp)
                         .coerceIn(ReaderSettings.TEXT_SIZE_RANGE),
                     sentenceTextSizeSp = intParam(params, "sentenceTextSizeSp", current.sentenceTextSizeSp)
@@ -967,7 +965,6 @@ class UploadServer(
               <form id="settings-form" method="post" action="/settings" onsubmit="return attachPin(this)">
                 <div class="settings-grid">
                   ${selectSetting("Reading mode", "mode", ReadingMode.entries.map { it.name }, s.mode.name)}
-                  ${selectSetting("Theme", "theme", ThemeChoice.entries.map { it.name }, s.theme.name)}
                   ${fontSetting(s.font)}
                   ${numberSetting("Text size", "textSizeSp", s.textSizeSp, ReaderSettings.TEXT_SIZE_RANGE)}
                   ${numberSetting("Sentence text size", "sentenceTextSizeSp", s.sentenceTextSizeSp, ReaderSettings.SENTENCE_TEXT_SIZE_RANGE)}
@@ -1043,12 +1040,6 @@ class UploadServer(
         FontChoice.SANS -> "Arial"
         FontChoice.MONO -> "\"Courier New\",monospace"
         FontChoice.CURSIVE -> "cursive"
-    }
-
-    private fun webThemeCss(settings: ReaderSettings): String = when (settings.theme) {
-        ThemeChoice.LIGHT -> "background:#f7f7f7;"
-        ThemeChoice.DARK -> "background:#111;"
-        ThemeChoice.SYSTEM -> ""
     }
 
     private inline fun <reified E : Enum<E>> enumParam(params: Map<String, List<String>>, name: String, fallback: E): E =

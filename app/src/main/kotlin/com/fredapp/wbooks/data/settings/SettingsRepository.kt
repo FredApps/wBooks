@@ -26,7 +26,6 @@ private object Keys {
     val SCREEN_BRIGHTNESS = intPreferencesKey("screen_brightness")
     val SPEEDREAD_WPM = intPreferencesKey("speedread_wpm")
     val KEEP_AWAKE_MINUTES = intPreferencesKey("keep_awake_minutes")
-    val THEME = stringPreferencesKey("theme")
 }
 
 /**
@@ -61,7 +60,9 @@ class SettingsRepository(context: Context) {
     suspend fun applyWireKey(key: String, value: String): Boolean = when (key) {
         "mode" -> enumUpdate(value, ReadingMode::valueOf) { copy(mode = it) }
         "font" -> enumUpdate(value, FontChoice::valueOf) { copy(font = it) }
-        "theme" -> enumUpdate(value, ThemeChoice::valueOf) { copy(theme = it) }
+        // "theme" is silently accepted-and-ignored so an old companion build
+        // that still emits it doesn't get rejected wholesale.
+        "theme" -> true
         "textSizeSp" -> intUpdate(value) { copy(textSizeSp = it.coerceIn(ReaderSettings.TEXT_SIZE_RANGE)) }
         "sentenceTextSizeSp" -> intUpdate(value) { copy(sentenceTextSizeSp = it.coerceIn(ReaderSettings.SENTENCE_TEXT_SIZE_RANGE)) }
         "textColorArgb" -> intUpdate(value) { copy(textColorArgb = it) }
@@ -118,7 +119,6 @@ class SettingsRepository(context: Context) {
                 .coerceIn(ReaderSettings.WPM_RANGE),
             keepAwakeMinutes = (this[Keys.KEEP_AWAKE_MINUTES] ?: defaults.keepAwakeMinutes)
                 .coerceIn(ReaderSettings.KEEP_AWAKE_MINUTES_RANGE),
-            theme = this[Keys.THEME]?.let(::readTheme) ?: defaults.theme,
         )
     }
 
@@ -133,7 +133,6 @@ class SettingsRepository(context: Context) {
         this[Keys.SCREEN_BRIGHTNESS] = s.screenBrightness.coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE)
         this[Keys.SPEEDREAD_WPM] = s.speedreadWpm.coerceIn(ReaderSettings.WPM_RANGE)
         this[Keys.KEEP_AWAKE_MINUTES] = s.keepAwakeMinutes.coerceIn(ReaderSettings.KEEP_AWAKE_MINUTES_RANGE)
-        this[Keys.THEME] = s.theme.name
     }
 
     private fun readMode(raw: String): ReadingMode =
@@ -141,7 +140,4 @@ class SettingsRepository(context: Context) {
 
     private fun readFont(raw: String): FontChoice =
         runCatching { FontChoice.valueOf(raw) }.getOrDefault(FontChoice.SERIF)
-
-    private fun readTheme(raw: String): ThemeChoice =
-        runCatching { ThemeChoice.valueOf(raw) }.getOrDefault(ThemeChoice.DARK)
 }

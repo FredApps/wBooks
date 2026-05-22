@@ -193,13 +193,6 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                 )
             }
             item {
-                CyclerChip(
-                    label = stringResource(R.string.settings_theme),
-                    value = settings.theme.name.lowercase().replaceFirstChar { it.titlecase() },
-                    onClick = vm::cycleTheme,
-                )
-            }
-            item {
                 SliderRow(
                     label = stringResource(R.string.settings_text_size),
                     value = settings.textSizeSp,

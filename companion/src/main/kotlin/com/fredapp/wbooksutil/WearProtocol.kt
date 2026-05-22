@@ -33,7 +33,6 @@ data class SettingsSnapshot(
     val screenBrightness: Int,
     val speedreadWpm: Int,
     val keepAwakeMinutes: Int,
-    val theme: String,
     val crashReportingEnabled: Boolean,
 )
 
@@ -67,7 +66,6 @@ object SettingsJson {
             // fall back to the watch's own default rather than rejecting the
             // whole snapshot.
             keepAwakeMinutes = readLong(json, "keepAwakeMinutes")?.toInt() ?: 5,
-            theme = readString(json, "theme") ?: return null,
             crashReportingEnabled = readBool(json, "crashReportingEnabled") ?: return null,
         )
     }

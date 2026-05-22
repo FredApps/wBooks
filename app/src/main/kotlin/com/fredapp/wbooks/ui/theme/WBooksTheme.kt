@@ -1,11 +1,9 @@
-﻿package com.fredapp.wbooks.ui.theme
+package com.fredapp.wbooks.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.wear.compose.material.Colors
 import androidx.wear.compose.material.MaterialTheme
-import com.fredapp.wbooks.data.settings.ThemeChoice
 
 private val DarkColors = Colors(
     primary = Color(0xFFE8E6E1),
@@ -16,38 +14,24 @@ private val DarkColors = Colors(
     onSurface = Color(0xFFE8E6E1),
 )
 
-private val LightColors = Colors(
-    primary = Color(0xFF1A1A1F),
-    onPrimary = Color(0xFFFFFFFF),
-    background = Color(0xFFF5F2EC),
-    onBackground = Color(0xFF1A1A1F),
-    surface = Color(0xFFE6E2DA),
-    onSurface = Color(0xFF1A1A1F),
-)
-
 /**
- * App theme. The [choice] is the persisted user preference; SYSTEM defers to
- * [isSystemInDarkTheme]. On Wear OS the system theme is almost always dark
- * (for battery), but we honour it for correctness.
+ * App theme. Dark-only: the watch's OLED background draws best at zero
+ * luminance and the previous LIGHT / SYSTEM options have been retired. The
+ * caller can still tint the text via [textColor]; that flows into the
+ * Material `primary` / `onBackground` / `onSurface` slots without changing
+ * the underlying dark surface palette.
  */
 @Composable
 fun WBooksTheme(
-    choice: ThemeChoice = ThemeChoice.DARK,
     textColor: Color? = null,
     content: @Composable () -> Unit,
 ) {
-    val dark = when (choice) {
-        ThemeChoice.DARK -> true
-        ThemeChoice.LIGHT -> false
-        ThemeChoice.SYSTEM -> isSystemInDarkTheme()
-    }
-    val base = if (dark) DarkColors else LightColors
     val colors = textColor?.let {
-        base.copy(
+        DarkColors.copy(
             primary = it,
             onBackground = it,
             onSurface = it,
         )
-    } ?: base
+    } ?: DarkColors
     MaterialTheme(colors = colors, content = content)
 }

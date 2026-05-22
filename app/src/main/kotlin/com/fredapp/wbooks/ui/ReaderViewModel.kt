@@ -15,7 +15,6 @@ import com.fredapp.wbooks.data.settings.FontChoice
 import com.fredapp.wbooks.data.settings.ReaderSettings
 import com.fredapp.wbooks.data.settings.ReadingMode
 import com.fredapp.wbooks.data.settings.SettingsRepository
-import com.fredapp.wbooks.data.settings.ThemeChoice
 import com.fredapp.wbooks.data.settings.next
 import com.fredapp.wbooks.data.settings.nextTextColor
 import com.fredapp.wbooks.parser.cache.DocumentCache
@@ -658,8 +657,6 @@ class ReaderViewModel(
     fun cycleMode() = editSettings { it.copy(mode = it.mode.next()) }
     fun cycleFont() = editSettings { it.copy(font = it.font.next()) }
     fun cycleTextColor() = editSettings { it.copy(textColorArgb = nextTextColor(it.textColorArgb)) }
-    fun cycleTheme() = editSettings { it.copy(theme = it.theme.next()) }
-    fun setTheme(theme: ThemeChoice) = editSettings { it.copy(theme = theme) }
     fun toggleAutoscroll() = editSettings { it.copy(autoscrollEnabled = !it.autoscrollEnabled) }
 
     fun setMode(mode: ReadingMode) = editSettings { it.copy(mode = mode) }
