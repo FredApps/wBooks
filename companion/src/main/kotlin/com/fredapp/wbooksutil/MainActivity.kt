@@ -588,8 +588,7 @@ private fun FolderChip(
 @Composable
 private fun BookItem(book: BookSummary, onDelete: (BookSummary) -> Unit) {
     ListItem(
-        headlineContent = { Text(book.title, fontWeight = FontWeight.Medium) },
-        supportingContent = { Text(book.format) },
+        headlineContent = { Text(displayTitleWithTag(book.title, book.format), fontWeight = FontWeight.Medium) },
         trailingContent = {
             IconButton(onClick = { onDelete(book) }) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
@@ -601,6 +600,18 @@ private fun BookItem(book: BookSummary, onDelete: (BookSummary) -> Unit) {
             })
         },
     )
+}
+
+/**
+ * Mirrors the web library's book label: hide the on-disk extension and show
+ * a single bracketed format tag instead. PDFs are stored as
+ * `Title [PDF].html`; in that case keep the `[PDF]` and drop only `.html`.
+ */
+private fun displayTitleWithTag(rawTitle: String, format: String): String {
+    val baseNoExt = if (rawTitle.contains('.')) rawTitle.substringBeforeLast('.') else rawTitle
+    if (baseNoExt.endsWith(" [PDF]")) return baseNoExt
+    val tag = format.uppercase().ifBlank { "FILE" }
+    return "$baseNoExt [$tag]"
 }
 
 @Composable
