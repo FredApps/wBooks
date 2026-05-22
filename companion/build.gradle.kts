@@ -15,6 +15,22 @@ fun localProperty(name: String): String {
     return props.getProperty(name).orEmpty()
 }
 
+/**
+ * Like [localProperty] but fails the build with a clear message when the value
+ * is missing. The Android applicationId is fetched through this so the package
+ * name stays out of the public repo while still being baked into every APK.
+ */
+fun requireLocalProperty(name: String): String {
+    val value = localProperty(name)
+    if (value.isBlank()) {
+        error(
+            "Missing '$name' in local.properties. " +
+                "See README.md (Local configuration) for the required keys."
+        )
+    }
+    return value
+}
+
 val wBooksSigningProperties by lazy {
     val file = rootProject.projectDir.parentFile.resolve(".secrets/wBooks-signing.properties")
     if (!file.isFile) {
@@ -53,7 +69,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "REDACTED"
+        applicationId = requireLocalProperty("wbooks.applicationId")
         minSdk = 24
         targetSdk = 35
         versionCode = 6
