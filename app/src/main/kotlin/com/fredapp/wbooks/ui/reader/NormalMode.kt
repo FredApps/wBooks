@@ -119,7 +119,7 @@ fun NormalMode(
 
     LazyColumn(
         state = listState,
-        contentPadding = watchReaderPadding(start = 14.dp, top = 48.dp, end = 14.dp, bottom = 24.dp),
+        contentPadding = watchReaderPadding(start = 6.dp, top = 48.dp, end = 6.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .fillMaxSize()
