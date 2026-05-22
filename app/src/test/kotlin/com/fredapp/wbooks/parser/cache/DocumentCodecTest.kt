@@ -25,6 +25,11 @@ class DocumentCodecTest {
                     blocks = listOf(
                         Block.Heading(level = 1, text = "Chapter"),
                         Block.Paragraph(listOf(Run("Hello"))),
+                        Block.Image(
+                            bytes = byteArrayOf(1, 2, 3, 4),
+                            mime = "image/png",
+                            alt = "cover",
+                        ),
                     ),
                 ),
             ),

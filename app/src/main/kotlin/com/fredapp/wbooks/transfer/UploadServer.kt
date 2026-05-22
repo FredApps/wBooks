@@ -824,21 +824,21 @@ class UploadServer(
             <div id="help-modal" class="modal" role="dialog" aria-modal="true">
               <div class="modal-card" style="max-width: 620px; max-height: 80vh; overflow-y: auto;">
                 <h3>How to use the web interface</h3>
-                <p><strong>Get the PIN:</strong> Enable "File transfer" in watch Settings. The PIN appears both on the watch and in this card above.</p>
+                <p><strong>Get the PIN:</strong> Enable "File transfer" in watch Settings. Enter the PIN shown on the watch to unlock this page.</p>
 
                 <p><strong>Upload books:</strong> Choose files or drag them onto the "Choose or drop files" box. Click "Upload to watch" to place them in Root. Drag files onto a folder card to upload directly into that folder.</p>
 
                 <p><strong>Supported formats:</strong> EPUB, TXT, FB2, HTML, DOCX, ODT, and PDF. All files are sent to the watch as soon as you upload—no separate sync step needed.</p>
 
-                <p><strong>PDF conversion:</strong> PDFs are automatically converted to HTML in your browser using PDF.js (served from the watch—no internet required). The first PDF in a session shows a warning; subsequent ones convert silently.</p>
+                <p><strong>PDF conversion:</strong> PDFs are automatically converted to HTML in your browser using PDF.js served from the watch. The first PDF in a session shows a warning; subsequent ones convert silently.</p>
 
                 <p><strong>Create folders:</strong> Type a folder name in the "New folder" field and click "Create folder". Books appear in Root until you move them. Folders are top-level only; you can have up to ${FolderPolicy.MAX_FOLDERS} folders, and each folder name can be up to ${FolderPolicy.MAX_NAME_LENGTH} characters.</p>
 
-                <p><strong>Organize books:</strong> Drag book cards onto folder section headers to move them. The watch syncs the changes automatically.</p>
+                <p><strong>Organize books:</strong> Click Move on a book card, or drag book cards onto folder section headers. The watch syncs the changes automatically.</p>
 
                 <p><strong>Delete:</strong> Click the delete button on a book card or folder header. You'll be asked to confirm.</p>
 
-                <p><strong>Rename folders:</strong> Folders can be renamed from the phone companion app or watch Settings. Folder names cannot contain path or reserved filesystem characters. The web interface shows live updates.</p>
+                <p><strong>Rename folders:</strong> Click Rename on a folder header. Folder names cannot contain path or reserved filesystem characters.</p>
 
                 <p><strong>Adjust watch settings:</strong> Scroll down to "Settings" below the library. All changes sync to the watch immediately.</p>
 
