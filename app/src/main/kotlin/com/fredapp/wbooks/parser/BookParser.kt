@@ -9,11 +9,11 @@ interface BookParser {
     fun parse(input: InputStream): Document
 }
 
-fun parserFor(format: BookFormat): BookParser = when (format) {
-    BookFormat.EPUB -> EpubParser()
-    BookFormat.TXT -> TxtParser()
-    BookFormat.FB2 -> Fb2Parser()
-    BookFormat.HTML -> HtmlParser()
-    BookFormat.DOCX -> DocxParser()
-    BookFormat.ODT -> OdtParser()
+fun parserFor(format: BookFormat, onProgress: (Int) -> Unit = {}): BookParser = when (format) {
+    BookFormat.EPUB -> EpubParser(onProgress = onProgress)
+    BookFormat.TXT -> TxtParser(onProgress = onProgress)
+    BookFormat.FB2 -> Fb2Parser(onProgress = onProgress)
+    BookFormat.HTML -> HtmlParser(onProgress = onProgress)
+    BookFormat.DOCX -> DocxParser(onProgress = onProgress)
+    BookFormat.ODT -> OdtParser(onProgress = onProgress)
 }

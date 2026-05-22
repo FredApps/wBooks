@@ -11,6 +11,7 @@ import java.io.File
 import java.io.InputStream
 import java.util.zip.ZipFile
 import javax.xml.parsers.SAXParserFactory
+import kotlin.math.roundToInt
 
 /**
  * Office Open XML word documents (.docx).
@@ -33,6 +34,7 @@ import javax.xml.parsers.SAXParserFactory
  */
 class DocxParser(
     private val tmpDir: File? = null,
+    private val onProgress: (Int) -> Unit = {},
 ) : BookParser {
 
     override fun parse(input: InputStream): Document {
@@ -49,9 +51,13 @@ class DocxParser(
         val (title, author) = zip.getEntry("docProps/core.xml")?.let { entry ->
             zip.getInputStream(entry).use { parseCore(it) }
         } ?: ("" to null)
+        onProgress(15)
         val docEntry = zip.getEntry("word/document.xml")
             ?: error("DOCX: missing word/document.xml")
-        val chapters = zip.getInputStream(docEntry).use { splitIntoChapters(it) }
+        val chapters = zip.getInputStream(docEntry).use {
+            splitIntoChapters(ProgressInputStream(it, docEntry.size, 15, 90, onProgress))
+        }
+        onProgress(90)
         return Document(title = title, author = author, chapters = chapters)
     }
 
@@ -215,5 +221,44 @@ class DocxParser(
             }
         }
         return null
+    }
+
+    private class ProgressInputStream(
+        private val delegate: InputStream,
+        private val totalBytes: Long,
+        private val startPercent: Int,
+        private val endPercent: Int,
+        private val onProgress: (Int) -> Unit,
+    ) : InputStream() {
+        private var bytesRead = 0L
+        private var lastPercent = startPercent
+
+        override fun read(): Int {
+            val value = delegate.read()
+            if (value != -1) report(1)
+            return value
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            val read = delegate.read(buffer, offset, length)
+            if (read > 0) report(read)
+            return read
+        }
+
+        override fun close() {
+            delegate.close()
+        }
+
+        private fun report(delta: Int) {
+            if (totalBytes <= 0L) return
+            bytesRead += delta
+            val span = endPercent - startPercent
+            val next = (startPercent + (bytesRead.toDouble() / totalBytes.toDouble() * span)).roundToInt()
+                .coerceIn(startPercent, endPercent)
+            if (next > lastPercent) {
+                lastPercent = next
+                onProgress(next)
+            }
+        }
     }
 }

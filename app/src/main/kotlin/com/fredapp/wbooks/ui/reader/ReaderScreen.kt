@@ -50,11 +50,25 @@ fun ReaderScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(
+                        progress = state.progressPercent?.let { it / 100f } ?: 0f,
+                    )
+                    state.progressPercent?.let { percent ->
+                        Text(
+                            text = "$percent%",
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                     Text(
                         text = "Opening ${state.book.title}",
                         textAlign = TextAlign.Center,
                     )
+                    state.status?.let { status ->
+                        Text(
+                            text = status,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                     if (state.isFirstOpen) {
                         Text(
                             text = "First open may take a moment",

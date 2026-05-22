@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.fredapp.wbooks.data.book.Book
+import com.fredapp.wbooks.data.book.BookFormat
 import com.fredapp.wbooks.data.bookmarks.Bookmark
 import com.fredapp.wbooks.data.bookmarks.BookmarksRepository
 import com.fredapp.wbooks.data.library.LibraryRepository
@@ -53,7 +54,12 @@ import kotlinx.coroutines.withContext
 
 sealed interface DocumentState {
     data object Idle : DocumentState
-    data class Loading(val book: Book, val isFirstOpen: Boolean) : DocumentState
+    data class Loading(
+        val book: Book,
+        val isFirstOpen: Boolean,
+        val progressPercent: Int? = null,
+        val status: String? = null,
+    ) : DocumentState
     data class Loaded(
         val book: Book,
         val doc: Document,
@@ -551,7 +557,12 @@ class ReaderViewModel(
         lastAdvancePosition = null
         loadJob = viewModelScope.launch {
             val isFirstOpen = !positionsRepo.hasOpened(book.id)
-            _document.value = DocumentState.Loading(book, isFirstOpen)
+            _document.value = DocumentState.Loading(
+                book = book,
+                isFirstOpen = isFirstOpen,
+                progressPercent = 0,
+                status = "Preparing",
+            )
             positionsRepo.markOpened(book.id)
             positionsRepo.setLastOpenedBookId(book.id)
             val key = DocumentCache.Key(
@@ -615,10 +626,13 @@ class ReaderViewModel(
     ): Result<Document> = try {
         Result.success(
             withTimeout(CACHE_LOAD_TIMEOUT_MS) {
+                updateLoadingProgress(book, 5, "Checking cache")
                 documentCache.load(key)
             } ?: withTimeout(COLD_PARSE_TIMEOUT_MS) {
+                updateLoadingProgress(book, 10, "Parsing")
                 val startedAt = System.currentTimeMillis()
                 parseBook(book).also { parsed ->
+                    updateLoadingProgress(book, 95, "Preparing reader")
                     Log.i(TAG, "Parsed ${book.id} (${book.format}) in ${System.currentTimeMillis() - startedAt}ms")
                     appScope.launch(Dispatchers.IO) {
                         val storeStartedAt = System.currentTimeMillis()
@@ -638,11 +652,23 @@ class ReaderViewModel(
     }
 
     private suspend fun parseBook(book: Book): Document = withContext(Dispatchers.IO) {
-        if (book.format == com.fredapp.wbooks.data.book.BookFormat.EPUB) {
-            EpubParser().parse(book.file)
-        } else {
-            book.file.inputStream().use { parserFor(book.format).parse(it) }
+        val progress: (Int) -> Unit = { percent ->
+            updateLoadingProgress(book, percent, "Parsing")
         }
+        if (book.format == BookFormat.EPUB) {
+            EpubParser(onProgress = progress).parse(book.file)
+        } else {
+            book.file.inputStream().use { parserFor(book.format, onProgress = progress).parse(it) }
+        }
+    }
+
+    private fun updateLoadingProgress(book: Book, percent: Int, status: String) {
+        val current = _document.value as? DocumentState.Loading ?: return
+        if (current.book.id != book.id) return
+        _document.value = current.copy(
+            progressPercent = percent.coerceIn(0, 100),
+            status = status,
+        )
     }
 
     /**
