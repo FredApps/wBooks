@@ -7,6 +7,7 @@ import com.fredapp.wbooks.data.pace.ReadingPaceRepository
 import com.fredapp.wbooks.data.position.PositionsRepository
 import com.fredapp.wbooks.data.stats.ReadingStatsRepository
 import com.fredapp.wbooks.data.settings.SettingsRepository
+import com.fredapp.wbooks.data.firstrun.FirstRunPref
 import com.fredapp.wbooks.data.telemetry.CrashReportingPref
 import com.fredapp.wbooks.parser.cache.DocumentCache
 import com.fredapp.wbooks.transfer.TransferController
@@ -31,6 +32,7 @@ class WBooksApp : Application() {
     val transferController: TransferController by lazy { TransferController(this) }
     val documentCache: DocumentCache by lazy { DocumentCache(File(cacheDir, "parsed")) }
     val crashReportingPref: CrashReportingPref by lazy { CrashReportingPref(this) }
+    val firstRunPref: FirstRunPref by lazy { FirstRunPref(this) }
 
     /** Application-scope coroutine scope for one-shot background work that needs to outlive any single screen. */
     internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
