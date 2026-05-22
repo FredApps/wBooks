@@ -66,6 +66,7 @@ fun LibraryPager(vm: ReaderViewModel) {
                 onBookOpen = { vm.openBook(it) },
                 onRefresh = { vm.refreshLibrary() },
                 onMoveBook = { bookId, folder -> vm.moveBook(bookId, folder) },
+                onRenameBook = { bookId, title -> vm.renameBook(bookId, title) },
                 onDeleteBook = { vm.deleteBook(it) },
                 onCreateFolder = { vm.createFolder(it) },
                 onRenameFolder = { o, n -> vm.renameFolder(o, n) },

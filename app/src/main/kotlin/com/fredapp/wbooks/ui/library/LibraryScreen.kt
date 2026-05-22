@@ -2,16 +2,17 @@ package com.fredapp.wbooks.ui.library
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,7 +30,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -73,6 +73,7 @@ import com.fredapp.wbooks.ui.layout.watchListPadding
 // look the same.
 private val FolderGrey = Color(0xFFB0B0B0)
 private val FolderGreyText = Color(0xFF1C1C1C)
+private val BookChipBackground = Color(0xFF2A2A2A)
 private val DeleteRed = Color(0xFFE53935)
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
@@ -83,6 +84,7 @@ fun LibraryScreen(
     onBookOpen: (Book) -> Unit,
     onRefresh: () -> Unit,
     onMoveBook: (bookId: String, targetFolder: String) -> Unit,
+    onRenameBook: (bookId: String, newTitle: String) -> Unit,
     onDeleteBook: (bookId: String) -> Unit,
     onCreateFolder: (String) -> Unit,
     onRenameFolder: (oldName: String, newName: String) -> Unit,
@@ -90,6 +92,7 @@ fun LibraryScreen(
     isActive: Boolean = true,
 ) {
     var bookToMove by remember { mutableStateOf<Book?>(null) }
+    var bookToRename by remember { mutableStateOf<Book?>(null) }
     var pendingDelete by remember { mutableStateOf<Book?>(null) }
     var folderAction by remember { mutableStateOf<String?>(null) }
     var folderToRename by remember { mutableStateOf<String?>(null) }
@@ -156,6 +159,21 @@ fun LibraryScreen(
         return
     }
 
+    bookToRename?.let { book ->
+        BackHandler { bookToRename = null }
+        RenameFolderScreen(
+            currentName = book.title,
+            heading = "Rename book",
+            onSubmit = {
+                onRenameBook(book.id, it)
+                bookToRename = null
+                bookToMove = null
+            },
+            onCancel = { bookToRename = null },
+        )
+        return
+    }
+
     bookToMove?.let { book ->
         BackHandler { bookToMove = null }
         FolderPickerScreen(
@@ -163,6 +181,7 @@ fun LibraryScreen(
             folders = allFolderNames,
             currentFolder = book.id.substringBeforeLast('/', ""),
             onPick = { folder -> onMoveBook(book.id, folder); bookToMove = null },
+            onRename = { bookToRename = book },
             onDelete = { pendingDelete = book },
             onCancel = { bookToMove = null },
         )
@@ -233,7 +252,6 @@ fun LibraryScreen(
                     ) {
                         for (folder in allFolderNames) {
                             val isSelected = folder == selectedFolder
-                            val bg = if (isSelected) FolderGrey.copy(alpha = 0.55f) else FolderGrey
                             val count = grouped[folder]?.size ?: 0
                             // Don't use pointerInput for the long-press — it interferes
                             // with the parent pager's swipe. combinedClickable cooperates
@@ -242,21 +260,11 @@ fun LibraryScreen(
                             // No icon — keeps chips compact so more fit per row.
                             // Selection is conveyed by background alpha and by the
                             // book list expanding directly below.
-                            CompactChip(
-                                label = {
-                                    Text(
-                                        "$folder ($count)",
-                                        color = FolderGreyText,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        maxLines = 1,
-                                    )
-                                },
+                            FolderPill(
+                                text = "$folder ($count)",
+                                selected = isSelected,
                                 onClick = onFolderClick,
-                                colors = ChipDefaults.chipColors(backgroundColor = bg, contentColor = FolderGreyText),
-                                modifier = Modifier.combinedClickable(
-                                    onClick = onFolderClick,
-                                    onLongClick = { folderAction = folder },
-                                ),
+                                onLongPress = { folderAction = folder },
                             )
                         }
                     }
@@ -374,6 +382,7 @@ private fun FolderPickerScreen(
     folders: List<String>,
     currentFolder: String,
     onPick: (targetFolder: String) -> Unit,
+    onRename: () -> Unit,
     onDelete: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -401,6 +410,14 @@ private fun FolderPickerScreen(
                     bookTitle,
                     style = MaterialTheme.typography.caption1,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                )
+            }
+            item(key = "rename") {
+                Chip(
+                    label = { Text("Rename book") },
+                    onClick = onRename,
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             item(key = "root") {
@@ -606,26 +623,48 @@ private fun FolderIcon() {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
+private fun FolderPill(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (selected) FolderGrey.copy(alpha = 0.55f) else FolderGrey)
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text,
+            color = FolderGreyText,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 1,
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
 private fun BookChip(book: Book, onClick: () -> Unit, onLongPress: () -> Unit) {
-    // Let Chip keep its normal tap behavior, but add an explicit long-press
-    // detector so press-and-hold still reaches the move menu on watch.
-    //
-    // pointerInput is keyed on book.id (a stable string) instead of the
-    // onLongPress lambda. The parent recomposes every time `bookToMove` or
-    // selectedFolder changes — each recomposition produces a fresh lambda
-    // identity, which would tear down and re-install the gesture detector
-    // for every chip in the list every keystroke. Latest-lambda-by-state
-    // keeps the detector installed and just retargets it.
-    val latestLongPress by rememberUpdatedState(onLongPress)
-    Chip(
-        label = { Text(book.title) },
-        secondaryLabel = { Text(book.format.name) },
-        onClick = onClick,
-        colors = ChipDefaults.secondaryChipColors(),
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .pointerInput(book.id) {
-                detectTapGestures(onLongPress = { latestLongPress() })
-            },
-    )
+            .clip(RoundedCornerShape(24.dp))
+            .background(BookChipBackground)
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
+            .defaultMinSize(minHeight = 52.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(book.title, style = MaterialTheme.typography.button, maxLines = 1)
+        Text(
+            book.format.name,
+            style = MaterialTheme.typography.caption2,
+            color = MaterialTheme.colors.onSurface.copy(alpha = 0.65f),
+            maxLines = 1,
+        )
+    }
 }

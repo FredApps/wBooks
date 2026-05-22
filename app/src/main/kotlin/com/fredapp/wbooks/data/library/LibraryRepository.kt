@@ -70,6 +70,23 @@ class LibraryRepository(private val booksDir: File) {
         }
     }
 
+    suspend fun renameBook(bookId: String, newTitle: String): String? = withContext(Dispatchers.IO) {
+        val clean = cleanBookTitle(newTitle) ?: return@withContext null
+        val src = _books.value.firstOrNull { it.id == bookId }?.file ?: return@withContext null
+        val parent = src.parentFile ?: return@withContext null
+        if (!parent.isInsideBooksDir()) return@withContext null
+        val extension = src.extension.takeIf { it.isNotBlank() }?.let { ".$it" }.orEmpty()
+        val desired = File(parent, "$clean$extension")
+        if (src.canonicalFile == desired.canonicalFile) return@withContext bookId
+        val dest = if (desired.exists()) uniqueFile(parent, desired.name) else desired
+        if (src.renameTo(dest)) {
+            refresh()
+            dest.relativeTo(booksDir).invariantSeparatorsPath
+        } else {
+            null
+        }
+    }
+
     suspend fun createFolder(name: String): Boolean = withContext(Dispatchers.IO) {
         val clean = cleanFolderName(name) ?: return@withContext false
         val dir = File(booksDir, clean)
@@ -105,6 +122,14 @@ class LibraryRepository(private val booksDir: File) {
     }
 
     private fun cleanFolderName(raw: String): String? {
+        val t = raw.trim().trim('/', '\\')
+        if (t.isEmpty()) return null
+        if (t.contains('/') || t.contains('\\')) return null
+        if (t == "." || t == "..") return null
+        return t
+    }
+
+    private fun cleanBookTitle(raw: String): String? {
         val t = raw.trim().trim('/', '\\')
         if (t.isEmpty()) return null
         if (t.contains('/') || t.contains('\\')) return null
