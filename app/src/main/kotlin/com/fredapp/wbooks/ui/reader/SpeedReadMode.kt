@@ -105,7 +105,13 @@ fun SpeedReadMode(
         playing = false
     }
 
-    ClaimRotaryFocusOnActive(active = isActive, focusRequester = focusRequester)
+    ClaimRotaryFocusOnActive(
+        active = isActive,
+        focusRequester = focusRequester,
+        document,
+        initialPosition,
+        settings.mode,
+    )
     val centerPadding = watchContentPadding(horizontal = 12.dp, vertical = 0.dp)
 
     fun stepWpm(scrollPixels: Float): Boolean {

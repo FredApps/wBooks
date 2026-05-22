@@ -85,7 +85,13 @@ fun SentenceMode(
     }
     var autoscrollPaused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
-    ClaimRotaryFocusOnActive(active = isActive, focusRequester = focusRequester)
+    ClaimRotaryFocusOnActive(
+        active = isActive,
+        focusRequester = focusRequester,
+        document,
+        initialPosition,
+        settings.mode,
+    )
 
     // Handle external jumps (chapter list, bookmark tap).
     LaunchedEffect(document) {
