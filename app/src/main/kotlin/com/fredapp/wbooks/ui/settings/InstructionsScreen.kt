@@ -24,6 +24,7 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
+import com.fredapp.wbooks.data.folder.FolderPolicy
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.layout.watchListPadding
 
@@ -97,7 +98,8 @@ fun InstructionsScreen(onBack: () -> Unit) {
             item { SectionTitle("Folders") }
             item {
                 Body(
-                    "Create folders in Settings to organize books. Use the companion app or web UI to drag books between folders.",
+                    "Create folders from the library, then long-press a book to move it. Use the companion app or web UI to drag books between folders.\n\n" +
+                        "Folders are top-level only. You can have up to ${FolderPolicy.MAX_FOLDERS} folders, and each folder name can be up to ${FolderPolicy.MAX_NAME_LENGTH} characters. Names cannot contain path or reserved filesystem characters.",
                 )
             }
 
