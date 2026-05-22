@@ -6,7 +6,8 @@
 param(
     [string]$WatchSerial = "adb-RFAW81T9GVJ-NVBniB._adb-tls-connect._tcp",
     [string]$WatchIp = "10.238.16.48:5555",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$SkipPull
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,6 +39,15 @@ $remoteApk = "/data/local/tmp/wbooks-app-debug.apk"
 function Assert-File($path, $label) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "$label not found: $path"
+    }
+}
+
+function Invoke-Git {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+
+    & git @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "git $($Arguments -join ' ') failed"
     }
 }
 
@@ -78,8 +88,31 @@ function Resolve-WatchSerial {
 Assert-File $adb "ADB"
 Assert-File $gradle "Gradle wrapper"
 
+Push-Location $root
+try {
+    if (-not $SkipPull) {
+        Write-Host "Updating local main from GitHub..." -ForegroundColor Cyan
+        Invoke-Git "fetch" "origin" "--prune"
+        $status = & git status --porcelain
+        if ($status) {
+            throw "Working tree has uncommitted changes. Commit, stash, or rerun with -SkipPull."
+        }
+        Invoke-Git "pull" "--ff-only"
+    }
+
+    $head = (& git rev-parse --short HEAD).Trim()
+    $subject = (& git log -1 --pretty=%s).Trim()
+    Write-Host "Using commit $head $subject" -ForegroundColor Cyan
+} finally {
+    Pop-Location
+}
+
 if (-not $SkipBuild) {
     Write-Host "Building watch APK..." -ForegroundColor Cyan
+    $buildStartedAt = Get-Date
+    if (Test-Path -LiteralPath $apk) {
+        Remove-Item -LiteralPath $apk -Force
+    }
     Push-Location $root
     try {
         & $gradle ":app:assembleDebug"
@@ -87,9 +120,17 @@ if (-not $SkipBuild) {
     } finally {
         Pop-Location
     }
+} else {
+    $buildStartedAt = $null
 }
 
 Assert-File $apk "Watch APK"
+$apkInfo = Get-Item -LiteralPath $apk
+if ($buildStartedAt -and $apkInfo.LastWriteTime -lt $buildStartedAt) {
+    throw "APK was not rebuilt during this run. Refusing to install stale APK: $apk"
+}
+Write-Host "APK: $($apkInfo.FullName)" -ForegroundColor Cyan
+Write-Host "APK timestamp: $($apkInfo.LastWriteTime)" -ForegroundColor Cyan
 
 $target = Resolve-WatchSerial -PreferredSerial $WatchSerial -PreferredIp $WatchIp
 Write-Host "Installing on $target..." -ForegroundColor Cyan
