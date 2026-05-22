@@ -108,7 +108,7 @@ class UploadServer(
             library.append("""<section class="library-section drop-zone" data-folder="$folderRelEsc">""")
             library.append("""<div class="folder-shell">""")
             library.append("""<button type="button" class="folder-head" onclick="toggleFolder('$tbId')">""")
-            library.append("""<span class="folder-mark">folder</span><span class="folder-title">$folderRelEsc</span><span class="count">${folderBooks.size} book${if (folderBooks.size == 1) "" else "s"}</span></button>""")
+            library.append("""<span class="chev" id="ch_$tbId">▸</span><span class="folder-mark">folder</span><span class="folder-title">$folderRelEsc</span><span class="count">${folderBooks.size} book${if (folderBooks.size == 1) "" else "s"}</span></button>""")
             library.append("""<div class="folder-actions">""")
             library.append("""<button type="button" onclick="renameFolder(${jsString(folderRel)})">Rename</button>""")
             library.append("""<form method="post" action="/delete" class="inline" data-confirm="Delete folder $folderRelEsc and all its books?" onsubmit="return confirmAndAttachPin(this)"><input type="hidden" name="path" value="$folderRelEsc"><button class="danger">Delete</button></form>""")
@@ -130,7 +130,7 @@ class UploadServer(
         val rootId = "root"
         library.append("""<section class="library-section root-section drop-zone" data-folder="">""")
         library.append("""<button type="button" class="folder-head" onclick="toggleFolder('$rootId')">""")
-        library.append("""<span class="folder-mark">root</span><span class="folder-title">Root</span><span class="count">${rootBooks.size} book${if (rootBooks.size == 1) "" else "s"}</span></button>""")
+        library.append("""<span class="chev" id="ch_$rootId">▾</span><span class="folder-mark">root</span><span class="folder-title">Root</span><span class="count">${rootBooks.size} book${if (rootBooks.size == 1) "" else "s"}</span></button>""")
         library.append("""<div id="$rootId" class="book-list open">""")
         if (rootBooks.isEmpty()) {
             library.append("""<p class="empty-state">Drop files here to upload them at the top level.</p>""")
@@ -184,6 +184,7 @@ class UploadServer(
               .library-top p{margin:0}
               .library-section{overflow:hidden}
               .library-section.drag-over,.file-picker.drag-over{outline:3px solid rgba(179,83,24,.24);background:#fff4e4}
+              .chev{display:inline-flex;width:14px;justify-content:center;color:var(--muted);font-size:0.9rem;flex:0 0 auto}
               .folder-shell,.folder-head{display:flex;align-items:center;gap:10px}
               .folder-shell{justify-content:space-between;background:var(--panel-2);border-bottom:1px solid var(--line);padding:12px}
               .root-section>.folder-head{width:100%;background:var(--panel-2);border-bottom:1px solid var(--line);padding:12px}
@@ -239,6 +240,7 @@ class UploadServer(
                 var ch = document.getElementById('ch_' + id);
                 var open = tb.classList.contains('open');
                 tb.classList.toggle('open', !open);
+                if (ch) ch.textContent = open ? '▸' : '▾';
               }
               function pinValue() { return (document.getElementById('pin').value || '').trim(); }
               function storePin(pin) {
@@ -955,12 +957,18 @@ class UploadServer(
         size: String,
         currentFolder: String,
     ): String {
-        val title = htmlEscape(book.name)
+        val baseNoExt = book.nameWithoutExtension
+        val (displayBase, tag) = if (baseNoExt.endsWith(" [PDF]")) {
+            baseNoExt.removeSuffix(" [PDF]") to "PDF"
+        } else {
+            baseNoExt to book.extension.uppercase()
+        }
+        val title = htmlEscape("$displayBase [$tag]")
         return """
             <article class="book-card">
               <div>
                 <span class="book-title">$title</span>
-                <span class="book-path">$relEsc - $size</span>
+                <span class="book-path">$size</span>
               </div>
               <div class="book-actions">
                 <button type="button" onclick="moveBook(${jsString(rel)}, ${jsString(currentFolder)})">Move</button>
