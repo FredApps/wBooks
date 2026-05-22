@@ -238,6 +238,10 @@ private fun SettingsList(
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        SectionHeader("How to use")
+        InstructionsBlock()
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         SectionHeader("Changelog")
         ChangelogBlock()
 
@@ -265,6 +269,95 @@ private fun ChangelogBlock() {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun InstructionsBlock() {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Text(
+            text = "Sending books to the watch",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+        )
+        Text(
+            text = "Tap the \"Add\" button to pick files from your phone. Supported formats: EPUB, DOCX, ODT, TXT, HTML, FB2, and PDF.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 8.dp, top = 2.dp),
+        )
+
+        Text(
+            text = "Organizing with folders",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+        )
+        Text(
+            text = "Tap the folder icon to create folders. Drag book titles onto folders to organize them. The watch syncs these changes automatically.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 8.dp, top = 2.dp),
+        )
+
+        Text(
+            text = "PDF support",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+        )
+        Text(
+            text = "When you upload a PDF, this app automatically converts it to HTML for the watch. The PDF appears in your library marked [PDF].",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 8.dp, top = 2.dp),
+        )
+
+        Text(
+            text = "Browsing Project Gutenberg",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+        )
+        Text(
+            text = "Tap the Project Gutenberg icon (top) to search and download public-domain books directly to the watch.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 8.dp, top = 2.dp),
+        )
+
+        Text(
+            text = "Reading stats",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+        )
+        Text(
+            text = "Tap the calendar icon (top) to view reading statistics: daily totals, 30-day trends, and books finished. Data is synced from the watch.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 8.dp, top = 2.dp),
+        )
+
+        Text(
+            text = "Watch settings",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+        )
+        Text(
+            text = "Tap the settings icon (top) to adjust font, text size, color, theme, and reading modes on the watch without picking up your watch.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 8.dp, top = 2.dp),
+        )
+
+        Text(
+            text = "Connection",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+        )
+        Text(
+            text = "The app syncs with your watch automatically once paired. Make sure both devices are on the same Wi-Fi network or connected via Bluetooth.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 8.dp, top = 2.dp),
+        )
     }
 }
 
