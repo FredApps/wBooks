@@ -64,6 +64,7 @@ class UploadServer(
             uri == "/rename" -> handleRename(session)
             uri == "/settings" -> handleSettings(session)
             uri == "/pin-check" -> handlePinCheck(session)
+            uri == "/health" -> newFixedLengthResponse(Response.Status.OK, "text/plain", "OK")
             // PDF.js shipped in the APK (assets/pdfjs/). Static, unauthenticated:
             // it's a copy of Mozilla's library, not user data.
             uri.startsWith("/pdfjs/") && session.method == Method.GET -> servePdfJsAsset(uri)
@@ -109,7 +110,7 @@ class UploadServer(
                 val rel = book.relativeTo(booksDir).invariantSeparatorsPath
                 val relEsc = htmlEscape(rel)
                 val size = htmlEscape(humanBytes(book.length()))
-                library.append(bookCard(book, rel, relEsc, size, topFolders, ""))
+                library.append(bookCard(book, rel, relEsc, size, ""))
             }
         }
         library.append("</div></section>")
@@ -137,7 +138,7 @@ class UploadServer(
                     val rel = book.relativeTo(booksDir).invariantSeparatorsPath
                     val relEsc = htmlEscape(rel)
                     val size = htmlEscape(humanBytes(book.length()))
-                    library.append(bookCard(book, rel, relEsc, size, topFolders, folderRel))
+                    library.append(bookCard(book, rel, relEsc, size, folderRel))
                 }
             }
             library.append("</div></section>")
@@ -152,7 +153,7 @@ class UploadServer(
             <!doctype html>
             <html><head><meta charset="utf-8"><title>wBooks transfer</title>
             <style>
-              :root{--bg:#f3f0e8;--panel:#fffdf8;--panel-2:#f7f2e6;--ink:#211d18;--muted:#756b5e;--line:#ded2bf;--accent:#b35318;--accent-2:#1f6f69;--danger:#a83232;--shadow:0 14px 36px rgba(52,37,20,0.12)}
+              :root{--bg:#f3f0e8;--panel:#fffdf8;--panel-2:#f7f2e6;--control:#f2eadc;--ink:#211d18;--muted:#756b5e;--line:#ded2bf;--accent:#b35318;--accent-2:#1f6f69;--danger:#a83232;--shadow:0 14px 36px rgba(52,37,20,0.12)}
               *{box-sizing:border-box}
               body{margin:0;min-height:100vh;background:radial-gradient(circle at top left,#fff8e8 0,#f3f0e8 42%,#ebe7de 100%);font-family:system-ui,sans-serif;color:var(--ink)}
               .page{max-width:1120px;margin:0 auto;padding:28px 18px 44px}
@@ -164,7 +165,7 @@ class UploadServer(
               .pin-card{padding:18px;display:flex;flex-direction:column;gap:10px}
               .pin-card label,.upload-card label,.setting label{font-weight:700}
               .pin-row{display:flex;gap:8px}
-              input[type=text],input[type=password],input[type=number],select{width:100%;border:1px solid var(--line);border-radius:6px;background:#fff;padding:10px 11px;color:var(--ink)}
+              input[type=text],input[type=password],input[type=number],select{width:100%;border:1px solid var(--line);border-radius:6px;background:var(--control);padding:10px 11px;color:var(--ink)}
               button{border:1px solid var(--line);border-radius:6px;background:#fffaf1;color:var(--ink);padding:9px 12px;font-weight:700;cursor:pointer}
               button:hover{border-color:var(--accent);color:var(--accent)}
               button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -198,11 +199,11 @@ class UploadServer(
               .book-title{display:block;font-weight:800;overflow-wrap:anywhere}
               .book-path{display:block;color:var(--muted);font-size:.86rem;overflow-wrap:anywhere}
               form.inline{display:inline}
-              form.move{display:flex;gap:8px;align-items:center}
               .settings{margin-top:18px;padding:18px}
               .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:10px}
+              .setting{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px}
               .setting small{display:block;margin-top:4px}
-              .checkbox-row{display:flex;align-items:center;gap:8px;margin-top:22px}
+              .checkbox-row{display:flex;align-items:center;gap:8px}
               .swatches{display:flex;gap:8px;flex-wrap:wrap}
               .swatch{width:32px;height:32px;border-radius:50%;border:2px solid var(--line);cursor:pointer}
               .swatch.selected{outline:3px solid var(--accent)}
@@ -212,9 +213,9 @@ class UploadServer(
               .modal-card h3{margin-top:0}
               .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
               @media (prefers-color-scheme: dark) {
-                :root{--bg:#111;--panel:#191919;--panel-2:#232323;--ink:#eee;--muted:#b8b8b8;--line:#3b3b3b;--accent:#df7f34;--accent-2:#6cc1ba;--shadow:0 14px 36px rgba(0,0,0,.35)}
+                :root{--bg:#111;--panel:#191919;--panel-2:#232323;--control:#222;--ink:#eee;--muted:#b8b8b8;--line:#3b3b3b;--accent:#df7f34;--accent-2:#6cc1ba;--shadow:0 14px 36px rgba(0,0,0,.35)}
                 body{background:linear-gradient(135deg,#101010,#1c1a17 55%,#111)}
-                input,select,button,.book-card{background:#222;color:#eee;border-color:#555}
+                input,select,button,.book-card{background:var(--control);color:#eee;border-color:#555}
                 .file-picker{background:#211b15}
                 .flash{background:#18351d;border-color:#426b45}
               }
@@ -293,7 +294,7 @@ class UploadServer(
               }
               async function submitUpload(e) {
                 e.preventDefault();
-                await uploadFiles(e.target.querySelector('input[type=file]').files, e.target.querySelector('input[name=folder]').value.trim());
+                await uploadFiles(e.target.querySelector('input[type=file]').files, '');
               }
               // Sticky for the page's lifetime — first PDF upload shows the
               // warning modal; subsequent ones skip straight to conversion.
@@ -527,11 +528,26 @@ class UploadServer(
                     if (!e.dataTransfer || !e.dataTransfer.files.length) return;
                     e.preventDefault();
                     picker.classList.remove('drag-over');
-                    uploadFiles(e.dataTransfer.files, document.querySelector('input[name=folder]').value.trim());
+                    uploadFiles(e.dataTransfer.files, '');
                   });
                 }
               }
               window.addEventListener('DOMContentLoaded', installDropZones);
+              var serverDisabledMessageShown = false;
+              async function checkServerStillRunning() {
+                if (serverDisabledMessageShown) return;
+                try {
+                  var resp = await fetch('/health', {cache:'no-store'});
+                  if (resp.ok) return;
+                } catch (e) {
+                  // The watch closed the server, Wi-Fi dropped, or the page is stale.
+                }
+                serverDisabledMessageShown = true;
+                alert('Webserver has been disabled');
+              }
+              window.addEventListener('DOMContentLoaded', function() {
+                setInterval(checkServerStillRunning, 5000);
+              });
               async function renameFolder(oldName) {
                 var pin = await ensurePin();
                 if (pin == null) return;
@@ -545,6 +561,28 @@ class UploadServer(
                 fetch('/rename?pin=' + encodeURIComponent(pin), {method:'POST', body: fd})
                   .then(function(r){ if (!r.ok) alert('Rename failed: ' + r.status); location.href='/'; })
                   .catch(function(e){ alert('Rename error: ' + e); });
+              }
+              async function moveBook(rel, currentFolder) {
+                var pin = await ensurePin();
+                if (pin == null) return;
+                var dest = prompt('Move "' + rel + '" to folder. Leave blank for Root:', currentFolder || '');
+                if (dest == null) return;
+                dest = dest.trim();
+                if (dest === currentFolder) return;
+                var fd = new FormData();
+                fd.append('from', rel);
+                fd.append('to', dest);
+                try {
+                  var resp = await fetch('/move?pin=' + encodeURIComponent(pin), {method:'POST', body: fd});
+                  if (!resp.ok) {
+                    var detail = await resp.text();
+                    alert('Move stopped: ' + (detail || resp.status));
+                    return;
+                  }
+                  location.href = resp.redirected ? resp.url : '/';
+                } catch (err) {
+                  alert('Move failed: ' + err);
+                }
               }
               function setColor(value) {
                 document.getElementById('textColorArgb').value = value;
@@ -581,10 +619,8 @@ class UploadServer(
                 <aside class="upload-card">
                   <h2>Add books</h2>
                   <form method="post" action="/upload" enctype="multipart/form-data" class="upload-form" onsubmit="submitUpload(event)">
-                    <label>Destination folder<input type="text" name="folder" maxlength="${FolderPolicy.MAX_NAME_LENGTH}" placeholder="Root, or a folder name"></label>
                     <label class="file-picker">Choose or drop files<input type="file" name="file" multiple accept=".epub,.txt,.fb2,.html,.htm,.xhtml,.docx,.odt,.pdf,application/pdf"></label>
                     <button class="primary">Upload to watch</button>
-                    <p class="pdf-note">PDFs are converted to HTML in this browser before upload. Scanned PDFs need OCR elsewhere.</p>
                   </form>
                   <form method="post" action="/mkdir" class="upload-form" onsubmit="return attachPin(this)">
                     <label>New folder<input type="text" name="name" required maxlength="${FolderPolicy.MAX_NAME_LENGTH}" placeholder="Folder name"></label>
@@ -608,6 +644,7 @@ class UploadServer(
             <div id="pdf-modal" class="modal" role="dialog" aria-modal="true">
               <div class="modal-card">
                 <h3>Experimental: convert PDF</h3>
+                <p><strong>PDFs are converted to HTML in this browser before upload. Scanned PDFs need OCR elsewhere.</strong></p>
                 <p>PDF support is experimental.</p>
                 <ul>
                   <li>If the PDF contains real text, it will be converted and sent to the watch with basic formatting (paragraphs, headings, bold, italic).</li>
@@ -638,7 +675,7 @@ class UploadServer(
                 <h3>How to use the web interface</h3>
                 <p><strong>Get the PIN:</strong> Enable "File transfer" in watch Settings. The PIN appears both on the watch and in this card above.</p>
 
-                <p><strong>Upload books:</strong> Choose files or drag them onto the "Choose or drop files" box. Select a destination folder (or leave blank for Root). Click "Upload to watch".</p>
+                <p><strong>Upload books:</strong> Choose files or drag them onto the "Choose or drop files" box. Click "Upload to watch" to place them in Root. Drag files onto a folder card to upload directly into that folder.</p>
 
                 <p><strong>Supported formats:</strong> EPUB, TXT, FB2, HTML, DOCX, ODT, and PDF. All files are sent to the watch as soon as you upload—no separate sync step needed.</p>
 
@@ -916,19 +953,8 @@ class UploadServer(
         rel: String,
         relEsc: String,
         size: String,
-        topFolders: List<File>,
         currentFolder: String,
     ): String {
-        val options = buildString {
-            val rootSelected = if (currentFolder.isEmpty()) " selected" else ""
-            append("""<option value=""$rootSelected>Root</option>""")
-            for (dir in topFolders) {
-                val folder = dir.relativeTo(booksDir).invariantSeparatorsPath
-                val folderEsc = htmlEscape(folder)
-                val selected = if (folder == currentFolder) " selected" else ""
-                append("""<option value="$folderEsc"$selected>$folderEsc</option>""")
-            }
-        }
         val title = htmlEscape(book.name)
         return """
             <article class="book-card">
@@ -937,11 +963,7 @@ class UploadServer(
                 <span class="book-path">$relEsc - $size</span>
               </div>
               <div class="book-actions">
-                <form method="post" action="/move" class="move" onsubmit="return attachPin(this)">
-                  <input type="hidden" name="from" value="$relEsc">
-                  <select name="to" aria-label="Move $relEsc to folder">$options</select>
-                  <button>Move</button>
-                </form>
+                <button type="button" onclick="moveBook(${jsString(rel)}, ${jsString(currentFolder)})">Move</button>
                 <form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)">
                   <input type="hidden" name="path" value="$relEsc">
                   <button class="danger">Delete</button>
@@ -983,10 +1005,55 @@ class UploadServer(
                 <p><button>Save settings</button></p>
               </form>
             </section>
+            ${renderInstructionsPanel()}
             ${renderChangelogPanel()}
             ${renderAboutPanel()}
         """.trimIndent()
     }
+
+    private fun renderInstructionsPanel(): String = """
+        <section class="settings">
+          <h2>How to use</h2>
+          <section>
+            <h3>Opening a book</h3>
+            <p>Swipe right to Search. Tap a book to open it. Swipe left to return to the library.</p>
+          </section>
+          <section>
+            <h3>Reading modes</h3>
+            <p><strong>Normal:</strong> Tap to page through. Swipe up/down for finer control.</p>
+            <p><strong>Speed Reading:</strong> Tap to advance word by word. Adjust WPM in settings.</p>
+            <p><strong>Sentence:</strong> One sentence at a time. Instant navigation.</p>
+          </section>
+          <section>
+            <h3>Navigation</h3>
+            <p>Swipe left while reading to open Tools page. Tap a chapter heading to jump instantly.</p>
+            <p>Check reading time and see chapter progress at the top.</p>
+          </section>
+          <section>
+            <h3>Bookmarks</h3>
+            <p>Tap the bookmark icon (top right) while reading to save your position. View all bookmarks on the Tools page.</p>
+          </section>
+          <section>
+            <h3>Settings</h3>
+            <p>Swipe left from library to Settings. Adjust text size, color, reading mode, and autoscroll speed.</p>
+            <p>Enable "Keep awake" to prevent the screen from dimming.</p>
+          </section>
+          <section>
+            <h3>File transfer</h3>
+            <p>Open Settings, toggle "File transfer" on. Use the phone companion app or visit the web address shown (from any browser on your network) to upload books.</p>
+            <p>PDF files are converted to HTML automatically.</p>
+          </section>
+          <section>
+            <h3>Folders</h3>
+            <p>Create folders from the library, then long-press a book to move it. Use the companion app or web UI to drag books between folders.</p>
+            <p>Folders are top-level only. You can have up to ${FolderPolicy.MAX_FOLDERS} folders, and each folder name can be up to ${FolderPolicy.MAX_NAME_LENGTH} characters. Names cannot contain path or reserved filesystem characters.</p>
+          </section>
+          <section>
+            <h3>Touch-first design</h3>
+            <p>Every feature works with touch. If your watch has a rotary bezel or crown, use it to scroll - it's optional and just speeds up navigation.</p>
+          </section>
+        </section>
+    """.trimIndent()
 
     private fun renderChangelogPanel(): String {
         val items = com.fredapp.wbooks.data.changelog.CHANGELOG.joinToString("") { entry ->
@@ -1005,8 +1072,10 @@ class UploadServer(
         <section class="settings">
           <h2>About</h2>
           <p>wBooks - Wear OS ebook reader.</p>
+          <p>Reads epub, txt, fb2, html, docx, and odt. The web interface can convert text-based PDFs to HTML before upload.</p>
           <p>This web interface runs on the watch over your local Wi-Fi; the URL and PIN are shown on the watch screen.</p>
           <p>Source: <a href="https://github.com/FredApps/wBooks">github.com/FredApps/wBooks</a> - GPLv3.</p>
+          <p>Bundled Gutenberg texts are public domain in the United States; check your jurisdiction.</p>
         </section>
     """.trimIndent()
 

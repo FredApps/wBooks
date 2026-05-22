@@ -12,6 +12,14 @@ data class ChangelogEntry(
  */
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.5.1",
+        date = "2026-05-22",
+        notes = listOf(
+            "Web interface cleanup: uploads from Add books now go to Root, drag-and-drop still targets folders, per-book moves use a compact Move action, and PDF guidance appears only when a PDF is uploaded.",
+            "Web interface now includes the watch How to use guide and alerts the browser if the watch-side webserver is disabled while the page is open.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.4.0",
         date = "2026-05-19",
         notes = listOf(
