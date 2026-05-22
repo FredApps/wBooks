@@ -50,6 +50,7 @@ import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.R
 import com.fredapp.wbooks.data.book.Book
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
+import com.fredapp.wbooks.ui.focus.pageRotaryScrollOwner
 import com.fredapp.wbooks.ui.layout.watchListPadding
 
 /**
@@ -112,6 +113,7 @@ fun LibrarySearchScreen(
         ScalingLazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .pageRotaryScrollOwner(listState)
                 .focusRequester(focusRequester)
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),

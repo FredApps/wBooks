@@ -6,14 +6,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.rotary.onPreRotaryScrollEvent
+import androidx.compose.ui.input.rotary.onRotaryScrollEvent
+import androidx.wear.compose.foundation.lazy.ScalingLazyListState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val ROTARY_FOCUS_SETTLE_DELAY_MS = 80L
 
@@ -73,4 +79,27 @@ internal fun ClaimRotaryFocusOnActive(
             claimRotaryFocusAfterSettle(focusRequester)
         }
     }
+}
+
+/**
+ * Keep rotary list scrolling owned by the page-level list even when children
+ * such as sliders or text fields can receive focus or handle touch gestures.
+ */
+@Composable
+internal fun Modifier.pageRotaryScrollOwner(state: ScalingLazyListState): Modifier {
+    val scope = rememberCoroutineScope()
+
+    fun scrollBy(scrollPixels: Float): Boolean {
+        if (scrollPixels == 0f) return false
+        scope.launch { state.scrollBy(scrollPixels) }
+        return true
+    }
+
+    return this
+        .onPreRotaryScrollEvent { event -> scrollBy(event.verticalScrollPixels) }
+        .onRotaryScrollEvent { event -> scrollBy(event.verticalScrollPixels) }
+}
+
+private suspend fun ScalingLazyListState.scrollBy(pixels: Float) {
+    scroll { scrollBy(pixels) }
 }

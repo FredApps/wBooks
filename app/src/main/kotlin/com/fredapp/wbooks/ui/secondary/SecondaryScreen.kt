@@ -76,6 +76,7 @@ import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.SearchResult
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.focus.claimRotaryFocusAfterSettle
+import com.fredapp.wbooks.ui.focus.pageRotaryScrollOwner
 import com.fredapp.wbooks.ui.layout.watchListPadding
 import java.text.DateFormat
 import java.util.Date
@@ -194,6 +195,7 @@ fun SecondaryScreen(
         ScalingLazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .pageRotaryScrollOwner(listState)
                 .focusRequester(focusRequester)
                 .focusable()
                 .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
@@ -358,6 +360,7 @@ private fun SearchResultsList(
     ScalingLazyColumn(
         modifier = Modifier
             .fillMaxSize()
+            .pageRotaryScrollOwner(listState)
             .focusRequester(focusRequester)
             .focusable()
             .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
