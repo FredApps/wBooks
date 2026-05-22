@@ -53,8 +53,11 @@ import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.foundation.rotary.rotaryScrollable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
+import androidx.wear.compose.material.CompactChip
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.ListHeader
 import androidx.wear.compose.material.MaterialTheme
@@ -200,11 +203,22 @@ fun SecondaryScreen(
         ) {
             item {
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Chip(
-                        label = { Text("Back", color = FolderGreyText) },
+                    CompactChip(
+                        label = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Text("Back", color = FolderGreyText)
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = "Back",
+                                    tint = FolderGreyText,
+                                )
+                            }
+                        },
                         onClick = onReaderPageRequested,
                         colors = ChipDefaults.chipColors(backgroundColor = FolderGrey, contentColor = FolderGreyText),
-                        modifier = Modifier.width(92.dp),
                     )
                 }
             }
