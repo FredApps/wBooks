@@ -11,6 +11,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -78,6 +79,7 @@ import java.util.Date
 
 private val FolderGrey = Color(0xFFB0B0B0)
 private val FolderGreyText = Color(0xFF1C1C1C)
+private val BookmarkRowBackground = Color(0xFF2A2A2A)
 
 /**
  * Page 0 â€” Tools. Either the standard tools/bookmarks/chapters list, or, when
@@ -398,18 +400,27 @@ private fun BookmarkRow(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Chip(
-            label = { Text(label) },
-            secondaryLabel = { Text(subtitle) },
-            onClick = onJump,
-            colors = ChipDefaults.secondaryChipColors(),
+        Column(
             modifier = Modifier
                 .weight(1f)
+                .clip(RoundedCornerShape(24.dp))
+                .background(BookmarkRowBackground)
                 .combinedClickable(
                     onClick = onJump,
                     onLongClick = onToggleDelete,
-                ),
-        )
+                )
+                .defaultMinSize(minHeight = 52.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(label, style = MaterialTheme.typography.button, maxLines = 1)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.caption2,
+                color = MaterialTheme.colors.onSurface.copy(alpha = 0.65f),
+                maxLines = 1,
+            )
+        }
         if (isPending) {
             Box(
                 modifier = Modifier
