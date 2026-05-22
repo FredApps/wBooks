@@ -5,12 +5,12 @@ import com.fredapp.wbooks.parser.model.Chapter
 import com.fredapp.wbooks.parser.model.Document
 import com.fredapp.wbooks.parser.model.Run
 import com.fredapp.wbooks.parser.model.RunStyle
-import org.jsoup.Jsoup
-import org.jsoup.nodes.Element
-import org.jsoup.parser.Parser
+import org.xml.sax.Attributes
+import org.xml.sax.helpers.DefaultHandler
 import java.io.File
 import java.io.InputStream
 import java.util.zip.ZipFile
+import javax.xml.parsers.SAXParserFactory
 
 /**
  * Office Open XML word documents (.docx).
@@ -46,24 +46,46 @@ class DocxParser(
     }
 
     private fun parseZip(zip: ZipFile): Document {
-        val (title, author) = parseCore(zip.readTextEntry("docProps/core.xml"))
-        val docXml = zip.readTextEntry("word/document.xml")
+        val (title, author) = zip.getEntry("docProps/core.xml")?.let { entry ->
+            zip.getInputStream(entry).use { parseCore(it) }
+        } ?: ("" to null)
+        val docEntry = zip.getEntry("word/document.xml")
             ?: error("DOCX: missing word/document.xml")
-        val doc = Jsoup.parse(docXml, "", Parser.xmlParser())
-        val body = doc.selectFirst("w|body")
-            ?: error("DOCX: word/document.xml has no <w:body>")
-        return Document(title = title, author = author, chapters = splitIntoChapters(body))
+        val chapters = zip.getInputStream(docEntry).use { splitIntoChapters(it) }
+        return Document(title = title, author = author, chapters = chapters)
     }
 
-    private fun parseCore(xml: String?): Pair<String, String?> {
-        if (xml.isNullOrEmpty()) return "" to null
-        val d = Jsoup.parse(xml, "", Parser.xmlParser())
-        val title = d.selectFirst("dc|title")?.text()?.trim().orEmpty()
-        val author = d.selectFirst("dc|creator")?.text()?.trim()?.takeIf { it.isNotEmpty() }
-        return title to author
+    private fun parseCore(input: InputStream): Pair<String, String?> {
+        val handler = object : DefaultHandler() {
+            var title = ""
+            var author: String? = null
+            private var target: String? = null
+
+            override fun startElement(uri: String?, localName: String?, qName: String?, attributes: Attributes?) {
+                target = when (tag(localName, qName)) {
+                        "title" -> "title"
+                        "creator" -> "creator"
+                        else -> null
+                }
+            }
+
+            override fun characters(ch: CharArray, start: Int, length: Int) {
+                val text = String(ch, start, length)
+                when (target) {
+                    "title" -> title += text
+                    "creator" -> author = author.orEmpty() + text
+                }
+            }
+
+            override fun endElement(uri: String?, localName: String?, qName: String?) {
+                target = null
+            }
+        }
+        sax().newSAXParser().parse(input, handler)
+        return handler.title.trim() to handler.author?.trim()?.takeIf { it.isNotEmpty() }
     }
 
-    private fun splitIntoChapters(body: Element): List<Chapter> {
+    private fun splitIntoChapters(input: InputStream): List<Chapter> {
         val chapters = mutableListOf<Chapter>()
         var pendingTitle: String? = null
         var pendingBlocks = mutableListOf<Block>()
@@ -74,57 +96,124 @@ class DocxParser(
                 pendingTitle = null
             }
         }
-        for (child in body.children()) {
-            if (!child.tagName().equals("w:p", ignoreCase = true)) continue
-            val level = headingLevel(child)
-            if (level == 1) {
-                flush()
-                pendingTitle = paragraphText(child).takeIf { it.isNotBlank() }
-            } else if (level != null) {
-                val text = paragraphText(child)
-                if (text.isNotBlank()) pendingBlocks += Block.Heading(level, text)
-            } else {
-                val runs = paragraphRuns(child)
-                if (runs.isNotEmpty()) pendingBlocks += Block.Paragraph(runs)
+
+        val handler = object : DefaultHandler() {
+            var sawBody = false
+            private var inBody = false
+            private var inParagraph = false
+            private var inRun = false
+            private var inRunProperties = false
+            private var paragraphLevel: Int? = null
+            private var paragraphRuns = mutableListOf<Run>()
+            private var paragraphText = StringBuilder()
+            private var runText = StringBuilder()
+            private var runStyle = RunStyle()
+
+            private fun flushRun() {
+                if (runText.isEmpty()) return
+                val text = runText.toString()
+                paragraphText.append(text)
+                paragraphRuns += Run(text, runStyle)
+                runText = StringBuilder()
+            }
+
+            private fun finishParagraph() {
+                val level = paragraphLevel
+                val text = paragraphText.toString().trim()
+                if (level == 1) {
+                    flush()
+                    pendingTitle = text.takeIf { it.isNotBlank() }
+                } else if (level != null) {
+                    if (text.isNotBlank()) pendingBlocks += Block.Heading(level, text)
+                } else if (paragraphRuns.isNotEmpty()) {
+                    pendingBlocks += Block.Paragraph(paragraphRuns.toList())
+                }
+                paragraphLevel = null
+                paragraphRuns = mutableListOf()
+                paragraphText = StringBuilder()
+            }
+
+            override fun startElement(uri: String?, localName: String?, qName: String?, attributes: Attributes?) {
+                when (tag(localName, qName)) {
+                        "body" -> {
+                            sawBody = true
+                            inBody = true
+                        }
+                        "p" -> if (inBody) {
+                            inParagraph = true
+                            paragraphLevel = null
+                            paragraphRuns = mutableListOf()
+                            paragraphText = StringBuilder()
+                        }
+                        "pStyle" -> if (inParagraph) {
+                            paragraphLevel = headingLevel(attributes.attr("val"))
+                        }
+                        "r" -> if (inParagraph) {
+                            inRun = true
+                            runText = StringBuilder()
+                            runStyle = RunStyle()
+                        }
+                        "rPr" -> if (inRun) inRunProperties = true
+                        "b" -> if (inRunProperties) runStyle = runStyle.copy(bold = true)
+                        "i" -> if (inRunProperties) runStyle = runStyle.copy(italic = true)
+                        "u" -> if (inRunProperties) runStyle = runStyle.copy(underline = true)
+                        "tab" -> if (inRun) runText.append('\t')
+                        "br" -> if (inRun) runText.append('\n')
+                }
+            }
+
+            override fun characters(ch: CharArray, start: Int, length: Int) {
+                if (inRun) runText.append(ch, start, length)
+            }
+
+            override fun endElement(uri: String?, localName: String?, qName: String?) {
+                when (tag(localName, qName)) {
+                        "rPr" -> inRunProperties = false
+                        "r" -> if (inRun) {
+                            flushRun()
+                            inRun = false
+                            inRunProperties = false
+                        }
+                        "p" -> if (inParagraph) {
+                            if (inRun) flushRun()
+                            finishParagraph()
+                            inParagraph = false
+                            inRun = false
+                            inRunProperties = false
+                        }
+                        "body" -> inBody = false
+                }
             }
         }
+        sax().newSAXParser().parse(input, handler)
+        if (!handler.sawBody) error("DOCX: word/document.xml has no <w:body>")
         flush()
         if (chapters.isEmpty()) chapters += Chapter(title = null, blocks = emptyList())
         return chapters
     }
 
-    private fun headingLevel(p: Element): Int? {
-        val styleVal = p.selectFirst("w|pPr > w|pStyle")
-            ?.attr("w:val")?.ifEmpty { null }
-            ?: return null
+    private fun headingLevel(styleVal: String?): Int? {
+        if (styleVal.isNullOrEmpty()) return null
         if (styleVal.equals("Title", ignoreCase = true)) return 1
         if (!styleVal.startsWith("Heading", ignoreCase = true)) return null
         return styleVal.substring("Heading".length).toIntOrNull()?.coerceIn(1, 6)
     }
 
-    private fun paragraphText(p: Element): String =
-        p.select("w|t").joinToString("") { it.wholeText() }.trim()
-
-    private fun paragraphRuns(p: Element): List<Run> {
-        val out = mutableListOf<Run>()
-        for (r in p.select("w|r")) {
-            val rPr = r.selectFirst("w|rPr")
-            val style = RunStyle(
-                bold = rPr?.selectFirst("w|b") != null,
-                italic = rPr?.selectFirst("w|i") != null,
-                underline = rPr?.selectFirst("w|u") != null,
-            )
-            for (n in r.children()) {
-                when (n.tagName().lowercase()) {
-                    "w:t" -> n.wholeText().takeIf { it.isNotEmpty() }
-                        ?.let { out += Run(it, style) }
-                    "w:tab" -> out += Run("\t", style)
-                    "w:br" -> out += Run("\n", style)
-                    // w:drawing, w:fldChar, w:instrText, etc. silently dropped
-                }
-            }
-        }
-        return out
+    private fun sax() = SAXParserFactory.newInstance().apply {
+        isNamespaceAware = true
     }
 
+    private fun tag(localName: String?, qName: String?): String =
+        localName?.takeIf { it.isNotEmpty() } ?: qName.orEmpty().substringAfter(':')
+
+    private fun Attributes?.attr(localName: String): String? {
+        if (this == null) return null
+        for (i in 0 until length) {
+            val name = getLocalName(i).takeIf { it.isNotEmpty() } ?: getQName(i).substringAfter(':')
+            if (name == localName) {
+                return getValue(i)
+            }
+        }
+        return null
+    }
 }
