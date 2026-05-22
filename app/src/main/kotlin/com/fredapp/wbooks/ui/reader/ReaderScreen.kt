@@ -49,6 +49,7 @@ fun ReaderScreen(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.padding(bottom = 5.dp),
                 ) {
                     CircularProgressIndicator(
                         progress = state.progressPercent?.let { it / 100f } ?: 0f,
