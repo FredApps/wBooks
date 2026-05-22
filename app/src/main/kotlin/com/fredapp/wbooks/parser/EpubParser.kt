@@ -6,6 +6,7 @@ import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
 import java.io.File
 import java.io.InputStream
+import java.net.URLDecoder
 import java.util.zip.ZipFile
 
 /**
@@ -66,7 +67,7 @@ class EpubParser(
         val mimeByHref = opf.mimeByHref
         val resolver: ImageResolver = { src, baseHref ->
             val baseDir = baseHref.substringBeforeLast('/', missingDelimiterValue = "")
-            val resolved = joinEpubPath(baseDir, src.removePrefix("./"))
+            val resolved = joinEpubPath(baseDir, cleanResourceHref(src).removePrefix("./"))
             val bytes = zip.readBinaryEntry(resolved)
             if (bytes == null) null
             else {
@@ -115,6 +116,12 @@ class EpubParser(
         "webp" -> "image/webp"
         "bmp" -> "image/bmp"
         else -> null
+    }
+
+    private fun cleanResourceHref(raw: String): String {
+        val withoutAnchor = raw.substringBefore('#').substringBefore('?')
+        return runCatching { URLDecoder.decode(withoutAnchor, Charsets.UTF_8.name()) }
+            .getOrDefault(withoutAnchor)
     }
 
     private fun parseContainer(xml: String): String {

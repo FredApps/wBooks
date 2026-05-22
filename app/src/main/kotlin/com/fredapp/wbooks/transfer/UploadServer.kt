@@ -148,7 +148,7 @@ class UploadServer(
             """<p class="flash" role="status">${htmlEscape(flash)}</p>""" else ""
         val webSettings = runBlocking { settingsRepository.snapshot() }
         val settingsHtml = renderSettingsPanel(webSettings)
-        val bodyStyle = "font-family:${webFontCss(webSettings.font)},system-ui,sans-serif;color:${argbCss(webSettings.textColorArgb)};background:#111;"
+        val bodyStyle = "font-family:${webFontCss(webSettings.font)},system-ui,sans-serif;color:${argbCss(webSettings.textColorArgb)};"
         val html = """
             <!doctype html>
             <html><head><meta charset="utf-8"><title>wBooks transfer</title>
@@ -699,8 +699,20 @@ class UploadServer(
                 fd.append('from', oldName);
                 fd.append('to', newName);
                 fetch('/rename?pin=' + encodeURIComponent(pin), {method:'POST', body: fd})
-                  .then(function(r){ if (!r.ok) alert('Rename failed: ' + r.status); location.href='/'; })
+                  .then(function(r){
+                    if (!r.ok) {
+                      r.text().then(function(detail){ alert('Rename failed: ' + (detail || r.status)); });
+                      return;
+                    }
+                    location.href='/';
+                  })
                   .catch(function(e){ alert('Rename error: ' + e); });
+              }
+              async function promptMoveBook(rel, currentFolder) {
+                var dest = prompt('Move "' + rel + '" to folder. Leave blank for Root:', currentFolder || '');
+                if (dest == null) return;
+                dest = dest.trim();
+                await moveBookTo(rel, dest);
               }
               async function moveBookTo(rel, destFolder) {
                 if (!rel) return;
@@ -1105,6 +1117,7 @@ class UploadServer(
                 <span class="book-path">$size</span>
               </div>
               <div class="book-actions">
+                <button type="button" onclick="promptMoveBook(${jsString(rel)}, ${jsString(currentFolder)})">Move</button>
                 <form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)">
                   <input type="hidden" name="path" value="$relEsc">
                   <button class="danger">Delete</button>
