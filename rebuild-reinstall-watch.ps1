@@ -15,7 +15,7 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $tools = [Environment]::GetEnvironmentVariable("WATCHTALK_TOOLS", "User")
 if ([string]::IsNullOrWhiteSpace($tools)) {
-    $tools = "C:\Users\fha\OneDrive\Projects\WatchTalk\.tools"
+    $tools = "C:\Users\Administrator\OneDrive\Projects\WatchTalk\.tools"
 }
 
 $env:WATCHTALK_TOOLS = $tools
