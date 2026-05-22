@@ -294,7 +294,8 @@ private fun InstructionsBlock() {
             modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
         )
         Text(
-            text = "Tap the folder icon to create folders. Drag book titles onto folders to organize them. The watch syncs these changes automatically.",
+            text = "Tap the folder icon to create folders. Drag book titles onto folders to organize them. The watch syncs these changes automatically.\n\n" +
+                "Folders are top-level only. You can have up to ${FolderPolicy.MAX_FOLDERS} folders, and each folder name can be up to ${FolderPolicy.MAX_NAME_LENGTH} characters. Names cannot contain path or reserved filesystem characters.",
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(start = 8.dp, top = 2.dp),
         )

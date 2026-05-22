@@ -645,13 +645,13 @@ class UploadServer(
 
                 <p><strong>PDF conversion:</strong> PDFs are automatically converted to HTML in your browser using PDF.js (served from the watch—no internet required). The first PDF in a session shows a warning; subsequent ones convert silently.</p>
 
-                <p><strong>Create folders:</strong> Type a folder name in the "New folder" field and click "Create folder". Books appear in Root until you move them.</p>
+                <p><strong>Create folders:</strong> Type a folder name in the "New folder" field and click "Create folder". Books appear in Root until you move them. Folders are top-level only; you can have up to ${FolderPolicy.MAX_FOLDERS} folders, and each folder name can be up to ${FolderPolicy.MAX_NAME_LENGTH} characters.</p>
 
                 <p><strong>Organize books:</strong> Drag book cards onto folder section headers to move them. The watch syncs the changes automatically.</p>
 
                 <p><strong>Delete:</strong> Click the delete button on a book card or folder header. You'll be asked to confirm.</p>
 
-                <p><strong>Rename folders:</strong> Folders can be renamed from the phone companion app or watch Settings. The web interface shows live updates.</p>
+                <p><strong>Rename folders:</strong> Folders can be renamed from the phone companion app or watch Settings. Folder names cannot contain path or reserved filesystem characters. The web interface shows live updates.</p>
 
                 <p><strong>Adjust watch settings:</strong> Scroll down to "Settings" below the library. All changes sync to the watch immediately.</p>
 
