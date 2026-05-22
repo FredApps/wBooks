@@ -387,7 +387,10 @@ class UploadServer(
                   var tc = await page.getTextContent();
                   for (var k = 0; k < tc.items.length; k++) {
                     var it = tc.items[k];
-                    if (!it.str) continue;
+                    var hasText = !!it.str;
+                    // Keep blank items that carry hasEOL - PDF.js uses those to mark
+                    // vertical whitespace, which is our best paragraph-break signal.
+                    if (!hasText && !it.hasEOL) continue;
                     var fname = it.fontName || '';
                     try {
                       var f = page.commonObjs.get(it.fontName);
@@ -396,8 +399,10 @@ class UploadServer(
                     var bold = /bold|black|heavy/i.test(fname);
                     var italic = /italic|oblique/i.test(fname);
                     var sz = it.height || Math.abs((it.transform && it.transform[3]) || (it.transform && it.transform[0]) || 12);
-                    items.push({text: it.str, bold: bold, italic: italic, size: sz, page: p, eol: !!it.hasEOL});
-                    sizes.push(sz);
+                    var y = (it.transform && it.transform[5]);
+                    if (typeof y !== 'number') y = null;
+                    items.push({text: it.str || '', bold: bold, italic: italic, size: sz, page: p, eol: !!it.hasEOL, blank: !hasText, y: y});
+                    if (hasText) sizes.push(sz);
                   }
                 }
                 sizes.sort(function(a,b){return a-b;});
@@ -410,6 +415,8 @@ class UploadServer(
                 var curr = [];
                 var currMax = 0;
                 var prevPage = null;
+                var prevY = null;
+                var prevEol = false;
                 function flush() {
                   var txt = curr.map(function(r){return r.text;}).join('').replace(/\s+/g,' ').trim();
                   if (txt) paras.push({runs: mergePdfRuns(curr), max: currMax});
@@ -417,11 +424,31 @@ class UploadServer(
                 }
                 for (var i = 0; i < items.length; i++) {
                   var it = items[i];
-                  if (prevPage !== null && prevPage !== it.page) flush();
-                  curr.push({text: it.text, bold: it.bold, italic: it.italic});
-                  if (it.size > currMax) currMax = it.size;
-                  if (it.eol) curr.push({text: ' ', bold: false, italic: false});
+                  if (prevPage !== null && prevPage !== it.page) {
+                    flush();
+                    prevY = null;
+                    prevEol = false;
+                  }
+                  // Paragraph break detection within a page:
+                  //  1) Two consecutive blank EOLs = explicit vertical gap.
+                  //  2) Y position dropped by more than 1.6x the item's font
+                  //     size since the previous line - bigger than a normal
+                  //     line wrap, so treat as a new paragraph.
+                  var breakPara = false;
+                  if (it.blank && it.eol && prevEol) breakPara = true;
+                  if (!breakPara && it.y !== null && prevY !== null && it.size > 0) {
+                    var gap = prevY - it.y;
+                    if (gap > it.size * 1.6) breakPara = true;
+                  }
+                  if (breakPara) flush();
+                  if (!it.blank) {
+                    curr.push({text: it.text, bold: it.bold, italic: it.italic});
+                    if (it.size > currMax) currMax = it.size;
+                    if (it.eol) curr.push({text: ' ', bold: false, italic: false});
+                    if (it.y !== null) prevY = it.y;
+                  }
                   prevPage = it.page;
+                  prevEol = it.eol;
                 }
                 flush();
                 var html = '<!doctype html>\n<html><head><meta charset="utf-8"><title>' + escPdfHtml(title) + '</title></head><body>\n';
