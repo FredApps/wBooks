@@ -93,11 +93,23 @@ class ReaderViewModel(
     private var lastWpmSampleMs: Long = 0L
 
     // ---- Settings ----
-    val settings: StateFlow<ReaderSettings> = settingsRepo.flow.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
-        initialValue = ReaderSettings(),
-    )
+    private val _settings = MutableStateFlow(ReaderSettings())
+    val settings: StateFlow<ReaderSettings> = _settings.asStateFlow()
+    private var pendingSettings: ReaderSettings? = null
+
+    init {
+        viewModelScope.launch {
+            settingsRepo.flow.collect { persisted ->
+                val pending = pendingSettings
+                if (pending == null) {
+                    _settings.value = persisted
+                } else if (persisted == pending) {
+                    pendingSettings = null
+                    _settings.value = persisted
+                }
+            }
+        }
+    }
 
     // ---- Library ----
     val books: StateFlow<List<Book>> = libraryRepo.books
@@ -767,7 +779,10 @@ class ReaderViewModel(
         // emit(false) → moveTaskToBack — booting the user out the moment they
         // touch a control.
         noteInteraction()
-        viewModelScope.launch { settingsRepo.update(transform) }
+        val next = transform(_settings.value)
+        pendingSettings = next
+        _settings.value = next
+        viewModelScope.launch { settingsRepo.update { next } }
     }
 
     private companion object {
