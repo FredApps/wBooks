@@ -227,14 +227,21 @@ private fun CompanionScreen(
     // Rename folder
     folderToRename?.let { folder ->
         var newName by remember(folder.id) { mutableStateOf(folder.name) }
+        val folderNames = remember(state.folders) { state.folders.map { it.id } }
+        val validation = FolderPolicy.validateRename(folder.id, newName, folderNames)
+        val canRename = validation.error == null && validation.name != null && validation.name != folder.name
         AlertDialog(
             onDismissRequest = { folderToRename = null },
             title = { Text("Rename folder") },
             text = {
                 OutlinedTextField(
                     value = newName,
-                    onValueChange = { newName = it },
+                    onValueChange = { newName = it.take(FolderPolicy.MAX_NAME_LENGTH) },
                     label = { Text(stringResource(R.string.folder_name)) },
+                    supportingText = {
+                        Text(validation.error ?: "${newName.trim().length}/${FolderPolicy.MAX_NAME_LENGTH}")
+                    },
+                    isError = validation.error != null,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -245,7 +252,7 @@ private fun CompanionScreen(
                         vm.renameFolder(folder.id, newName)
                         folderToRename = null
                     },
-                    enabled = newName.isNotBlank() && newName.trim() != folder.name,
+                    enabled = canRename,
                 ) { Text("Rename") }
             },
             dismissButton = {
@@ -257,14 +264,20 @@ private fun CompanionScreen(
     // New folder dialog
     if (showNewFolderDialog) {
         var folderName by remember { mutableStateOf("") }
+        val folderNames = remember(state.folders) { state.folders.map { it.id } }
+        val validation = FolderPolicy.validateCreate(folderName, folderNames)
         AlertDialog(
             onDismissRequest = { showNewFolderDialog = false },
             title = { Text(stringResource(R.string.new_folder)) },
             text = {
                 OutlinedTextField(
                     value = folderName,
-                    onValueChange = { folderName = it },
+                    onValueChange = { folderName = it.take(FolderPolicy.MAX_NAME_LENGTH) },
                     label = { Text(stringResource(R.string.folder_name)) },
+                    supportingText = {
+                        Text(validation.error ?: "${folderName.trim().length}/${FolderPolicy.MAX_NAME_LENGTH}; ${folderNames.size}/${FolderPolicy.MAX_FOLDERS} folders")
+                    },
+                    isError = validation.error != null,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -272,7 +285,7 @@ private fun CompanionScreen(
             confirmButton = {
                 TextButton(
                     onClick = { vm.createFolder(folderName); showNewFolderDialog = false },
-                    enabled = folderName.isNotBlank(),
+                    enabled = validation.error == null,
                 ) { Text(stringResource(R.string.create)) }
             },
             dismissButton = {

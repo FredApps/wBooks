@@ -2,6 +2,7 @@ package com.fredapp.wbooks.data.library
 
 import com.fredapp.wbooks.data.book.Book
 import com.fredapp.wbooks.data.book.BookFormat
+import com.fredapp.wbooks.data.folder.FolderPolicy
 import com.fredapp.wbooks.util.uniqueFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,9 +58,10 @@ class LibraryRepository(private val booksDir: File) {
 
     suspend fun move(bookId: String, targetFolder: String): String? = withContext(Dispatchers.IO) {
         val src = _books.value.firstOrNull { it.id == bookId }?.file ?: return@withContext null
-        val destDir = if (targetFolder.isEmpty()) booksDir else File(booksDir, targetFolder)
+        val folder = FolderPolicy.validateMoveTarget(targetFolder, _folders.value).name ?: return@withContext null
+        val destDir = if (folder.isEmpty()) booksDir else File(booksDir, folder)
         if (!destDir.isInsideBooksDir()) return@withContext null
-        destDir.mkdirs()
+        if (folder.isNotEmpty() && !destDir.isDirectory) return@withContext null
         if (src.parentFile?.canonicalFile == destDir.canonicalFile) return@withContext bookId
         val dest = uniqueFile(destDir, src.name)
         if (src.renameTo(dest)) {
@@ -88,7 +90,8 @@ class LibraryRepository(private val booksDir: File) {
     }
 
     suspend fun createFolder(name: String): Boolean = withContext(Dispatchers.IO) {
-        val clean = cleanFolderName(name) ?: return@withContext false
+        val existing = currentFolderNames()
+        val clean = FolderPolicy.validateCreate(name, existing).name ?: return@withContext false
         val dir = File(booksDir, clean)
         if (!dir.isInsideBooksDir() || dir.canonicalFile == booksDir.canonicalFile) return@withContext false
         val made = dir.mkdirs() || dir.isDirectory
@@ -98,7 +101,8 @@ class LibraryRepository(private val booksDir: File) {
 
     /** Rename a top-level folder. Returns the new folder name on success, null on failure. */
     suspend fun renameFolder(oldName: String, newName: String): String? = withContext(Dispatchers.IO) {
-        val clean = cleanFolderName(newName) ?: return@withContext null
+        val existing = currentFolderNames()
+        val clean = FolderPolicy.validateRename(oldName, newName, existing).name ?: return@withContext null
         if (clean == oldName) return@withContext oldName
         val src = File(booksDir, oldName)
         val dest = File(booksDir, clean)
@@ -119,14 +123,6 @@ class LibraryRepository(private val booksDir: File) {
         dir.deleteRecursively()
         refresh()
         ids
-    }
-
-    private fun cleanFolderName(raw: String): String? {
-        val t = raw.trim().trim('/', '\\')
-        if (t.isEmpty()) return null
-        if (t.contains('/') || t.contains('\\')) return null
-        if (t == "." || t == "..") return null
-        return t
     }
 
     private fun cleanBookTitle(raw: String): String? {
@@ -150,4 +146,10 @@ class LibraryRepository(private val booksDir: File) {
 
     private fun File.isInsideBooksDir(): Boolean =
         canonicalFile.toPath().startsWith(booksDir.canonicalFile.toPath())
+
+    private fun currentFolderNames(): List<String> =
+        booksDir.listFiles { f -> f.isDirectory }
+            ?.map { it.name }
+            ?.sorted()
+            .orEmpty()
 }

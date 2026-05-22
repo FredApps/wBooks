@@ -2,6 +2,7 @@
 
 import android.content.res.AssetManager
 import com.fredapp.wbooks.data.book.BookFormat
+import com.fredapp.wbooks.data.folder.FolderPolicy
 import com.fredapp.wbooks.data.settings.FontChoice
 import com.fredapp.wbooks.data.settings.ReaderSettings
 import com.fredapp.wbooks.data.settings.ReadingMode
@@ -334,11 +335,12 @@ class UploadServer(
                 try {
                   var resp = await fetch('/upload?pin=' + encodeURIComponent(pin), {method:'POST', body: fd});
                   if (!resp.ok) {
-                    alert(resp.status === 403 ? 'Upload failed: wrong PIN.' : 'Upload failed: ' + resp.status);
+                    var detail = await resp.text();
+                    alert(resp.status === 403 ? 'Upload failed: wrong PIN.' : 'Upload stopped: ' + (detail || resp.status));
                     return;
                   }
                 } catch(err) { alert('Upload error: ' + err); return; }
-                location.href = '/';
+                location.href = resp.redirected ? resp.url : '/';
               }
               async function checkPin(pin) {
                 if (!pin) pin = await ensurePin();
@@ -570,14 +572,15 @@ class UploadServer(
                 <aside class="upload-card">
                   <h2>Add books</h2>
                   <form method="post" action="/upload" enctype="multipart/form-data" class="upload-form" onsubmit="submitUpload(event)">
-                    <label>Destination folder<input type="text" name="folder" placeholder="Root, or a folder name"></label>
+                    <label>Destination folder<input type="text" name="folder" maxlength="${FolderPolicy.MAX_NAME_LENGTH}" placeholder="Root, or a folder name"></label>
                     <label class="file-picker">Choose or drop files<input type="file" name="file" multiple accept=".epub,.txt,.fb2,.html,.htm,.xhtml,.docx,.odt,.pdf,application/pdf"></label>
                     <button class="primary">Upload to watch</button>
                     <p class="pdf-note">PDFs are converted to HTML in this browser before upload. Scanned PDFs need OCR elsewhere.</p>
                   </form>
                   <form method="post" action="/mkdir" class="upload-form" onsubmit="return attachPin(this)">
-                    <label>New folder<input type="text" name="name" required placeholder="Folder name"></label>
+                    <label>New folder<input type="text" name="name" required maxlength="${FolderPolicy.MAX_NAME_LENGTH}" placeholder="Folder name"></label>
                     <button>Create folder</button>
+                    <p class="note">Up to ${FolderPolicy.MAX_FOLDERS} top-level folders, ${FolderPolicy.MAX_NAME_LENGTH} characters each.</p>
                   </form>
                 </aside>
                 <section class="library">
@@ -711,8 +714,15 @@ class UploadServer(
         session.parseBody(tempFiles)
         val params = session.parameters
 
-        val folder = cleanTopLevelFolder(params["folder"]?.firstOrNull().orEmpty())
-            ?: return badRequest("folder must be a single folder name")
+        val existingFolders = currentTopFolderNames()
+        val folderValidation = FolderPolicy.validateName(params["folder"]?.firstOrNull().orEmpty(), allowRoot = true)
+        val requestedFolder = folderValidation.name ?: return badRequest(folderValidation.error ?: "invalid folder")
+        val existingFolder = existingFolders.firstOrNull { it.equals(requestedFolder, ignoreCase = true) }
+        val folder = existingFolder ?: requestedFolder
+        if (folder.isNotEmpty() && existingFolder == null) {
+            val createValidation = FolderPolicy.validateCreate(folder, existingFolders)
+            if (!createValidation.isValid) return badRequest(createValidation.error ?: "invalid folder")
+        }
         val targetDir = if (folder.isEmpty()) booksDir else File(booksDir, folder)
         if (!targetDir.isInsideBooksDir()) {
             return forbidden("folder escapes books dir")
@@ -763,9 +773,8 @@ class UploadServer(
         if (session.method != Method.POST) return methodNotAllowed()
         gatePin(session)?.let { return it }
         val params = parsedForm(session)
-        val name = cleanTopLevelFolder(params["name"]?.firstOrNull().orEmpty())
-            ?: return badRequest("folder must be a single folder name")
-        if (name.isEmpty()) return badRequest("folder name required")
+        val validation = FolderPolicy.validateCreate(params["name"]?.firstOrNull().orEmpty(), currentTopFolderNames())
+        val name = validation.name ?: return badRequest(validation.error ?: "invalid folder")
         val target = File(booksDir, name)
         if (!target.isInsideBooksDir() || target.isBooksRoot()) {
             return forbidden("name escapes books dir")
@@ -781,8 +790,8 @@ class UploadServer(
         val fromPath = params["from"]?.firstOrNull().orEmpty()
         if (fromPath.isBlank()) return badRequest("source path required")
         val from = File(booksDir, fromPath)
-        val toFolder = cleanTopLevelFolder(params["to"]?.firstOrNull().orEmpty())
-            ?: return badRequest("folder must be a single folder name")
+        val validation = FolderPolicy.validateMoveTarget(params["to"]?.firstOrNull().orEmpty(), currentTopFolderNames())
+        val toFolder = validation.name ?: return badRequest(validation.error ?: "invalid folder")
         val toDir = if (toFolder.isEmpty()) booksDir else File(booksDir, toFolder)
         if (!from.isInsideBooksDir() ||
             !toDir.isInsideBooksDir() ||
@@ -808,8 +817,8 @@ class UploadServer(
         gatePin(session)?.let { return it }
         val params = parsedForm(session)
         val from = params["from"]?.firstOrNull().orEmpty()
-        val to = cleanTopLevelFolder(params["to"]?.firstOrNull().orEmpty())
-            ?: return badRequest("name must be a single folder name")
+        val validation = FolderPolicy.validateRename(from, params["to"]?.firstOrNull().orEmpty(), currentTopFolderNames())
+        val to = validation.name ?: return badRequest(validation.error ?: "invalid folder")
         if (from.isBlank() || to.isEmpty()) return badRequest("from and to required")
         if (from == to) return redirectToIndex("Renamed")
         val src = File(booksDir, from)
@@ -1008,11 +1017,11 @@ class UploadServer(
     private fun intParam(params: Map<String, List<String>>, name: String, fallback: Int): Int =
         params[name]?.firstOrNull()?.toIntOrNull() ?: fallback
 
-    private fun cleanTopLevelFolder(raw: String): String? {
-        val folder = raw.trim().trim('/', '\\')
-        if (folder.contains('/') || folder.contains('\\')) return null
-        return folder
-    }
+    private fun currentTopFolderNames(): List<String> =
+        booksDir.listFiles { f -> f.isDirectory }
+            ?.map { it.name }
+            ?.sorted()
+            .orEmpty()
 
     private fun argbCss(argb: Int): String = "#%06X".format(argb and 0x00FFFFFF)
 
@@ -1194,7 +1203,7 @@ class UploadServer(
     }
 
     private fun badRequest(msg: String) =
-        newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", msg)
+        redirectToIndex("Stopped: $msg")
 
     private fun methodNotAllowed() =
         newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, "text/plain", "Method not allowed")

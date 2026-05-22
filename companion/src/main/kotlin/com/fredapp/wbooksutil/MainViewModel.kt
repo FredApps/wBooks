@@ -77,10 +77,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun createFolder(name: String) {
-        if (name.isBlank()) return
-        val trimmed = name.trim()
-        if (trimmed.contains('/') || trimmed.contains('\\')) {
-            _state.value = _state.value.copy(errorMessage = "Folder names cannot contain slashes")
+        val validation = FolderPolicy.validateCreate(name, _state.value.folders.map { it.id })
+        val trimmed = validation.name
+        if (trimmed == null) {
+            _state.value = _state.value.copy(errorMessage = validation.error)
             return
         }
         val newFolder = Folder(id = trimmed, name = trimmed)
@@ -94,12 +94,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun renameFolder(oldName: String, newName: String) {
-        val trimmed = newName.trim()
-        if (trimmed.isBlank() || trimmed == oldName) return
-        if (trimmed.contains('/') || trimmed.contains('\\')) {
-            _state.value = _state.value.copy(errorMessage = "Folder names cannot contain slashes")
+        val validation = FolderPolicy.validateRename(oldName, newName, _state.value.folders.map { it.id })
+        val trimmed = validation.name
+        if (trimmed == null) {
+            _state.value = _state.value.copy(errorMessage = validation.error)
             return
         }
+        if (trimmed == oldName) return
         viewModelScope.launch {
             applyResult(repo.renameFolder(oldName, trimmed))
         }
