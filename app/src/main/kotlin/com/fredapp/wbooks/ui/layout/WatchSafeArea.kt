@@ -41,17 +41,20 @@ internal fun watchListPadding(
 
 @Composable
 internal fun watchReaderPadding(
-    start: Dp = 14.dp,
+    start: Dp = 6.dp,
     top: Dp = 48.dp,
-    end: Dp = 14.dp,
+    end: Dp = 6.dp,
     bottom: Dp = 24.dp,
 ): PaddingValues {
     val round = LocalConfiguration.current.isScreenRound
     return if (round) {
+        // Keep horizontal padding tight — the circular bezel already clips
+        // near top/bottom, and the widest rows (vertical center) should use
+        // as much of the screen as possible for comfortable reading.
         PaddingValues(
-            start = maxDp(start, 24.dp),
+            start = maxDp(start, 10.dp),
             top = maxDp(top, 48.dp),
-            end = maxDp(end, 24.dp),
+            end = maxDp(end, 10.dp),
             bottom = maxDp(bottom, 32.dp),
         )
     } else {
