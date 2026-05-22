@@ -157,7 +157,9 @@ class UploadServer(
               *{box-sizing:border-box}
               body{margin:0;min-height:100vh;background:radial-gradient(circle at top left,#fff8e8 0,#f3f0e8 42%,#ebe7de 100%);font-family:system-ui,sans-serif;color:var(--ink)}
               .page{max-width:1120px;margin:0 auto;padding:28px 18px 44px}
-              .hero{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;align-items:stretch;margin-bottom:18px}
+              .hero{display:block;margin-bottom:18px}
+              .brand-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+              .help-btn{flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);font-weight:700;cursor:pointer}
               .brand,.pin-card,.upload-card,.library-section,.settings{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}
               .brand{padding:22px 24px}
               .brand h1{margin:0;font-size:2.1rem;line-height:1.05}
@@ -682,18 +684,18 @@ class UploadServer(
             <main class="page">
               <section class="hero">
                 <div class="brand">
-                  <h1>wBooks web interface</h1>
+                  <div class="brand-head">
+                    <h1>wBooks web interface</h1>
+                    <button type="button" class="help-btn" onclick="showInstructions()" title="How to use this interface" aria-label="Help">?</button>
+                  </div>
                   <p>Send books to the watch, organize folders, and tune reader settings from this browser.</p>
                 </div>
-                <div class="pin-card">
-                  <label for="pin">Watch PIN</label>
-                  <div class="pin-row">
-                    <input id="pin" type="password" autocomplete="off" inputmode="numeric" placeholder="Shown on watch">
-                    <button type="button" onclick="checkPin(pinValue())">Check</button>
-                    <button type="button" onclick="showInstructions()" title="How to use this interface">?</button>
-                  </div>
-                  <span class="note">Required for uploads, moves, deletes, folders, and settings.</span>
-                </div>
+                <!--
+                  PIN was already entered to reach this page. The input is kept
+                  hidden so the existing JS (pinValue / storePin / pin-modal
+                  refresh) keeps working without a visible, redundant card.
+                -->
+                <input id="pin" type="hidden" autocomplete="off">
               </section>
               $flashHtml
               <section class="workspace">
