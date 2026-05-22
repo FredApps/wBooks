@@ -401,7 +401,10 @@ class UploadServer(
                     var sz = it.height || Math.abs((it.transform && it.transform[3]) || (it.transform && it.transform[0]) || 12);
                     var y = (it.transform && it.transform[5]);
                     if (typeof y !== 'number') y = null;
-                    items.push({text: it.str || '', bold: bold, italic: italic, size: sz, page: p, eol: !!it.hasEOL, blank: !hasText, y: y});
+                    var x = (it.transform && it.transform[4]);
+                    if (typeof x !== 'number') x = null;
+                    var w = (typeof it.width === 'number') ? it.width : null;
+                    items.push({text: it.str || '', bold: bold, italic: italic, size: sz, page: p, eol: !!it.hasEOL, blank: !hasText, y: y, x: x, w: w});
                     if (hasText) sizes.push(sz);
                   }
                 }
@@ -416,36 +419,85 @@ class UploadServer(
                 var currMax = 0;
                 var prevPage = null;
                 var prevY = null;
+                var prevEndX = null;
+                var prevSize = 0;
                 var prevEol = false;
                 function flush() {
                   var txt = curr.map(function(r){return r.text;}).join('').replace(/\s+/g,' ').trim();
                   if (txt) paras.push({runs: mergePdfRuns(curr), max: currMax});
                   curr = []; currMax = 0;
                 }
+                function resetLineState() {
+                  prevY = null; prevEndX = null; prevSize = 0; prevEol = false;
+                }
                 for (var i = 0; i < items.length; i++) {
                   var it = items[i];
                   if (prevPage !== null && prevPage !== it.page) {
                     flush();
-                    prevY = null;
-                    prevEol = false;
+                    resetLineState();
                   }
+                  var sz = it.size > 0 ? it.size : 12;
+                  // Distance between current item and previous line.
+                  var dy = (it.y !== null && prevY !== null) ? (prevY - it.y) : 0;
+                  var newLine = Math.abs(dy) > sz * 0.4;
                   // Paragraph break detection within a page:
                   //  1) Two consecutive blank EOLs = explicit vertical gap.
-                  //  2) Y position dropped by more than 1.6x the item's font
-                  //     size since the previous line - bigger than a normal
-                  //     line wrap, so treat as a new paragraph.
+                  //  2) Y dropped by more than 1.6x size since the previous
+                  //     line - bigger than a normal wrap.
+                  //  3) On a new line, font size changes by more than ~25% -
+                  //     separates headings from following body lines and
+                  //     captions/subheadings of a different size.
                   var breakPara = false;
                   if (it.blank && it.eol && prevEol) breakPara = true;
-                  if (!breakPara && it.y !== null && prevY !== null && it.size > 0) {
-                    var gap = prevY - it.y;
-                    if (gap > it.size * 1.6) breakPara = true;
+                  if (!breakPara && it.y !== null && prevY !== null && it.size > 0 && dy > sz * 1.6) {
+                    breakPara = true;
                   }
-                  if (breakPara) flush();
+                  if (!breakPara && newLine && prevSize > 0 && it.size > 0) {
+                    var ratio = it.size / prevSize;
+                    if (ratio > 1.25 || ratio < 0.8) breakPara = true;
+                  }
+                  if (breakPara) {
+                    flush();
+                    // Don't reset prevY/prevSize - we still want correct
+                    // size/gap comparisons across the boundary - just clear
+                    // prevEndX so we don't insert a stale same-line space.
+                    prevEndX = null;
+                    prevEol = false;
+                  }
                   if (!it.blank) {
+                    // Decide whether to insert a separator space between the
+                    // last run and this item. PDF.js sometimes splits a single
+                    // visual line into multiple items without hasEOL and
+                    // without spaces at the boundary (e.g. ". Suspendisse"
+                    // becomes ".Suspendisse"). Cover both same-line gaps and
+                    // line wraps that lacked an EOL flag.
+                    if (curr.length > 0) {
+                      var last = curr[curr.length - 1];
+                      var prevEndsSpace = /\s$/.test(last.text);
+                      var currStartsSpace = /^\s/.test(it.text);
+                      if (!prevEndsSpace && !currStartsSpace) {
+                        var needsSpace = false;
+                        if (newLine) {
+                          // Different visual line and previous item didn't
+                          // emit an EOL space - force one.
+                          needsSpace = true;
+                        } else if (prevEndX !== null && it.x !== null) {
+                          var hgap = it.x - prevEndX;
+                          // Anything more than ~a quarter-em gap means the
+                          // items are not part of the same word.
+                          if (hgap > sz * 0.25) needsSpace = true;
+                        }
+                        if (needsSpace) {
+                          curr.push({text: ' ', bold: false, italic: false});
+                        }
+                      }
+                    }
                     curr.push({text: it.text, bold: it.bold, italic: it.italic});
                     if (it.size > currMax) currMax = it.size;
                     if (it.eol) curr.push({text: ' ', bold: false, italic: false});
                     if (it.y !== null) prevY = it.y;
+                    if (it.x !== null && it.w !== null) prevEndX = it.x + it.w;
+                    if (it.size > 0) prevSize = it.size;
                   }
                   prevPage = it.page;
                   prevEol = it.eol;
