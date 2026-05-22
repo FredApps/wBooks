@@ -110,6 +110,7 @@ fun LibraryScreen(
     val allFolderNames = remember(folderNames, grouped) {
         (folderNames + grouped.keys.filter { it.isNotEmpty() }).distinct().sorted()
     }
+    val uncategorized = grouped[""] ?: emptyList()
 
     pendingFolderDelete?.let { folder ->
         BackHandler { pendingFolderDelete = null }
@@ -138,7 +139,9 @@ fun LibraryScreen(
         BackHandler { folderAction = null }
         FolderActionsScreen(
             folderName = folder,
+            rootBooks = uncategorized,
             onRename = { folderToRename = folder },
+            onMoveRootBook = { book -> onMoveBook(book.id, folder) },
             onDelete = { pendingFolderDelete = folder },
             onCancel = { folderAction = null },
         )
@@ -219,7 +222,6 @@ fun LibraryScreen(
         folderNames.size,
     )
 
-    val uncategorized = grouped[""] ?: emptyList()
     var selectedFolder by rememberSaveable { mutableStateOf<String?>(null) }
 
     Scaffold(timeText = { TimeText() }) {
@@ -483,10 +485,13 @@ private fun FolderPickerScreen(
 @Composable
 private fun FolderActionsScreen(
     folderName: String,
+    rootBooks: List<Book>,
     onRename: () -> Unit,
+    onMoveRootBook: (Book) -> Unit,
     onDelete: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    var moveExpanded by rememberSaveable(folderName) { mutableStateOf(false) }
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
@@ -519,6 +524,41 @@ private fun FolderActionsScreen(
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+            item(key = "move_to") {
+                Chip(
+                    icon = {
+                        Icon(
+                            imageVector = if (moveExpanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                        )
+                    },
+                    label = { Text("Move to") },
+                    onClick = { moveExpanded = !moveExpanded },
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (moveExpanded) {
+                if (rootBooks.isEmpty()) {
+                    item(key = "move_empty") {
+                        Text(
+                            "No Root books",
+                            style = MaterialTheme.typography.caption2,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                        )
+                    }
+                } else {
+                    items(rootBooks, key = { "move_${it.id}" }) { book ->
+                        Chip(
+                            label = { Text(book.title) },
+                            secondaryLabel = { Text(book.format.name.lowercase()) },
+                            onClick = { onMoveRootBook(book) },
+                            colors = ChipDefaults.secondaryChipColors(),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
             }
             item(key = "delete") {
                 Chip(
