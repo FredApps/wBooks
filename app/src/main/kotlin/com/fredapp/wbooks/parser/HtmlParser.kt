@@ -18,12 +18,21 @@ import java.io.InputStream
  * applying syntax colouring to them. Language is taken from `class="language-xxx"`
  * (Pandoc/Pygments convention) when present.
  */
-class HtmlParser : BookParser {
-    override fun parse(input: InputStream): Document =
-        fromJsoup(Jsoup.parse(input, Charsets.UTF_8.name(), ""))
+class HtmlParser(
+    private val onProgress: (Int) -> Unit = {},
+) : BookParser {
+    override fun parse(input: InputStream): Document {
+        onProgress(15)
+        val doc = Jsoup.parse(input, Charsets.UTF_8.name(), "")
+        onProgress(55)
+        return fromJsoup(doc)
+    }
 
     /** Parse already-decoded HTML text. Used by [EpubParser] when feeding spine chapters. */
-    fun parse(html: String): Document = fromJsoup(Jsoup.parse(html))
+    fun parse(html: String): Document {
+        onProgress(45)
+        return fromJsoup(Jsoup.parse(html))
+    }
 
     /** Convert a single XHTML body into a list of [Block]s suitable for one [Chapter]. */
     internal fun blocksOf(html: String): List<Block> {
@@ -36,6 +45,7 @@ class HtmlParser : BookParser {
         val title = doc.title().ifBlank { doc.selectFirst("h1")?.text().orEmpty() }
         val blocks = mutableListOf<Block>()
         walk(doc.body(), blocks)
+        onProgress(90)
         return Document(title = title, author = null, chapters = listOf(Chapter(null, blocks)))
     }
 

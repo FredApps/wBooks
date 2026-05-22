@@ -36,12 +36,15 @@ import java.util.zip.ZipFile
  */
 class OdtParser(
     private val tmpDir: File? = null,
+    private val onProgress: (Int) -> Unit = {},
 ) : BookParser {
 
     override fun parse(input: InputStream): Document {
         val tmp = File.createTempFile("wbooks-odt-", ".odt", tmpDir)
         try {
+            onProgress(10)
             tmp.outputStream().buffered().use { out -> input.copyTo(out) }
+            onProgress(20)
             ZipFile(tmp).use { zip -> return parseZip(zip) }
         } finally {
             tmp.delete()
@@ -50,13 +53,18 @@ class OdtParser(
 
     private fun parseZip(zip: ZipFile): Document {
         val (title, author) = parseMeta(zip.readTextEntry("meta.xml"))
+        onProgress(30)
         val contentXml = zip.readTextEntry("content.xml")
             ?: error("ODT: missing content.xml")
+        onProgress(45)
         val doc = Jsoup.parse(contentXml, "", Parser.xmlParser())
+        onProgress(60)
         val styles = collectStyles(doc)
         val body = doc.selectFirst("office|text")
             ?: error("ODT: content.xml has no <office:text>")
-        return Document(title = title, author = author, chapters = splitIntoChapters(body, styles))
+        val chapters = splitIntoChapters(body, styles)
+        onProgress(90)
+        return Document(title = title, author = author, chapters = chapters)
     }
 
     private fun parseMeta(xml: String?): Pair<String, String?> {

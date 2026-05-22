@@ -27,11 +27,16 @@ import java.io.InputStream
  * We use Jsoup in XML mode so all parsing in this app shares one parser dependency.
  * The .fb2.zip variant should be unwrapped by the caller before reaching here.
  */
-class Fb2Parser : BookParser {
+class Fb2Parser(
+    private val onProgress: (Int) -> Unit = {},
+) : BookParser {
 
     override fun parse(input: InputStream): Document {
+        onProgress(15)
         val xml = input.bufferedReader(Charsets.UTF_8).readText()
+        onProgress(40)
         val doc = Jsoup.parse(xml, "", Parser.xmlParser())
+        onProgress(60)
 
         val title = doc.selectFirst("description > title-info > book-title")?.text()?.trim().orEmpty()
         val authorEl = doc.selectFirst("description > title-info > author")
@@ -49,6 +54,7 @@ class Fb2Parser : BookParser {
                 else emptyList()
             }
 
+        onProgress(90)
         return Document(title = title, author = author, chapters = chapters)
     }
 

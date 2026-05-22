@@ -25,6 +25,7 @@ import java.util.zip.ZipFile
  */
 class EpubParser(
     private val tmpDir: File? = null,
+    private val onProgress: (Int) -> Unit = {},
 ) : BookParser {
 
     private val htmlParser = HtmlParser()
@@ -32,7 +33,9 @@ class EpubParser(
     override fun parse(input: InputStream): Document {
         val tmp = File.createTempFile("wbooks-epub-", ".epub", tmpDir)
         try {
+            onProgress(10)
             tmp.outputStream().buffered().use { out -> input.copyTo(out) }
+            onProgress(20)
             ZipFile(tmp).use { zip ->
                 return parseZip(zip)
             }
@@ -41,23 +44,30 @@ class EpubParser(
         }
     }
 
-    fun parse(file: File): Document =
-        ZipFile(file).use { zip -> parseZip(zip) }
+    fun parse(file: File): Document {
+        onProgress(20)
+        return ZipFile(file).use { zip -> parseZip(zip) }
+    }
 
     private fun parseZip(zip: ZipFile): Document {
         val containerXml = zip.readTextEntry("META-INF/container.xml")
             ?: error("EPUB: missing META-INF/container.xml")
+        onProgress(30)
         val opfPath = parseContainer(containerXml)
         val opfXml = zip.readTextEntry(opfPath) ?: error("EPUB: missing OPF at $opfPath")
         val opfDir = opfPath.substringBeforeLast('/', missingDelimiterValue = "")
         val opf = parseOpf(opfXml)
+        onProgress(45)
 
-        val chapters = opf.spineHrefs.mapNotNull { href ->
+        val total = opf.spineHrefs.size.coerceAtLeast(1)
+        val chapters = opf.spineHrefs.mapIndexedNotNull { index, href ->
             val full = joinEpubPath(opfDir, href)
-            val xhtml = zip.readTextEntry(full) ?: return@mapNotNull null
+            val xhtml = zip.readTextEntry(full) ?: return@mapIndexedNotNull null
+            onProgress(45 + ((index + 1) * 40 / total))
             Chapter(title = null, blocks = htmlParser.blocksOf(xhtml))
         }
 
+        onProgress(90)
         return Document(
             title = opf.title.orEmpty(),
             author = opf.creator,
