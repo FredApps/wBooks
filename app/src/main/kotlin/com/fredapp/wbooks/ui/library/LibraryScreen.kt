@@ -66,6 +66,7 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.R
 import com.fredapp.wbooks.data.book.Book
+import com.fredapp.wbooks.data.folder.FolderPolicy
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.layout.watchListPadding
 
@@ -124,6 +125,10 @@ fun LibraryScreen(
         BackHandler { folderToRename = null }
         RenameFolderScreen(
             currentName = folder,
+            maxLength = FolderPolicy.MAX_NAME_LENGTH,
+            validator = { candidate ->
+                FolderPolicy.validateRename(folder, candidate, allFolderNames).error
+            },
             onSubmit = { onRenameFolder(folder, it); folderToRename = null; folderAction = null },
             onCancel = { folderToRename = null },
         )
@@ -144,6 +149,10 @@ fun LibraryScreen(
         RenameFolderScreen(
             currentName = "",
             heading = "New folder",
+            maxLength = FolderPolicy.MAX_NAME_LENGTH,
+            validator = { candidate ->
+                FolderPolicy.validateCreate(candidate, allFolderNames).error
+            },
             onSubmit = { onCreateFolder(it); showNewFolder = false },
             onCancel = { showNewFolder = false },
         )
@@ -536,12 +545,17 @@ private fun FolderActionsScreen(
 private fun RenameFolderScreen(
     currentName: String,
     heading: String = "Rename folder",
+    maxLength: Int = Int.MAX_VALUE,
+    validator: (String) -> String? = { null },
     onSubmit: (String) -> Unit,
     onCancel: () -> Unit,
 ) {
     var text by remember { mutableStateOf(currentName) }
     val keyboard = LocalSoftwareKeyboardController.current
     val onSurface = MaterialTheme.colors.onSurface
+    val trimmed = text.trim()
+    val error = validator(trimmed)
+    val canSubmit = trimmed.isNotBlank() && error == null
 
     Column(
         modifier = Modifier
@@ -569,7 +583,7 @@ private fun RenameFolderScreen(
             }
             BasicTextField(
                 value = text,
-                onValueChange = { text = it },
+                onValueChange = { text = it.take(maxLength) },
                 singleLine = true,
                 textStyle = TextStyle(
                     color = onSurface,
@@ -580,9 +594,19 @@ private fun RenameFolderScreen(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = {
                     keyboard?.hide()
-                    if (text.isNotBlank()) onSubmit(text.trim())
+                    if (canSubmit) onSubmit(trimmed)
                 }),
                 modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        val helperText = error ?: if (maxLength != Int.MAX_VALUE) "${trimmed.length}/$maxLength" else ""
+        if (helperText.isNotEmpty()) {
+            Text(
+                text = helperText,
+                color = if (error == null) onSurface.copy(alpha = 0.65f) else DeleteRed,
+                style = MaterialTheme.typography.caption2,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                textAlign = TextAlign.Center,
             )
         }
         Row(
@@ -591,8 +615,9 @@ private fun RenameFolderScreen(
         ) {
             Chip(
                 label = { Text("OK") },
-                onClick = { if (text.isNotBlank()) onSubmit(text.trim()) },
+                onClick = { if (canSubmit) onSubmit(trimmed) },
                 colors = ChipDefaults.primaryChipColors(),
+                enabled = canSubmit,
                 modifier = Modifier.weight(1f),
             )
             Chip(

@@ -117,11 +117,10 @@ class BookReceiverService : WearableListenerService() {
         val books = app.libraryRepository.books.value.map { b ->
             BookSummary(id = b.id, title = b.title, format = b.format.name)
         }
-        val folders = app.booksDir.walkTopDown()
-            .filter { it.isDirectory && it != app.booksDir }
-            .map { it.relativeTo(app.booksDir).invariantSeparatorsPath }
-            .sorted()
-            .toList()
+        val folders = app.booksDir.listFiles { f -> f.isDirectory }
+            ?.map { it.name }
+            ?.sorted()
+            .orEmpty()
         return LibraryListJson.encode(books, folders).toByteArray(Charsets.UTF_8)
     }
 
@@ -222,10 +221,8 @@ class BookReceiverService : WearableListenerService() {
     }
 
     private suspend fun mkdirBook(name: String) {
-        if (name.isBlank() || name.contains('/') || name.contains('\\')) return
         val app = application as WBooksApp
-        val dir = java.io.File(app.booksDir, name)
-        if (dir.isInside(app.booksDir) && dir.canonicalFile != app.booksDir.canonicalFile) dir.mkdirs()
+        app.libraryRepository.createFolder(name)
     }
 
     private suspend fun renameFolder(oldName: String, newName: String) {
