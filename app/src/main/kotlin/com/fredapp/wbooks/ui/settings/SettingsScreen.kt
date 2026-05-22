@@ -130,8 +130,6 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                     )
                 }
             }
-            item { ListHeader { Text(stringResource(R.string.page_settings)) } }
-
             item {
                 ToggleChip(
                     checked = transfer.running,
@@ -171,6 +169,7 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                     )
                 }
             }
+            item { ListHeader { Text(stringResource(R.string.page_settings)) } }
             item {
                 CyclerChip(
                     label = stringResource(R.string.settings_reading_mode),
