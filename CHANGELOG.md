@@ -4,23 +4,75 @@ All notable changes to wBooks are documented in this file.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-05-22
+
+### Added
+
+**Bezel Navigation**
+- Use rotary bezel/crown to scroll in Normal reading mode (tap or bezel—your choice)
+- Adjust WPM in Speed Reading mode with bezel
+- Adjust Settings menu and autoscroll speed with bezel
+- Bezel step is responsive to reading pace
+
+**Keep Awake Setting**
+- New "Keep awake" toggle in Settings prevents screen from turning off
+- Applies to Normal and Sentence modes only; Speed Reading uses device defaults
+- Synced across watch, companion (Utility), and web interface
+
+**Bookmarks Improvements**
+- Bookmarks now scoped to the reading mode they were saved in
+- Inline trash-can toggle to delete (no modal—hold bookmark to delete)
+- Better bookmark labels and positioning on Tools page
+
+**In-App Instructions & Help**
+- New "How to use" screen on watch Settings, Utility app, and web interface
+- Platform-specific guidance for each surface
+- Shows on first launch; accessible from Settings menu
+
+**Web Interface Security**
+- PIN-gated LAN web upload interface (protects uploads on untrusted networks)
+- One-time PIN prompt per session; subsequent uploads skip the prompt
+- Web-side PDF.js conversion maintains experimental PDF support
+
+**Folder Management Enhanced**
+- Drag-and-drop folder assignment (watch, web, Utility)
+- Long-press book → Move to Folder (watch surface)
+- Collapsible folder UI; empty folders visible and syncable
+- Folder limits documented (max 25 folders, 100 char names)
+
 ### Changed
 
-- **Build config: `applicationId` no longer tracked in the repo.** Both
-  `app/build.gradle.kts` and `companion/build.gradle.kts` now read
-  `wbooks.applicationId` from `local.properties` via a new
-  `requireLocalProperty()` helper that fails the configure phase with a
-  pointer to the README when the key is missing. The literal
-  `applicationId = "com.fredapp.wbooks"` line was also scrubbed from prior
-  git history with `git filter-repo`; commit SHAs upstream of this entry
-  were rewritten as a result.
-- **README:** Crash-reporting section updated to reflect the actual
-  init path — auto-init is disabled in the manifest and Sentry is brought up
-  manually by `CrashReportingPref.initIfEnabled()` (gated on the
-  user-facing "Crash reports" chip, which defaults to on). Local-config
-  section renamed and reorganized; a forker-oriented note now explains
-  that `applicationId` must be provided locally and how it differs from the
-  Kotlin package name / Android namespace that remain in source.
+- **Reader round-screen layouts:** Harden sentence mode, compact UI, finer sentence splits
+- **Heading-aware ETA:** Reading time estimates now account for chapter boundaries and structure
+- **Instant chapter jumps:** Tap chapter heading to jump directly to that chapter
+- **Tap-to-scroll step:** Halved in Normal mode for finer control
+- **Cold DOCX opens:** 2–3× faster; optimized layout and parsing
+- **Settings menu:** Bezel scrolling enabled; layout refined for easier navigation
+- **Dark-only theme:** Removed theme toggle—watch, web, and Utility are dark by design
+- **Autoscroll speed:** Now adjustable with bezel while Speed Reading is active
+- **Build config:** `applicationId` no longer tracked in repo; must supply via `local.properties`
+- **Sentry init:** Auto-init disabled in manifest; manual init via `CrashReportingPref.initIfEnabled()`
+- **README:** Crash-reporting section, local-config, and folder management docs expanded
+- **Watch helper script:** Added `rebuild-reinstall-watch.ps1` for rapid iteration during development
+
+### Fixed
+
+- Keep awake doesn't boot user while they're actively reading
+- Rotary focus claimed correctly after menu swipes
+- Search results retain current reading mode across library actions
+- Bookmark delete toggle works without modal confirmation
+- Folder path handling hardened against edge cases
+- Legacy bookmark formats cleaned up; stale entries removed
+- ETA calculations guarded for empty documents
+- Reader side-page (Tools/Settings) back navigation restored
+- Book opening hang detection (fail fast instead of waiting indefinitely)
+- Upload server graceful shutdown (no restart on force-kill)
+- Settings edits published immediately across all surfaces
+- Stale watch APK installs prevented (verify freshness before install)
+
+### Deprecated
+
+- Legacy bookmark storage format removed
 
 ## [0.5.0] — 2026-05-21
 
