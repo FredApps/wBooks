@@ -481,6 +481,7 @@ class ReaderViewModel(
                     is Block.Heading -> block.text
                     is Block.Paragraph -> block.runs.joinToString("") { it.text }
                     is Block.Code -> block.text
+                    is Block.Image -> block.alt
                     Block.Divider -> ""
                 }
                 if (text.isEmpty()) continue

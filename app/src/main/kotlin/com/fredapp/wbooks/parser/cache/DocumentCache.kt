@@ -100,6 +100,6 @@ class DocumentCache(private val dir: File) {
     companion object {
         private const val MAGIC = 0x77426F6B    // "wBok"
         /** Bump when [DocumentCodec]'s layout changes or model fields are added/removed/reordered. */
-        const val SCHEMA_VERSION = 2
+        const val SCHEMA_VERSION = 3
     }
 }

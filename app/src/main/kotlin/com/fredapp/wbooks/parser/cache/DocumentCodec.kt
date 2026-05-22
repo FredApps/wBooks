@@ -83,6 +83,13 @@ internal object DocumentCodec {
                 writeOptString(out, block.language)
                 writeString(out, block.text)
             }
+            is Block.Image -> {
+                out.writeByte(BLOCK_IMAGE)
+                out.writeInt(block.bytes.size)
+                out.write(block.bytes)
+                writeOptString(out, block.mime)
+                writeString(out, block.alt)
+            }
         }
     }
 
@@ -97,6 +104,17 @@ internal object DocumentCodec {
             }
             BLOCK_DIVIDER -> Block.Divider
             BLOCK_CODE -> Block.Code(language = readOptString(input), text = readString(input))
+            BLOCK_IMAGE -> {
+                val n = input.readInt()
+                require(n in 0..MAX_IMAGE_BYTES) {
+                    "DocumentCodec: image length $n out of valid range 0..$MAX_IMAGE_BYTES - cache file corrupt?"
+                }
+                val bytes = ByteArray(n)
+                input.readFully(bytes)
+                val mime = readOptString(input)
+                val alt = readString(input)
+                Block.Image(bytes = bytes, mime = mime, alt = alt)
+            }
             else -> error("DocumentCodec: unknown block kind $kind")
         }
     }
@@ -172,6 +190,7 @@ internal object DocumentCodec {
     private const val BLOCK_PARAGRAPH = 1
     private const val BLOCK_DIVIDER = 2
     private const val BLOCK_CODE = 3
+    private const val BLOCK_IMAGE = 4
 
     private const val FLAG_BOLD = 1
     private const val FLAG_ITALIC = 2
@@ -183,4 +202,7 @@ internal object DocumentCodec {
 
     /** Guard against OOM on corrupt cache files. 8 MB is well above any realistic string. */
     private const val MAX_STRING_BYTES = 8 * 1024 * 1024
+
+    /** Per-image cap. 24 MB is well above a 4000x3000 PNG. */
+    private const val MAX_IMAGE_BYTES = 24 * 1024 * 1024
 }
