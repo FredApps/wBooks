@@ -95,18 +95,11 @@ class ReaderViewModel(
     // ---- Settings ----
     private val _settings = MutableStateFlow(ReaderSettings())
     val settings: StateFlow<ReaderSettings> = _settings.asStateFlow()
-    private var pendingSettings: ReaderSettings? = null
 
     init {
         viewModelScope.launch {
             settingsRepo.flow.collect { persisted ->
-                val pending = pendingSettings
-                if (pending == null) {
-                    _settings.value = persisted
-                } else if (persisted == pending) {
-                    pendingSettings = null
-                    _settings.value = persisted
-                }
+                _settings.value = persisted
             }
         }
     }
@@ -781,9 +774,8 @@ class ReaderViewModel(
         // touch a control.
         noteInteraction()
         val next = transform(_settings.value)
-        pendingSettings = next
         _settings.value = next
-        viewModelScope.launch { settingsRepo.update { next } }
+        viewModelScope.launch { settingsRepo.update(transform) }
     }
 
     private companion object {
