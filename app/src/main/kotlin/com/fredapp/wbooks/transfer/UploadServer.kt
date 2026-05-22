@@ -830,10 +830,6 @@ class UploadServer(
 
                 <p><strong>Adjust watch settings:</strong> Scroll down to "Settings" below the library. All changes sync to the watch immediately.</p>
 
-                <p><strong>Touch-first design:</strong> The watch app works entirely with touch. If your watch has a rotary bezel or crown, you can use it to scroll—it's optional.</p>
-
-                <p><strong>No internet needed:</strong> This interface runs on your local network. PDF.js and all book data stay on the watch.</p>
-
                 <div class="modal-actions">
                   <button type="button" onclick="closeInstructions()">Close</button>
                 </div>
@@ -1192,10 +1188,6 @@ class UploadServer(
             <h3>Folders</h3>
             <p>Create folders from the library, then long-press a book to move it. Use the companion app or web UI to drag books between folders.</p>
             <p>Folders are top-level only. You can have up to ${FolderPolicy.MAX_FOLDERS} folders, and each folder name can be up to ${FolderPolicy.MAX_NAME_LENGTH} characters. Names cannot contain path or reserved filesystem characters.</p>
-          </section>
-          <section>
-            <h3>Touch-first design</h3>
-            <p>Every feature works with touch. If your watch has a rotary bezel or crown, use it to scroll - it's optional and just speeds up navigation.</p>
           </section>
         </section>
     """.trimIndent()

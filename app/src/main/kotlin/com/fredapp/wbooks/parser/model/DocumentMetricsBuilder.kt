@@ -58,7 +58,7 @@ private fun blockWordAndSentenceCount(block: Block): IntArray {
     val text = when (block) {
         is Block.Heading -> block.text
         is Block.Paragraph -> block.runs.joinToString("") { it.text }
-        Block.Divider, is Block.Code -> return intArrayOf(0, 0)
+        Block.Divider, is Block.Code, is Block.Image -> return intArrayOf(0, 0)
     }
     val trimmed = text.trim()
     if (trimmed.isEmpty()) return intArrayOf(0, 0)

@@ -28,7 +28,8 @@ class EpubParser(
     private val onProgress: (Int) -> Unit = {},
 ) : BookParser {
 
-    private val htmlParser = HtmlParser()
+    // The HTML parser is constructed per-archive once we have a ZipFile in
+    // hand — each EPUB needs its own image resolver bound to that zip.
 
     override fun parse(input: InputStream): Document {
         val tmp = File.createTempFile("wbooks-epub-", ".epub", tmpDir)
@@ -59,12 +60,30 @@ class EpubParser(
         val opf = parseOpf(opfXml)
         onProgress(45)
 
+        // Image resolver: src is interpreted relative to the chapter file
+        // (baseHref), normalised, then looked up as a zip entry. Mime comes
+        // from the manifest when we can match the path.
+        val mimeByHref = opf.mimeByHref
+        val resolver: ImageResolver = { src, baseHref ->
+            val baseDir = baseHref.substringBeforeLast('/', missingDelimiterValue = "")
+            val resolved = joinEpubPath(baseDir, src.removePrefix("./"))
+            val bytes = zip.readBinaryEntry(resolved)
+            if (bytes == null) null
+            else {
+                val mime = mimeByHref[resolved]
+                    ?: mimeByHref[resolved.removePrefix("$opfDir/")]
+                    ?: guessMimeFromExt(resolved)
+                if (isSupportedImageMime(mime)) bytes to mime else null
+            }
+        }
+        val htmlParser = HtmlParser(imageResolver = resolver)
+
         val total = opf.spineHrefs.size.coerceAtLeast(1)
         val chapters = opf.spineHrefs.mapIndexedNotNull { index, href ->
             val full = joinEpubPath(opfDir, href)
             val xhtml = zip.readTextEntry(full) ?: return@mapIndexedNotNull null
             onProgress(45 + ((index + 1) * 40 / total))
-            Chapter(title = null, blocks = htmlParser.blocksOf(xhtml))
+            Chapter(title = null, blocks = htmlParser.blocksOf(xhtml, baseHref = full))
         }
 
         onProgress(90)
@@ -75,10 +94,27 @@ class EpubParser(
         )
     }
 
+    /** Restrict to formats Android's `BitmapFactory` decodes natively. */
+    private fun isSupportedImageMime(mime: String?): Boolean = when (mime?.lowercase()) {
+        "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/bmp" -> true
+        else -> false
+    }
+
+    private fun guessMimeFromExt(path: String): String? = when (path.substringAfterLast('.', "").lowercase()) {
+        "jpg", "jpeg" -> "image/jpeg"
+        "png" -> "image/png"
+        "gif" -> "image/gif"
+        "webp" -> "image/webp"
+        "bmp" -> "image/bmp"
+        else -> null
+    }
+
     private data class OpfData(
         val title: String?,
         val creator: String?,
         val spineHrefs: List<String>,
+        /** Map of manifest href -> media-type. Used to identify image entries. */
+        val mimeByHref: Map<String, String>,
     )
 
     private fun parseContainer(xml: String): String {
@@ -95,10 +131,12 @@ class EpubParser(
         val title = doc.selectFirst("dc|title")?.text()?.takeIf { it.isNotBlank() }
         val creator = doc.selectFirst("dc|creator")?.text()?.takeIf { it.isNotBlank() }
 
-        val hrefById = doc.select("manifest > item").associate { it.attr("id") to it.attr("href") }
+        val manifestItems = doc.select("manifest > item")
+        val hrefById = manifestItems.associate { it.attr("id") to it.attr("href") }
+        val mimeByHref = manifestItems.associate { it.attr("href") to it.attr("media-type") }
         val spineHrefs = doc.select("spine > itemref").mapNotNull { hrefById[it.attr("idref")] }
 
-        return OpfData(title = title, creator = creator, spineHrefs = spineHrefs)
+        return OpfData(title = title, creator = creator, spineHrefs = spineHrefs, mimeByHref = mimeByHref)
     }
 
     /**

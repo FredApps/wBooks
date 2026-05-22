@@ -18,8 +18,18 @@ import java.io.InputStream
  * applying syntax colouring to them. Language is taken from `class="language-xxx"`
  * (Pandoc/Pygments convention) when present.
  */
+/**
+ * Resolves a (possibly relative) image `src` into the encoded bytes plus an
+ * optional mime hint. Returns `null` if the image cannot be resolved — the
+ * parser will then drop the `<img>`. The base href passed alongside is the
+ * location of the document the `<img>` was read from, so the resolver can
+ * normalise relative paths (EPUB chapter dir + src).
+ */
+typealias ImageResolver = (src: String, baseHref: String) -> Pair<ByteArray, String?>?
+
 class HtmlParser(
     private val onProgress: (Int) -> Unit = {},
+    private val imageResolver: ImageResolver? = null,
 ) : BookParser {
     override fun parse(input: InputStream): Document {
         onProgress(15)
@@ -35,21 +45,21 @@ class HtmlParser(
     }
 
     /** Convert a single XHTML body into a list of [Block]s suitable for one [Chapter]. */
-    internal fun blocksOf(html: String): List<Block> {
+    internal fun blocksOf(html: String, baseHref: String = ""): List<Block> {
         val out = mutableListOf<Block>()
-        walk(Jsoup.parse(html).body(), out)
+        walk(Jsoup.parse(html).body(), out, baseHref)
         return out
     }
 
     private fun fromJsoup(doc: org.jsoup.nodes.Document): Document {
         val title = doc.title().ifBlank { doc.selectFirst("h1")?.text().orEmpty() }
         val blocks = mutableListOf<Block>()
-        walk(doc.body(), blocks)
+        walk(doc.body(), blocks, baseHref = "")
         onProgress(90)
         return Document(title = title, author = null, chapters = listOf(Chapter(null, blocks)))
     }
 
-    private fun walk(root: Element, out: MutableList<Block>) {
+    private fun walk(root: Element, out: MutableList<Block>, baseHref: String) {
         for (child in root.children()) {
             when (child.tagName().lowercase()) {
                 "h1", "h2", "h3", "h4", "h5", "h6" -> {
@@ -57,25 +67,51 @@ class HtmlParser(
                     out += Block.Heading(level, child.text())
                 }
                 "hr" -> out += Block.Divider
-                "p" -> out += Block.Paragraph(runs(child))
+                "p" -> {
+                    // A <p> can wrap an <img> in EPUBs. Emit the image alongside
+                    // the surrounding text instead of dropping it.
+                    appendImagesUnder(child, out, baseHref)
+                    val r = runs(child)
+                    if (r.any { it.text.isNotBlank() }) out += Block.Paragraph(r)
+                }
+                "img" -> appendImage(child, out, baseHref)
+                "figure" -> {
+                    // Figures usually wrap an img + figcaption. Recurse so the
+                    // img is emitted as Block.Image and the caption as a normal
+                    // paragraph via the unknown-block branch below.
+                    walk(child, out, baseHref)
+                }
                 "pre" -> {
                     val codeEl = child.selectFirst("code") ?: child
                     val lang = codeEl.classNames().firstOrNull { it.startsWith("language-") }
                         ?.removePrefix("language-")
                     out += Block.Code(language = lang, text = codeEl.wholeText())
                 }
-                "blockquote", "div", "section", "article" -> walk(child, out)
+                "blockquote", "div", "section", "article" -> walk(child, out, baseHref)
                 "ul", "ol" -> {
                     // TODO real list rendering; for now flatten each <li> to a paragraph
                     for (li in child.select("> li")) out += Block.Paragraph(runs(li))
                 }
                 else -> {
                     // Unknown block: if it contains block-level children, recurse; else treat as paragraph.
-                    if (child.children().any { it.isBlock() }) walk(child, out)
+                    if (child.children().any { it.isBlock() }) walk(child, out, baseHref)
                     else out += Block.Paragraph(runs(child))
                 }
             }
         }
+    }
+
+    private fun appendImagesUnder(el: Element, out: MutableList<Block>, baseHref: String) {
+        for (img in el.select("img")) appendImage(img, out, baseHref)
+    }
+
+    private fun appendImage(img: Element, out: MutableList<Block>, baseHref: String) {
+        val resolver = imageResolver ?: return
+        val src = img.attr("src").takeIf { it.isNotBlank() } ?: return
+        val resolved = resolver(src, baseHref) ?: return
+        val (bytes, mime) = resolved
+        if (bytes.isEmpty()) return
+        out += Block.Image(bytes = bytes, mime = mime, alt = img.attr("alt"))
     }
 
     private fun runs(el: Element): List<Run> {

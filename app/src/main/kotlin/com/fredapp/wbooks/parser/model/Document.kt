@@ -28,6 +28,30 @@ sealed interface Block {
     data object Divider : Block
     /** Pre-formatted code block. [language] is best-effort (from the source's class attr); null = unknown. */
     data class Code(val language: String?, val text: String) : Block
+    /**
+     * Embedded raster image. [bytes] is the original encoded payload (PNG/JPEG/
+     * GIF/WebP) so we don't double-decode; the renderer is responsible for
+     * decoding and constraining to the watch's safe area. [alt] is best-effort
+     * descriptive text from the source (the `<img alt>` attribute on HTML, etc.)
+     * and shown as a fallback when decoding fails. [mime] is best-effort and
+     * may be null when the source didn't declare one.
+     */
+    data class Image(val bytes: ByteArray, val mime: String? = null, val alt: String = "") : Block {
+        // bytes is a ByteArray (not value-equal by default). Override so two
+        // images with identical content compare equal — keeps remember-keys
+        // and de-duplication working across recompositions.
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is Image) return false
+            return mime == other.mime && alt == other.alt && bytes.contentEquals(other.bytes)
+        }
+        override fun hashCode(): Int {
+            var result = bytes.contentHashCode()
+            result = 31 * result + (mime?.hashCode() ?: 0)
+            result = 31 * result + alt.hashCode()
+            return result
+        }
+    }
 }
 
 data class Run(
