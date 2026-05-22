@@ -481,16 +481,6 @@ private fun SliderRow(
     }
 }
 
-@Composable
-private fun StaticChip(label: String) {
-    Chip(
-        label = { Text(label) },
-        onClick = { /* TODO open detail */ },
-        colors = ChipDefaults.secondaryChipColors(),
-        modifier = Modifier.fillMaxWidth(),
-    )
-}
-
 private fun colorName(argb: Int): String = when (argb) {
     0xFFD4C19C.toInt() -> "Sepia"
     0xFFFFFFFF.toInt() -> "Cold white"
