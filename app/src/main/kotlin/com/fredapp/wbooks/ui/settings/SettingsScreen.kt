@@ -6,13 +6,13 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -56,6 +57,7 @@ import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.layout.watchListPadding
 import com.fredapp.wbooks.ui.theme.toFontFamily
+import kotlin.math.roundToInt
 
 private val FolderGrey = Color(0xFFB0B0B0)
 private val FolderGreyText = Color(0xFF1C1C1C)
@@ -374,13 +376,29 @@ private fun SliderRow(
             style = MaterialTheme.typography.caption2,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
         )
-        InlineSlider(
-            value = value,
-            onValueChange = onChange,
-            valueProgression = range step step,
-            decreaseIcon = { Icon(InlineSliderDefaults.Decrease, contentDescription = "decrease") },
-            increaseIcon = { Icon(InlineSliderDefaults.Increase, contentDescription = "increase") },
-        )
+        Box(modifier = Modifier.fillMaxWidth()) {
+            InlineSlider(
+                value = value,
+                onValueChange = onChange,
+                valueProgression = range step step,
+                decreaseIcon = { Icon(InlineSliderDefaults.Decrease, contentDescription = "decrease") },
+                increaseIcon = { Icon(InlineSliderDefaults.Increase, contentDescription = "increase") },
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .padding(horizontal = 52.dp)
+                    .pointerInput(range, step) {
+                        detectTapGestures { offset ->
+                            val width = size.width.toFloat().coerceAtLeast(1f)
+                            val fraction = (offset.x / width).coerceIn(0f, 1f)
+                            val raw = range.first + (range.last - range.first) * fraction
+                            val stepped = range.first + ((raw - range.first) / step).roundToInt() * step
+                            onChange(stepped.coerceIn(range))
+                        }
+                    },
+            )
+        }
     }
 }
 
