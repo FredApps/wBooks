@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.Text
 import com.fredapp.wbooks.data.settings.ReadingMode
@@ -58,22 +59,26 @@ fun ReaderScreen(
                         Text(
                             text = "$percent%",
                             textAlign = TextAlign.Center,
+                            fontSize = 12.sp,
                         )
                     }
                     Text(
                         text = "Opening ${state.book.title}",
                         textAlign = TextAlign.Center,
+                        fontSize = 13.sp,
                     )
                     state.status?.let { status ->
                         Text(
                             text = status,
                             textAlign = TextAlign.Center,
+                            fontSize = 12.sp,
                         )
                     }
                     if (state.isFirstOpen) {
                         Text(
                             text = "First open may take a moment",
                             textAlign = TextAlign.Center,
+                            fontSize = 11.sp,
                         )
                     }
                 }
