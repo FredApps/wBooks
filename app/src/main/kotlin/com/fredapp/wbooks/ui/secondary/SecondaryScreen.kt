@@ -237,34 +237,6 @@ fun SecondaryScreen(
                 )
             }
 
-            item { ListHeader { Text("Time left") } }
-            item {
-                val e = eta
-                if (e == null) {
-                    Text(
-                        text = "Calculating…",
-                        style = MaterialTheme.typography.body2,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                } else {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                    ) {
-                        if (e.chapterMs != e.bookMs) {
-                            Text(
-                                text = "~ ${formatDurationMs(e.chapterMs)} in chapter",
-                                style = MaterialTheme.typography.body2,
-                            )
-                        }
-                        Text(
-                            text = "~ ${formatDurationMs(e.bookMs)} in book",
-                            style = MaterialTheme.typography.body2,
-                        )
-                    }
-                }
-            }
-
             if (bookmarks.isNotEmpty()) {
                 item { ListHeader { Text(stringResource(R.string.tools_bookmarks)) } }
                 items(
@@ -299,6 +271,34 @@ fun SecondaryScreen(
                             pendingDelete = null
                         },
                     )
+                }
+            }
+
+            item { ListHeader { Text("Time left") } }
+            item {
+                val e = eta
+                if (e == null) {
+                    Text(
+                        text = "Calculating…",
+                        style = MaterialTheme.typography.body2,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                } else {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    ) {
+                        if (e.chapterMs != e.bookMs) {
+                            Text(
+                                text = "~ ${formatDurationMs(e.chapterMs)} in chapter",
+                                style = MaterialTheme.typography.body2,
+                            )
+                        }
+                        Text(
+                            text = "~ ${formatDurationMs(e.bookMs)} in book",
+                            style = MaterialTheme.typography.body2,
+                        )
+                    }
                 }
             }
 
