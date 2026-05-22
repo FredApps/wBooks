@@ -35,10 +35,11 @@ fun ReaderPager(
     onExit: () -> Unit,
 ) {
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
-    val settledPage by remember {
-        derivedStateOf { if (pagerState.isScrollInProgress) -1 else pagerState.currentPage }
-    }
-    val readerActive by remember { derivedStateOf { settledPage == 1 } }
+    // See LibraryPager: drive active from currentPage, not isScrollInProgress.
+    // A vertical scroll gesture inside a nested list can briefly flip
+    // isScrollInProgress true→false and otherwise retrigger `onActivated`
+    // (e.g. scroll-to-top) when the gesture ends.
+    val readerActive by remember { derivedStateOf { pagerState.currentPage == 1 } }
     val sidePage by remember { derivedStateOf { pagerState.currentPage } }
     val scope = rememberCoroutineScope()
     var toolsSearchActive by remember { mutableStateOf(false) }
@@ -53,7 +54,7 @@ fun ReaderPager(
         if (pagerState.isScrollInProgress) focusManager.clearFocus(force = true)
     }
 
-    BackHandler(enabled = settledPage == 0 || settledPage == 2, onBack = goToReader)
+    BackHandler(enabled = sidePage == 0 || sidePage == 2, onBack = goToReader)
     BackHandler(enabled = readerActive, onBack = onExit)
     HorizontalPager(
         state = pagerState,

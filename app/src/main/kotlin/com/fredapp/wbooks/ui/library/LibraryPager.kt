@@ -30,12 +30,16 @@ fun LibraryPager(vm: ReaderViewModel) {
     val books by vm.books.collectAsState()
     val folders by vm.folders.collectAsState()
 
-    val settledPage by remember {
-        derivedStateOf { if (pagerState.isScrollInProgress) -1 else pagerState.currentPage }
-    }
-    val searchActive by remember { derivedStateOf { settledPage == 0 } }
-    val libraryActive by remember { derivedStateOf { settledPage == 1 } }
-    val settingsActive by remember { derivedStateOf { settledPage == 2 } }
+    // Drive active state from currentPage directly, NOT from isScrollInProgress.
+    // isScrollInProgress can flip transiently during a touch that ends up being
+    // a vertical scroll in nested content; that flicker would drop `active` to
+    // false then back to true on release, which retriggers `onActivated` and
+    // (in SettingsScreen) snaps the list back to the top. currentPage only
+    // changes when the pager actually crosses a snap threshold, so it gives a
+    // stable activation signal that survives vertical scroll gestures.
+    val searchActive by remember { derivedStateOf { pagerState.currentPage == 0 } }
+    val libraryActive by remember { derivedStateOf { pagerState.currentPage == 1 } }
+    val settingsActive by remember { derivedStateOf { pagerState.currentPage == 2 } }
     val scope = rememberCoroutineScope()
     val goToLibrary = { scope.launch { pagerState.animateScrollToPage(1) } ; Unit }
     val focusManager = LocalFocusManager.current
@@ -46,7 +50,7 @@ fun LibraryPager(vm: ReaderViewModel) {
 
     // Back from search or settings → Library page. From the library page,
     // BackHandler is not registered, so the system default (exit) applies.
-    BackHandler(enabled = settledPage == 0 || settledPage == 2) { goToLibrary() }
+    BackHandler(enabled = searchActive || settingsActive) { goToLibrary() }
 
     HorizontalPager(
         state = pagerState,
