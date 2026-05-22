@@ -170,6 +170,7 @@ class UploadServer(
               button:hover{border-color:var(--accent);color:var(--accent)}
               button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
               button.danger{color:var(--danger)}
+              button[title]{width:36px;height:36px;padding:0;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem}
               .note,.pdf-note,.drop-copy,.empty-state,.meta,.setting small{color:var(--muted);font-size:0.9rem}
               .flash{background:#e8f5e9;border:1px solid #9fcca2;border-radius:8px;padding:10px 12px;margin:0 0 16px}
               .workspace{display:grid;grid-template-columns:330px 1fr;gap:18px;align-items:start}
@@ -485,6 +486,14 @@ class UploadServer(
                   };
                 });
               }
+              function showInstructions() {
+                var modal = document.getElementById('help-modal');
+                modal.classList.add('show');
+              }
+              function closeInstructions() {
+                var modal = document.getElementById('help-modal');
+                modal.classList.remove('show');
+              }
               function installDropZones() {
                 document.querySelectorAll('.drop-zone').forEach(function(zone) {
                   zone.addEventListener('dragover', function(e) {
@@ -563,6 +572,7 @@ class UploadServer(
                   <div class="pin-row">
                     <input id="pin" type="password" autocomplete="off" inputmode="numeric" placeholder="Shown on watch">
                     <button type="button" onclick="checkPin(pinValue())">Check</button>
+                    <button type="button" onclick="showInstructions()" title="How to use this interface">?</button>
                   </div>
                   <span class="note">Required for uploads, moves, deletes, folders, and settings.</span>
                 </div>
@@ -621,6 +631,36 @@ class UploadServer(
                 <div class="modal-actions">
                   <button type="button" id="pin-modal-cancel">Cancel</button>
                   <button type="button" id="pin-modal-ok" class="primary">Continue</button>
+                </div>
+              </div>
+            </div>
+            <div id="help-modal" class="modal" role="dialog" aria-modal="true">
+              <div class="modal-card" style="max-width: 620px; max-height: 80vh; overflow-y: auto;">
+                <h3>How to use the web interface</h3>
+                <p><strong>Get the PIN:</strong> Enable "File transfer" in watch Settings. The PIN appears both on the watch and in this card above.</p>
+
+                <p><strong>Upload books:</strong> Choose files or drag them onto the "Choose or drop files" box. Select a destination folder (or leave blank for Root). Click "Upload to watch".</p>
+
+                <p><strong>Supported formats:</strong> EPUB, TXT, FB2, HTML, DOCX, ODT, and PDF. All files are sent to the watch as soon as you upload—no separate sync step needed.</p>
+
+                <p><strong>PDF conversion:</strong> PDFs are automatically converted to HTML in your browser using PDF.js (served from the watch—no internet required). The first PDF in a session shows a warning; subsequent ones convert silently.</p>
+
+                <p><strong>Create folders:</strong> Type a folder name in the "New folder" field and click "Create folder". Books appear in Root until you move them.</p>
+
+                <p><strong>Organize books:</strong> Drag book cards onto folder section headers to move them. The watch syncs the changes automatically.</p>
+
+                <p><strong>Delete:</strong> Click the delete button on a book card or folder header. You'll be asked to confirm.</p>
+
+                <p><strong>Rename folders:</strong> Folders can be renamed from the phone companion app or watch Settings. The web interface shows live updates.</p>
+
+                <p><strong>Adjust watch settings:</strong> Scroll down to "Settings" below the library. All changes sync to the watch immediately.</p>
+
+                <p><strong>Touch-first design:</strong> The watch app works entirely with touch. If your watch has a rotary bezel or crown, you can use it to scroll—it's optional.</p>
+
+                <p><strong>No internet needed:</strong> This interface runs on your local network. PDF.js and all book data stay on the watch.</p>
+
+                <div class="modal-actions">
+                  <button type="button" onclick="closeInstructions()">Close</button>
                 </div>
               </div>
             </div>

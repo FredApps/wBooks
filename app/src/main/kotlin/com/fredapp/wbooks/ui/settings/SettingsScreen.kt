@@ -63,6 +63,7 @@ private val FolderGreyText = Color(0xFF1C1C1C)
 fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> Unit) {
     var showChangelog by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    var showInstructions by remember { mutableStateOf(false) }
     if (showChangelog) {
         BackHandler { showChangelog = false }
         ChangelogScreen(onBack = { showChangelog = false })
@@ -71,6 +72,11 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
     if (showAbout) {
         BackHandler { showAbout = false }
         AboutScreen(onBack = { showAbout = false })
+        return
+    }
+    if (showInstructions) {
+        BackHandler { showInstructions = false }
+        InstructionsScreen(onBack = { showInstructions = false })
         return
     }
     val state = rememberScalingLazyListState()
@@ -269,6 +275,14 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                 )
             }
 
+            item {
+                Chip(
+                    label = { Text("How to use") },
+                    onClick = { showInstructions = true },
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             item {
                 Chip(
                     label = { Text(stringResource(R.string.settings_changelog)) },
