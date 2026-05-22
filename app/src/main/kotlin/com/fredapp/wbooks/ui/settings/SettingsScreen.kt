@@ -343,13 +343,16 @@ private fun ChoiceChip(label: String, fontFamily: FontFamily? = null, selected: 
 @Composable
 private fun ColorChoiceChip(argb: Int, selected: Boolean, onClick: () -> Unit) {
     val label = colorName(argb)
-    // Both the name and the hex code render in the swatch color so the row is
-    // self-describing — you can pick "Pale blue" just by looking at the tint
-    // of the label rather than reading the code.
+    // Deselected: name + hex render in the swatch tint so the row is
+    // self-describing against the dark default chip background.
+    // Selected: the chip switches to the bright primary background, which
+    // would wash out the same swatch-coloured text — flip both labels to
+    // black so they stay legible against the highlight.
     val tint = Color(argb)
+    val textColor = if (selected) Color.Black else tint
     Chip(
-        label = { Text(if (selected) "$label (selected)" else label, color = tint) },
-        secondaryLabel = { Text("#%06X".format(argb and 0xFFFFFF), color = tint) },
+        label = { Text(if (selected) "$label (selected)" else label, color = textColor) },
+        secondaryLabel = { Text("#%06X".format(argb and 0xFFFFFF), color = textColor) },
         onClick = onClick,
         colors = if (selected) ChipDefaults.primaryChipColors() else ChipDefaults.secondaryChipColors(),
         modifier = Modifier.fillMaxWidth(),
