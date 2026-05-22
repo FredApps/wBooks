@@ -137,6 +137,14 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                 }
             }
             item {
+                Chip(
+                    label = { Text("How to use") },
+                    onClick = { showInstructions = true },
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
                 ToggleChip(
                     checked = transfer.running,
                     onCheckedChange = { enabled ->
@@ -275,14 +283,6 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                 )
             }
 
-            item {
-                Chip(
-                    label = { Text("How to use") },
-                    onClick = { showInstructions = true },
-                    colors = ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
             item {
                 Chip(
                     label = { Text(stringResource(R.string.settings_changelog)) },
