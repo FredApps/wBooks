@@ -98,23 +98,6 @@ class UploadServer(
         val library = StringBuilder()
         var fIdx = 0
 
-        val rootId = "root"
-        library.append("""<section class="library-section root-section drop-zone" data-folder="">""")
-        library.append("""<button type="button" class="folder-head" onclick="toggleFolder('$rootId')">""")
-        library.append("""<span class="folder-mark">root</span><span class="folder-title">Root</span><span class="count">${rootBooks.size} book${if (rootBooks.size == 1) "" else "s"}</span></button>""")
-        library.append("""<div id="$rootId" class="book-list open">""")
-        if (rootBooks.isEmpty()) {
-            library.append("""<p class="empty-state">Drop files here to upload them at the top level.</p>""")
-        } else {
-            for (book in rootBooks) {
-                val rel = book.relativeTo(booksDir).invariantSeparatorsPath
-                val relEsc = htmlEscape(rel)
-                val size = htmlEscape(humanBytes(book.length()))
-                library.append(bookCard(book, rel, relEsc, size, ""))
-            }
-        }
-        library.append("</div></section>")
-
         for (dir in topFolders) {
             val folderRel = dir.relativeTo(booksDir).invariantSeparatorsPath
             val folderRelEsc = htmlEscape(folderRel)
@@ -143,6 +126,23 @@ class UploadServer(
             }
             library.append("</div></section>")
         }
+
+        val rootId = "root"
+        library.append("""<section class="library-section root-section drop-zone" data-folder="">""")
+        library.append("""<button type="button" class="folder-head" onclick="toggleFolder('$rootId')">""")
+        library.append("""<span class="folder-mark">root</span><span class="folder-title">Root</span><span class="count">${rootBooks.size} book${if (rootBooks.size == 1) "" else "s"}</span></button>""")
+        library.append("""<div id="$rootId" class="book-list open">""")
+        if (rootBooks.isEmpty()) {
+            library.append("""<p class="empty-state">Drop files here to upload them at the top level.</p>""")
+        } else {
+            for (book in rootBooks) {
+                val rel = book.relativeTo(booksDir).invariantSeparatorsPath
+                val relEsc = htmlEscape(rel)
+                val size = htmlEscape(humanBytes(book.length()))
+                library.append(bookCard(book, rel, relEsc, size, ""))
+            }
+        }
+        library.append("</div></section>")
 
         val flashHtml = if (flash.isNotEmpty())
             """<p class="flash" role="status">${htmlEscape(flash)}</p>""" else ""
