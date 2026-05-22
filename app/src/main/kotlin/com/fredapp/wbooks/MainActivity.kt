@@ -1,10 +1,16 @@
 ﻿package com.fredapp.wbooks
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -13,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.core.content.ContextCompat
 import com.fredapp.wbooks.data.settings.ReaderSettings
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fredapp.wbooks.ui.ReaderViewModel
@@ -27,6 +34,8 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_SHOW_LIBRARY = "show_library"
+        private const val PERMISSION_PREFS = "runtime_permissions"
+        private const val KEY_NOTIFICATION_PERMISSION_REQUESTED = "notification_permission_requested"
     }
 
     /** Pings the VM's keep-awake timer when the user touches the screen, spins
@@ -79,6 +88,16 @@ class MainActivity : ComponentActivity() {
             )
             val settings by vm.settings.collectAsState()
             val keepAwakeActive by vm.keepAwakeActive.collectAsState()
+            val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { }
+
+            LaunchedEffect(freshLaunch) {
+                if (freshLaunch && shouldRequestNotificationPermission()) {
+                    markNotificationPermissionRequested()
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
 
             // Brightness is a window attribute, not a Compose state. Pushing it
             // from a SideEffect would run after EVERY recomposition, allocating
@@ -137,5 +156,25 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun shouldRequestNotificationPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        if (notificationPermissionRequested()) return false
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) != PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun notificationPermissionRequested(): Boolean =
+        getSharedPreferences(PERMISSION_PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, false)
+
+    private fun markNotificationPermissionRequested() {
+        getSharedPreferences(PERMISSION_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, true)
+            .apply()
     }
 }

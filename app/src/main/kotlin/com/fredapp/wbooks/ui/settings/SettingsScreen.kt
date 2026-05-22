@@ -1,6 +1,8 @@
 ﻿package com.fredapp.wbooks.ui.settings
 
 import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -27,6 +29,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
@@ -68,6 +71,18 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
     var showChangelog by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var showInstructions by remember { mutableStateOf(false) }
+    var showNotificationPermission by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val notifLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            showNotificationPermission = false
+            vm.startTransfer()
+        } else {
+            showNotificationPermission = true
+        }
+    }
     if (showChangelog) {
         BackHandler { showChangelog = false }
         ChangelogScreen(onBack = { showChangelog = false })
@@ -81,6 +96,21 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
     if (showInstructions) {
         BackHandler { showInstructions = false }
         InstructionsScreen(onBack = { showInstructions = false })
+        return
+    }
+    if (showNotificationPermission) {
+        BackHandler { showNotificationPermission = false }
+        NotificationPermissionScreen(
+            onGrant = {
+                if (hasNotificationPermission(context)) {
+                    showNotificationPermission = false
+                    vm.startTransfer()
+                } else {
+                    notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
+            onBack = { showNotificationPermission = false },
+        )
         return
     }
     val state = rememberScalingLazyListState()
@@ -98,17 +128,6 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
         focusRequester = focusRequester,
         onActivated = { state.scrollToItem(0) },
     )
-
-    // Hoisted out of the lazy item so it survives the row scrolling off-screen between
-    // the user tapping the toggle and the system permission dialog returning.
-    val notifLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { _ ->
-        // Whether the user grants or denies notification permission, the server
-        // still runs â€” without permission the foreground notification just won't
-        // be visible. Start regardless.
-        vm.startTransfer()
-    }
 
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(
@@ -154,10 +173,11 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                     checked = transfer.running,
                     onCheckedChange = { enabled ->
                         if (enabled) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else {
+                            if (hasNotificationPermission(context)) {
                                 vm.startTransfer()
+                            } else {
+                                showNotificationPermission = true
+                                notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             }
                         } else {
                             vm.stopTransfer()
@@ -304,7 +324,6 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                 )
             }
             item {
-                val context = LocalContext.current
                 val pref = remember(context) {
                     (context.applicationContext as WBooksApp).crashReportingPref
                 }
@@ -320,6 +339,64 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun NotificationPermissionScreen(onGrant: () -> Unit, onBack: () -> Unit) {
+    val state = rememberScalingLazyListState()
+    val focusRequester = remember { FocusRequester() }
+    val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = state)
+    ClaimRotaryFocusOnActive(active = true, focusRequester = focusRequester)
+
+    Scaffold(timeText = { TimeText() }) {
+        ScalingLazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .pageRotaryScrollOwner(state)
+                .focusRequester(focusRequester)
+                .focusable()
+                .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester),
+            state = state,
+            contentPadding = watchListPadding(start = 4.dp, top = 12.dp, end = 4.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            item { BackButtonRow(onClick = onBack) }
+            item { ListHeader { Text("Notification permission") } }
+            item {
+                Text(
+                    text = "You can't launch the web server if you don't give the app notification permissions",
+                    style = MaterialTheme.typography.caption1,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                )
+            }
+            item {
+                Chip(
+                    label = { Text("Grant permission") },
+                    onClick = onGrant,
+                    colors = ChipDefaults.primaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackButtonRow(onClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        CompactChip(
+            icon = {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = "Back",
+                    tint = FolderGreyText,
+                )
+            },
+            label = { Text("Back", color = FolderGreyText) },
+            onClick = onClick,
+            colors = ChipDefaults.chipColors(backgroundColor = FolderGrey, contentColor = FolderGreyText),
+        )
     }
 }
 
@@ -424,3 +501,10 @@ private fun colorName(argb: Int): String = when (argb) {
     0xFFD49C9C.toInt() -> "Pale red"
     else -> "Custom"
 }
+
+private fun hasNotificationPermission(context: Context): Boolean =
+    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
