@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.rotary.onPreRotaryScrollEvent
+import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.foundation.rotary.rotaryScrollable
@@ -34,6 +36,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
  * Normal reading mode. Flat LazyColumn over all blocks with bezel + tap + autoscroll.
@@ -59,6 +62,7 @@ fun NormalMode(
     settings: ReaderSettings,
     vm: ReaderViewModel,
     isActive: Boolean,
+    onAutoscrollSpeedChange: (Int) -> Unit,
 ) {
     val blocks = remember(document) { document.chapters.flatMap { it.blocks } }
     val listState = rememberLazyListState()
@@ -96,6 +100,15 @@ fun NormalMode(
 
     // ---- Autoscroll. ----
     var autoscrollPaused by remember { mutableStateOf(false) }
+
+    fun stepAutoscrollSpeed(scrollPixels: Float): Boolean {
+        if (!settings.autoscrollEnabled || autoscrollPaused || abs(scrollPixels) <= 0f) return false
+        val step = if (scrollPixels > 0) AUTOSCROLL_SPEED_STEP else -AUTOSCROLL_SPEED_STEP
+        val next = (settings.autoscrollSpeed + step).coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE)
+        if (next != settings.autoscrollSpeed) onAutoscrollSpeedChange(next)
+        return true
+    }
+
     LaunchedEffect(settings.autoscrollEnabled, settings.autoscrollSpeed, autoscrollPaused) {
         if (!settings.autoscrollEnabled || autoscrollPaused) return@LaunchedEffect
         // 1..60 â†’ ~10..240 px/s, smooth at any speed.
@@ -114,6 +127,8 @@ fun NormalMode(
         verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .fillMaxSize()
+            .onPreRotaryScrollEvent { event -> stepAutoscrollSpeed(event.verticalScrollPixels) }
+            .onRotaryScrollEvent { event -> stepAutoscrollSpeed(event.verticalScrollPixels) }
             .focusRequester(focusRequester)
             .focusable()
             .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester)
@@ -144,3 +159,5 @@ fun NormalMode(
 private suspend fun androidx.compose.foundation.lazy.LazyListState.scrollBy(pixels: Float) {
     scroll { scrollBy(pixels) }
 }
+
+private const val AUTOSCROLL_SPEED_STEP = 1
