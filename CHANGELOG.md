@@ -4,6 +4,24 @@ All notable changes to wBooks are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Build config: `applicationId` no longer tracked in the repo.** Both
+  `app/build.gradle.kts` and `companion/build.gradle.kts` now read
+  `wbooks.applicationId` from `local.properties` via a new
+  `requireLocalProperty()` helper that fails the configure phase with a
+  pointer to the README when the key is missing. The literal
+  `applicationId = "com.fredapp.wbooks"` line was also scrubbed from prior
+  git history with `git filter-repo`; commit SHAs upstream of this entry
+  were rewritten as a result.
+- **README:** Crash-reporting section updated to reflect the actual
+  init path — auto-init is disabled in the manifest and Sentry is brought up
+  manually by `CrashReportingPref.initIfEnabled()` (gated on the
+  user-facing "Crash reports" chip, which defaults to on). Local-config
+  section renamed and reorganized; a forker-oriented note now explains
+  that `applicationId` must be provided locally and how it differs from the
+  Kotlin package name / Android namespace that remain in source.
+
 ## [0.5.0] — 2026-05-21
 
 ### Added

@@ -192,25 +192,16 @@ On first install, six Project Gutenberg public-domain editions are copied from `
 
 A `.seed-version` marker prevents re-copying; user-deleted books stay deleted. Bumping `SEED_VERSION` in `WBooksApp` re-seeds on next launch.
 
-### Crash reporting (optional)
+### Crash reporting
 
-Both the watch app and phone companion include the Sentry SDK with auto-init. Crash reporting is **optional** and disabled by default.
+Both APKs bundle the Sentry SDK. Manifest auto-init is **disabled**; the SDK is brought up by `WBooksApp.onCreate` / `CompanionApp.onCreate` via `CrashReportingPref.initIfEnabled()`, gated on a user-facing **Crash reports** chip in watch Settings (mirrored to the phone).
 
-**To enable crash reporting:**
+- **Default:** opt-in is **on**. Sentry initializes at cold start and captures every uncaught exception plus ANRs.
+- **User opt-out:** the chip flips a SharedPreferences flag and calls `Sentry.close()`; no further events leave the device until the user opts back in. The phone mirror picks the same value up next time settings open.
+- **No DSN in `local.properties`:** the SDK still installs but the manifest placeholder is empty, so it logs a startup warning and drops every event. Build still works.
+- **In the Sentry UI:** events are tagged `environment=watch` (watch APK) and `environment=phone` (companion). Native crashes are not captured (no `sentry-android-ndk` module); this codebase has no native code.
 
-1. Create a [Sentry](https://sentry.io) account and project
-2. Add your DSN to `local.properties` (in the project root, gitignored):
-   ```properties
-   sentry.dsn=https://<key>@<region>.sentry.io/<project-id>
-   ```
-3. Rebuild:
-   ```powershell
-   .\gradlew.bat assembleDebug
-   ```
-
-**If DSN is missing or empty:** The SDK is included but disabled (logs a warning at startup, drops all events).
-
-**In Sentry UI:** Events are tagged `environment=watch` (from the watch APK) and `environment=phone` (from the companion) so you can filter them separately.
+Setup keys for `local.properties` are listed under [Local configuration](#local-configuration-required) below.
 
 ## Development Setup
 
@@ -234,21 +225,34 @@ export JAVA_HOME=/path/to/jdk
 export ANDROID_HOME=/path/to/android-sdk
 ```
 
-### Optional: Local configuration
+### Local configuration (required)
 
 Create `local.properties` in the project root (gitignored). The Android
-`applicationId` is read from here so the package name isn't carried in the
-public repo; the build fails fast if it's missing.
+`applicationId` is read from here so the published package name isn't carried
+in the repo; the Gradle configure phase fails fast with a pointer to this
+section if the key is missing.
 
 ```properties
-# Required: Android applicationId for both modules.
-wbooks.applicationId=com.fredapp.wbooks
+# Required: Android applicationId for both modules. Must be unique on Google
+# Play. If you're forking, pick your own reverse-DNS identifier here — do NOT
+# reuse the upstream project's id, since Play Store rejects collisions and the
+# upstream signing key is not in the repo anyway.
+wbooks.applicationId=com.example.yourfork
 
 # Optional: Sentry crash reporting. If absent, the SDK is included but no-ops
-# (logs a warning at startup and drops events).
+# (logs a startup warning and drops events). See the "Crash reporting" section
+# above for runtime behavior.
 sentry.dsn=https://<key>@<region>.sentry.io/<project-id>
 sentry.auth.token=<token-with-project:write-and-org:read>
 ```
+
+> **For forkers:** the upstream `applicationId` is intentionally absent from
+> the repo and from its git history. The build will not produce an APK until
+> you choose one. The Kotlin package name (`com.fredapp.wbooks`) and Android
+> `namespace` declarations are separate from the Play Store identifier and
+> can stay as-is in a fork — they affect generated `R` / `BuildConfig`
+> classpaths, not the installed-app identity. Rename them too only if you
+> want a fully disentangled namespace.
 
 ### Build from command line
 
