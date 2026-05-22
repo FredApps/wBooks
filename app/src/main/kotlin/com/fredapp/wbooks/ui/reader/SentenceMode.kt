@@ -47,7 +47,7 @@ import kotlin.math.abs
 
 private data class SentenceItem(val text: String, val position: BookPosition)
 private const val SENTENCE_SWIPE_THRESHOLD_PX = 36f
-private const val AUTOSCROLL_SPEED_STEP = 1
+private const val AUTOSCROLL_SPEED_STEP = 5
 
 /**
  * One sentence at a time, larger text.

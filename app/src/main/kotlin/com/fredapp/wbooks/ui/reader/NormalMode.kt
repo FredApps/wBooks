@@ -160,4 +160,4 @@ private suspend fun androidx.compose.foundation.lazy.LazyListState.scrollBy(pixe
     scroll { scrollBy(pixels) }
 }
 
-private const val AUTOSCROLL_SPEED_STEP = 1
+private const val AUTOSCROLL_SPEED_STEP = 5
