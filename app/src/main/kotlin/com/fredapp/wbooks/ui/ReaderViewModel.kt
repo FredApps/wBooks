@@ -781,7 +781,7 @@ class ReaderViewModel(
     private companion object {
         const val TAG = "ReaderViewModel"
         const val CACHE_LOAD_TIMEOUT_MS = 5_000L
-        const val COLD_PARSE_TIMEOUT_MS = 60_000L
+        const val COLD_PARSE_TIMEOUT_MS = 120_000L
         const val WPM_SAMPLE_DEBOUNCE_MS = 5_000L
         /** Cadence for splitting a session into commit-able chunks. */
         const val SESSION_FLUSH_INTERVAL_MS = 60_000L

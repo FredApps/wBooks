@@ -37,7 +37,7 @@ class UploadServerService : Service() {
                 return START_NOT_STICKY
             }
             else -> {
-                val started = startServer()
+                val started = startServer(intent?.getStringExtra(EXTRA_HOST_ADDRESS))
                 if (!started) {
                     stopSelf()
                     return START_NOT_STICKY
@@ -55,7 +55,7 @@ class UploadServerService : Service() {
     }
 
     /** Returns true on success; false if the server failed to bind (e.g. port busy). */
-    private fun startServer(): Boolean {
+    private fun startServer(hostAddress: String?): Boolean {
         // Order matters: ContextCompat.startForegroundService(...) starts a
         // ~5-second timer the system uses to enforce "this service must promote
         // itself to foreground". We have to call startForeground for EVERY
@@ -68,6 +68,11 @@ class UploadServerService : Service() {
         startForeground(NOTIF_ID, buildNotification(pin = server?.let { (application as WBooksApp).transferController.state.value.pin }))
 
         if (server != null) return true
+        if (hostAddress.isNullOrBlank()) {
+            (application as WBooksApp).transferController.publishStopped()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            return false
+        }
         val app = application as WBooksApp
         val pin = generatePin()
 
@@ -127,7 +132,7 @@ class UploadServerService : Service() {
             return false
         }
         server = candidate
-        app.transferController.publishRunning(PORT, pin)
+        app.transferController.publishRunning(PORT, pin, hostAddress)
         // Refresh the notification now that we know the PIN.
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(NOTIF_ID, buildNotification(pin = pin))
@@ -185,6 +190,7 @@ class UploadServerService : Service() {
     companion object {
         const val ACTION_START = "com.fredapp.wbooks.transfer.START"
         const val ACTION_STOP = "com.fredapp.wbooks.transfer.STOP"
+        const val EXTRA_HOST_ADDRESS = "com.fredapp.wbooks.transfer.HOST_ADDRESS"
         private const val PORT = 8080
         private const val NANOHTTPD_TIMEOUT = 30_000
         private const val NOTIF_ID = 17

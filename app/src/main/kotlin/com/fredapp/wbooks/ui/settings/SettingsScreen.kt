@@ -191,7 +191,7 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                     },
                     secondaryLabel = {
                         Text(
-                            transfer.url ?: stringResource(R.string.settings_transfer_subtitle)
+                            transfer.url ?: transfer.message ?: stringResource(R.string.settings_transfer_subtitle)
                         )
                     },
                     toggleControl = { Switch(checked = transfer.running) },

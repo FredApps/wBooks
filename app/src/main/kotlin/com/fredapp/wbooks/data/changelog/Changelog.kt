@@ -17,6 +17,8 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
         notes = listOf(
             "Web interface cleanup: uploads from Add books now go to Root, drag-and-drop still targets folders, per-book moves use a compact Move action, and PDF guidance appears only when a PDF is uploaded.",
             "Web interface now includes the watch How to use guide and alerts the browser if the watch-side webserver is disabled while the page is open.",
+            "Web interface now starts only on active Wi-Fi, avoiding paired-phone Bluetooth and LTE addresses that browsers cannot reach.",
+            "Opening a freshly parsed book can now run for up to two minutes before timing out.",
         ),
     ),
     ChangelogEntry(

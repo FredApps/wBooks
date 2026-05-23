@@ -2,12 +2,13 @@
 
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.net.Inet4Address
-import java.net.NetworkInterface
 
 /**
  * State and start/stop control for the upload server. Owned by the Application
@@ -19,9 +20,19 @@ class TransferController(private val appContext: Context) {
     private val _state = MutableStateFlow(TransferState())
     val state: StateFlow<TransferState> = _state.asStateFlow()
 
-    fun start() {
-        val intent = Intent(appContext, UploadServerService::class.java).setAction(UploadServerService.ACTION_START)
+    fun start(): Boolean {
+        val wifiAddress = activeWifiIpv4()
+        if (wifiAddress == null) {
+            _state.value = TransferState(
+                message = "Connect to Wi-Fi to start the web server.",
+            )
+            return false
+        }
+        val intent = Intent(appContext, UploadServerService::class.java)
+            .setAction(UploadServerService.ACTION_START)
+            .putExtra(UploadServerService.EXTRA_HOST_ADDRESS, wifiAddress)
         ContextCompat.startForegroundService(appContext, intent)
+        return true
     }
 
     fun stop() {
@@ -30,8 +41,8 @@ class TransferController(private val appContext: Context) {
     }
 
     /** Called by the service after it has bound the server socket. */
-    internal fun publishRunning(port: Int, pin: String) {
-        _state.value = TransferState(running = true, url = buildUrl(port), pin = pin)
+    internal fun publishRunning(port: Int, pin: String, hostAddress: String) {
+        _state.value = TransferState(running = true, url = "http://$hostAddress:$port", pin = pin)
     }
 
     /** Called by the service when it stops. */
@@ -39,28 +50,25 @@ class TransferController(private val appContext: Context) {
         _state.value = TransferState()
     }
 
-    private fun buildUrl(port: Int): String {
-        val ip = firstUsableIpv4() ?: "?.?.?.?"
-        return "http://$ip:$port"
-    }
-
     /**
-     * Walk active network interfaces and return the first non-loopback, non-link-local
-     * IPv4 address. Works on Wear OS without holding the (deprecated)
-     * WifiManager.connectionInfo path, and stays correct when the watch is on Ethernet
-     * via dock or paired-phone tethering instead of plain Wi-Fi.
+     * Return the active Wi-Fi IPv4 only. Wear OS can expose paired-phone Bluetooth
+     * or cellular networks with private IPv4 addresses that are not reachable from
+     * the user's browser, so the web server is intentionally Wi-Fi-only.
      */
-    private fun firstUsableIpv4(): String? {
-        val ifaces = runCatching { NetworkInterface.getNetworkInterfaces() }.getOrNull() ?: return null
-        for (iface in ifaces) {
-            if (!iface.isUp || iface.isLoopback || iface.isVirtual) continue
-            for (addr in iface.inetAddresses) {
-                if (addr is Inet4Address && !addr.isLoopbackAddress && !addr.isLinkLocalAddress) {
-                    return addr.hostAddress
-                }
-            }
-        }
-        return null
+    private fun activeWifiIpv4(): String? {
+        val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return null
+        val network = cm.activeNetwork ?: return null
+        val caps = cm.getNetworkCapabilities(network) ?: return null
+        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
+        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH)) return null
+        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) return null
+        return cm.getLinkProperties(network)
+            ?.linkAddresses
+            ?.asSequence()
+            ?.map { it.address }
+            ?.filterIsInstance<Inet4Address>()
+            ?.firstOrNull { !it.isLoopbackAddress && !it.isLinkLocalAddress }
+            ?.hostAddress
     }
 }
 
@@ -68,4 +76,5 @@ data class TransferState(
     val running: Boolean = false,
     val url: String? = null,
     val pin: String? = null,
+    val message: String? = null,
 )
