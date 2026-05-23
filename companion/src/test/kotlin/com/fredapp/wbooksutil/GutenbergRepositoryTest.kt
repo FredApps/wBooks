@@ -65,6 +65,7 @@ class GutenbergRepositoryTest {
         val moby = repo.parseFeed(FIXTURE).first { it.title == "Moby Dick" }
         assertEquals("Herman Melville", moby.author)
         assertEquals("2024-01-02", moby.releaseDate)
+        assertEquals(812_577L, moby.sizeBytes)
         assertNotNull(moby.summary)
         assertTrue(
             "summary should contain key phrase, got: ${moby.summary}",
@@ -173,6 +174,7 @@ class GutenbergRepositoryTest {
         assertEquals("epub", books.single().extension)
         assertEquals("https://www.gutenberg.org/ebooks/2701.epub3.images", books.single().downloadUrl)
         assertEquals("https://www.gutenberg.org/ebooks/2701", books.single().infoUrl)
+        assertNull(books.single().sizeBytes)
     }
 
     private companion object {
@@ -199,7 +201,8 @@ class GutenbergRepositoryTest {
                 <link rel="http://opds-spec.org/acquisition" type="application/x-mobipocket-ebook"
                       href="https://www.gutenberg.org/cache/epub/2701/pg2701.mobi"/>
                 <link rel="http://opds-spec.org/acquisition" type="application/epub+zip"
-                      href="https://www.gutenberg.org/cache/epub/2701/pg2701.epub"/>
+                      href="https://www.gutenberg.org/cache/epub/2701/pg2701.epub"
+                      length="812577"/>
               </entry>
               <entry>
                 <id>urn:gutenberg:1342</id>

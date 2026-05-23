@@ -2,6 +2,11 @@
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
@@ -60,8 +65,9 @@ class GutenbergRepository {
 
     private suspend fun fetchPage(url: String): GutenbergPage {
         val xml = fetch(url)
+        val books = parseFeed(xml).withResolvedSizes()
         return GutenbergPage(
-            books = parseFeed(xml),
+            books = books,
             hasMore = nextPageUrl(xml) != null,
         )
     }
@@ -127,6 +133,7 @@ class GutenbergRepository {
                     Acquisition(
                         url = "$BASE_NO_SLASH/ebooks/$numeric.epub3.images",
                         extension = "epub",
+                        sizeBytes = null,
                     )
                 }
             } ?: continue
@@ -142,6 +149,7 @@ class GutenbergRepository {
                     ?.trim()?.takeIf { it.isNotEmpty() },
                 downloadUrl = preferred.url,
                 extension = preferred.extension,
+                sizeBytes = preferred.sizeBytes,
                 infoUrl = pageUrl,
                 releaseDate = releaseDate(entry),
             )
@@ -190,7 +198,7 @@ class GutenbergRepository {
         return raw.trim().take(10).takeIf { it.isNotEmpty() }
     }
 
-    private data class Acquisition(val url: String, val extension: String)
+    private data class Acquisition(val url: String, val extension: String, val sizeBytes: Long?)
 
     /** Pick the first acquisition link whose MIME type we know how to parse. */
     private fun pickPreferred(links: org.jsoup.select.Elements): Acquisition? {
@@ -201,12 +209,52 @@ class GutenbergRepository {
             val type = link.attr("type").substringBefore(';').trim().lowercase()
             if (href.isEmpty()) continue
             val abs = resolveUrl(href)
+            val sizeBytes = link.attr("length").toLongOrNull()?.takeIf { it > 0L }
             when (type) {
-                "application/epub+zip" -> if (epub == null) epub = Acquisition(abs, "epub")
-                "text/plain" -> if (txt == null) txt = Acquisition(abs, "txt")
+                "application/epub+zip" -> if (epub == null) epub = Acquisition(abs, "epub", sizeBytes)
+                "text/plain" -> if (txt == null) txt = Acquisition(abs, "txt", sizeBytes)
             }
         }
         return epub ?: txt
+    }
+
+    private suspend fun List<GutenbergBook>.withResolvedSizes(): List<GutenbergBook> = coroutineScope {
+        if (isEmpty()) return@coroutineScope this@withResolvedSizes
+        val throttle = Semaphore(MAX_SIZE_LOOKUPS)
+        map { book ->
+            async(Dispatchers.IO) {
+                if (book.sizeBytes != null) {
+                    book
+                } else {
+                    val size = throttle.withPermit { contentLength(book.downloadUrl) }
+                    book.copy(sizeBytes = size)
+                }
+            }
+        }.awaitAll()
+    }
+
+    private fun contentLength(url: String): Long? {
+        val conn = runCatching {
+            val parsed = URL(url)
+            require(parsed.protocol in ALLOWED_PROTOCOLS) {
+                "Unsupported protocol: ${parsed.protocol}"
+            }
+            (parsed.openConnection() as HttpURLConnection).apply {
+                requestMethod = "HEAD"
+                connectTimeout = 10_000
+                readTimeout = 10_000
+                setRequestProperty("User-Agent", USER_AGENT)
+                instanceFollowRedirects = true
+            }
+        }.getOrNull() ?: return null
+        return try {
+            val code = conn.responseCode
+            if (code in 200..299) conn.contentLengthLong.takeIf { it > 0L } else null
+        } catch (_: Exception) {
+            null
+        } finally {
+            conn.disconnect()
+        }
     }
 
     /**
@@ -233,6 +281,7 @@ class GutenbergRepository {
         private const val BASE = "https://www.gutenberg.org/"
         private const val BASE_NO_SLASH = "https://www.gutenberg.org"
         private const val USER_AGENT = "wBooks-companion/0.3 (https://github.com/FredApps/wBooks)"
+        private const val MAX_SIZE_LOOKUPS = 6
         private val ALLOWED_PROTOCOLS = setOf("https", "http")
     }
 }
@@ -253,6 +302,7 @@ data class GutenbergBook(
     val summary: String?,
     val downloadUrl: String,
     val extension: String,
+    val sizeBytes: Long?,
     val infoUrl: String?,
     val releaseDate: String?,
 )

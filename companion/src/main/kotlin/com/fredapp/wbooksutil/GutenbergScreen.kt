@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,6 +31,11 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
         snackbarState.showSnackbar("Added to watch: $title")
         vm.dismissSentToast()
     }
+    LaunchedEffect(state.lastStatusMessage) {
+        val message = state.lastStatusMessage ?: return@LaunchedEffect
+        snackbarState.showSnackbar(message)
+        vm.dismissStatusMessage()
+    }
 
     Scaffold(
         topBar = {
@@ -42,7 +48,7 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
                 },
             )
         },
-        snackbarHost = { GutenbergSnackbarHost(state, snackbarState) },
+        snackbarHost = { GutenbergSnackbarHost(state, snackbarState, onCancelDownload = vm::cancelDownload) },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             SearchBar(
@@ -100,15 +106,25 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
 private fun GutenbergSnackbarHost(
     state: GutenbergViewModel.UiState,
     snackbarState: SnackbarHostState,
+    onCancelDownload: () -> Unit,
 ) {
     if (state.downloadingId != null) {
         Snackbar(modifier = Modifier.padding(12.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "Adding ${state.downloadingTitle ?: "book"}",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = "Adding ${state.downloadingTitle ?: "book"}",
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    IconButton(onClick = onCancelDownload, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Cancel add")
+                    }
+                }
                 val total = state.downloadProgressTotal
                 if (total > 0L) {
                     LinearProgressIndicator(
@@ -364,12 +380,29 @@ private fun GutenbergBook.resultInfo(): String {
         author?.takeIf { it.isNotBlank() }?.let(::add)
         releaseDate?.takeIf { it.isNotBlank() }?.let { add("Released $it") }
         add(extension.uppercase())
+        add(sizeLabel())
     }
     return parts.joinToString(" - ")
 }
 
 private fun GutenbergBook.authorLine(): String =
-    author?.takeIf { it.isNotBlank() } ?: extension.uppercase()
+    buildList {
+        author?.takeIf { it.isNotBlank() }?.let(::add)
+        add("${extension.uppercase()} - ${sizeLabel()}")
+    }.joinToString(" - ")
+
+private fun GutenbergBook.sizeLabel(): String =
+    sizeBytes?.let(::formatBytes) ?: "Size unknown"
+
+private fun formatBytes(bytes: Long): String {
+    val mib = 1024.0 * 1024.0
+    val kib = 1024.0
+    return when {
+        bytes >= mib -> "%.1f MB".format(bytes / mib)
+        bytes >= kib -> "%d KB".format((bytes + 1023L) / 1024L)
+        else -> "$bytes B"
+    }
+}
 
 private fun GutenbergViewModel.UiState.downloadProgressPercent(): Int {
     val total = downloadProgressTotal

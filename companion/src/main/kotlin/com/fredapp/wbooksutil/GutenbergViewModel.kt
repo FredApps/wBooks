@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,6 +33,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
         val searchHasMore: Boolean = false,
         val errorMessage: String? = null,
         val lastSentTitle: String? = null,
+        val lastStatusMessage: String? = null,
     ) {
         val showingSearch: Boolean
             get() = query.trim().isNotEmpty()
@@ -45,6 +47,8 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
 
     private var searchJob: Job? = null
     private var loadMoreJob: Job? = null
+    private var downloadJob: Job? = null
+    private var downloadCancelRequested = false
 
     init {
         loadHomeSections()
@@ -189,52 +193,88 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
      * â€” no intermediate buffer. The bytes flow network -> ChannelClient as
      * Gutenberg pushes them.
      */
-    fun sendToWatch(book: GutenbergBook) = viewModelScope.launch {
-        if (_state.value.downloadingId != null) return@launch
-        _state.value = _state.value.copy(
-            downloadingId = book.id,
-            downloadingTitle = book.title,
-            downloadProgressBytes = 0L,
-            downloadProgressTotal = -1L,
-            errorMessage = null,
-        )
-        val filename = filenameFor(book)
-        val result = runCatching {
-            gutenberg.withDownload(book) { input, totalBytes ->
-                watch.uploadStream(input, filename, totalBytes) { sent, total ->
-                    _state.value = _state.value.copy(
-                        downloadProgressBytes = sent,
-                        downloadProgressTotal = total,
+    fun sendToWatch(book: GutenbergBook) {
+        if (_state.value.downloadingId != null) return
+        downloadCancelRequested = false
+        downloadJob = viewModelScope.launch {
+            _state.value = _state.value.copy(
+                downloadingId = book.id,
+                downloadingTitle = book.title,
+                downloadProgressBytes = 0L,
+                downloadProgressTotal = book.sizeBytes ?: -1L,
+                errorMessage = null,
+                lastStatusMessage = null,
+            )
+            val filename = filenameFor(book)
+            val result = try {
+                gutenberg.withDownload(book) { input, totalBytes ->
+                    watch.uploadStream(input, filename, totalBytes) { sent, total ->
+                        _state.value = _state.value.copy(
+                            downloadProgressBytes = sent,
+                            downloadProgressTotal = total,
+                        )
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                WatchRepository.Result.Error(t.message ?: "Download failed")
+            }
+            _state.value = when {
+                downloadCancelRequested ->
+                    _state.value.copy(
+                        downloadingId = null,
+                        downloadingTitle = null,
+                        downloadProgressBytes = 0L,
+                        downloadProgressTotal = -1L,
+                        lastStatusMessage = "Add canceled",
                     )
+                result is WatchRepository.Result.Ok ->
+                    _state.value.copy(
+                        downloadingId = null,
+                        downloadingTitle = null,
+                        downloadProgressBytes = 0L,
+                        downloadProgressTotal = -1L,
+                        lastSentTitle = book.title,
+                    )
+                result is WatchRepository.Result.NoWatch ->
+                    _state.value.copy(
+                        downloadingId = null,
+                        downloadingTitle = null,
+                        downloadProgressBytes = 0L,
+                        downloadProgressTotal = -1L,
+                        errorMessage = "No watch connected",
+                    )
+                result is WatchRepository.Result.Error ->
+                    _state.value.copy(
+                        downloadingId = null,
+                        downloadingTitle = null,
+                        downloadProgressBytes = 0L,
+                        downloadProgressTotal = -1L,
+                        errorMessage = result.message,
+                    )
+                else -> _state.value
+            }
+            downloadJob = null
+        }.also { job ->
+            job.invokeOnCompletion { cause ->
+                if (cause is CancellationException) {
+                    _state.value = _state.value.copy(
+                        downloadingId = null,
+                        downloadingTitle = null,
+                        downloadProgressBytes = 0L,
+                        downloadProgressTotal = -1L,
+                        lastStatusMessage = "Add canceled",
+                    )
+                    downloadJob = null
                 }
             }
-        }.getOrElse { WatchRepository.Result.Error(it.message ?: "Download failed") }
-        _state.value = when (result) {
-            is WatchRepository.Result.Ok ->
-                _state.value.copy(
-                    downloadingId = null,
-                    downloadingTitle = null,
-                    downloadProgressBytes = 0L,
-                    downloadProgressTotal = -1L,
-                    lastSentTitle = book.title,
-                )
-            is WatchRepository.Result.NoWatch ->
-                _state.value.copy(
-                    downloadingId = null,
-                    downloadingTitle = null,
-                    downloadProgressBytes = 0L,
-                    downloadProgressTotal = -1L,
-                    errorMessage = "No watch connected",
-                )
-            is WatchRepository.Result.Error ->
-                _state.value.copy(
-                    downloadingId = null,
-                    downloadingTitle = null,
-                    downloadProgressBytes = 0L,
-                    downloadProgressTotal = -1L,
-                    errorMessage = result.message,
-                )
         }
+    }
+
+    fun cancelDownload() {
+        downloadCancelRequested = true
+        downloadJob?.cancel()
     }
 
     fun dismissError() {
@@ -243,6 +283,10 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun dismissSentToast() {
         _state.value = _state.value.copy(lastSentTitle = null)
+    }
+
+    fun dismissStatusMessage() {
+        _state.value = _state.value.copy(lastStatusMessage = null)
     }
 
     private fun filenameFor(book: GutenbergBook): String {

@@ -120,6 +120,9 @@ class WatchRepository(context: Context) {
             runCatching {
                 input.use { stream ->
                     val path = WearProtocol.PATH_UPLOAD_PREFIX + URLEncoder.encode(filename, StandardCharsets.UTF_8)
+                        .let { encoded ->
+                            if (totalBytes >= 0L) "$encoded?bytes=$totalBytes" else encoded
+                        }
                     val channel = channelClient.openChannel(node.id, path).await()
                     try {
                         val out = channelClient.getOutputStream(channel).await()

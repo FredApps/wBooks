@@ -162,10 +162,8 @@ class BookReceiverService : WearableListenerService() {
 
     override fun onChannelOpened(channel: ChannelClient.Channel) {
         if (!channel.path.startsWith(WearProtocol.PATH_UPLOAD_PREFIX)) return
-        val filename = URLDecoder.decode(
-            channel.path.removePrefix(WearProtocol.PATH_UPLOAD_PREFIX),
-            "UTF-8",
-        )
+        val uploadMeta = parseUploadPath(channel.path)
+        val filename = URLDecoder.decode(uploadMeta.encodedFilename, "UTF-8")
         if (filename.isBlank()) return
         val ext = filename.substringAfterLast('.', "")
         if (BookFormat.fromExtension(ext) == null) return
@@ -183,7 +181,11 @@ class BookReceiverService : WearableListenerService() {
             val ok = runCatching {
                 client.getInputStream(channel).await().use { input ->
                     dest.outputStream().buffered().use { out ->
-                        input.copyToLimited(out, MAX_BOOK_BYTES)
+                        val copied = input.copyToLimited(out, MAX_BOOK_BYTES)
+                        val expected = uploadMeta.expectedBytes
+                        if (expected != null && copied != expected) {
+                            throw IOException("Upload ended after $copied of $expected bytes")
+                        }
                     }
                 }
             }.onFailure { dest.delete() }.isSuccess
@@ -294,6 +296,21 @@ class BookReceiverService : WearableListenerService() {
         nm.notify(filename.hashCode(), notif)
     }
 
+    private fun parseUploadPath(path: String): UploadMeta {
+        val raw = path.removePrefix(WearProtocol.PATH_UPLOAD_PREFIX)
+        val encodedFilename = raw.substringBefore('?')
+        val expectedBytes = raw.substringAfter('?', "")
+            .split('&')
+            .firstNotNullOfOrNull { part ->
+                val eq = part.indexOf('=')
+                if (eq <= 0) return@firstNotNullOfOrNull null
+                val key = part.substring(0, eq)
+                if (key != "bytes") return@firstNotNullOfOrNull null
+                part.substring(eq + 1).toLongOrNull()?.takeIf { it >= 0L }
+            }
+        return UploadMeta(encodedFilename = encodedFilename, expectedBytes = expectedBytes)
+    }
+
     private companion object {
         const val CHANNEL_ID = "wbooks_received"
 
@@ -302,6 +319,8 @@ class BookReceiverService : WearableListenerService() {
     }
 }
 
+private data class UploadMeta(val encodedFilename: String, val expectedBytes: Long?)
+
 private fun File.isInside(root: File): Boolean =
     canonicalFile.toPath().startsWith(root.canonicalFile.toPath())
 
@@ -309,7 +328,7 @@ private fun File.isInside(root: File): Boolean =
  * Copy [this] stream to [out], throwing [IOException] if more than [limit] bytes are read.
  * Cleans up gracefully: the caller is responsible for deleting any partially-written destination.
  */
-private fun InputStream.copyToLimited(out: OutputStream, limit: Long) {
+private fun InputStream.copyToLimited(out: OutputStream, limit: Long): Long {
     var total = 0L
     val buf = ByteArray(DEFAULT_BUFFER_SIZE)
     var n: Int
@@ -318,4 +337,5 @@ private fun InputStream.copyToLimited(out: OutputStream, limit: Long) {
         if (total > limit) throw IOException("Book upload exceeds ${limit / 1_048_576} MB limit")
         out.write(buf, 0, n)
     }
+    return total
 }

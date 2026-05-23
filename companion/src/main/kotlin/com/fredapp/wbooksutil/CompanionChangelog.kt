@@ -20,6 +20,7 @@ object CompanionChangelog {
                 "Utility can receive supported book files from Android share and add them to the watch.",
                 "Shared PDFs now use the same HTML-conversion heuristics as the watch web interface.",
                 "Project Gutenberg lists support loading more results and keep an add-progress notification visible during downloads and uploads.",
+                "Project Gutenberg listings now show file size, active adds can be canceled from the progress bar, and interrupted transfers no longer leave partial books on the watch.",
                 "Folder overflow stays scrollable while Root remains reachable below the folder list.",
                 "Changelog/About information refreshed to match the current watch release.",
             ),
