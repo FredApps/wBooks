@@ -19,6 +19,7 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
             "The watch web server now starts only on Wi-Fi, refuses paired-phone Bluetooth and LTE paths, and binds only to the selected Wi-Fi address.",
             "Web settings now render the same About and Changelog content as the watch, including seed books, GPLv3, Gutenberg notice, and open-source attribution.",
             "Bookmark labels now match reading mode: chapters in Normal, sentences in Sentence mode, and exact words in Speed Reading; Speed Reading also shows book percent finished.",
+            "Web library books can be reordered by dragging within a folder; the order is reflected on the watch, and the watch library footer shows library storage used plus device space left.",
         ),
     ),
     ChangelogEntry(

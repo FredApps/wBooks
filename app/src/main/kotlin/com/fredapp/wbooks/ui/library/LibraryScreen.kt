@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -73,6 +74,9 @@ import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.focus.pageRotaryScrollOwner
 import com.fredapp.wbooks.ui.layout.watchListPadding
 import com.fredapp.wbooks.ui.settings.InstructionsScreen
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
 // Neutral grey folder tabs — the old saturated yellow was too bright against
 // the watch's black background. Same palette is mirrored in :companion
@@ -82,6 +86,8 @@ private val FolderGrey = Color(0xFFB0B0B0)
 private val FolderGreyText = Color(0xFF1C1C1C)
 private val BookChipBackground = Color(0xFF2A2A2A)
 private val DeleteRed = Color(0xFFE53935)
+
+private data class LibraryStorageInfo(val usedBytes: Long, val freeBytes: Long)
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -114,6 +120,9 @@ fun LibraryScreen(
     val app = remember(context) { context.applicationContext as WBooksApp }
     var showFirstRunHint by rememberSaveable { mutableStateOf(app.firstRunPref.isFirstRun) }
     var showInstructions by rememberSaveable { mutableStateOf(false) }
+    val storageInfo by produceState<LibraryStorageInfo?>(initialValue = null, books, folderNames) {
+        value = withContext(Dispatchers.IO) { app.booksDir.storageInfo() }
+    }
 
     if (showInstructions) {
         BackHandler { showInstructions = false }
@@ -364,7 +373,49 @@ fun LibraryScreen(
                     )
                 }
             }
+            item(key = "library_storage") {
+                LibraryStorageFooter(storageInfo)
+            }
         }
+    }
+}
+
+@Composable
+private fun LibraryStorageFooter(info: LibraryStorageInfo?) {
+    val used = info?.usedBytes?.let(::formatBytes) ?: "..."
+    val free = info?.freeBytes?.let(::formatBytes) ?: "..."
+    Text(
+        text = "Library: $used\nFree: $free",
+        color = Color.White.copy(alpha = 0.58f),
+        style = MaterialTheme.typography.caption2,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    )
+}
+
+private fun File.storageInfo(): LibraryStorageInfo {
+    val used = if (exists()) {
+        walkTopDown()
+            .filter { it.isFile }
+            .sumOf { it.length() }
+    } else {
+        0L
+    }
+    val storageRoot = takeIf { exists() } ?: parentFile ?: this
+    return LibraryStorageInfo(usedBytes = used, freeBytes = storageRoot.usableSpace)
+}
+
+private fun formatBytes(bytes: Long): String {
+    val kb = 1024.0
+    val mb = kb * 1024.0
+    val gb = mb * 1024.0
+    return when {
+        bytes >= gb -> "%.1f GB".format(bytes / gb)
+        bytes >= mb -> "%.1f MB".format(bytes / mb)
+        bytes >= kb -> "%.0f KB".format(bytes / kb)
+        else -> "$bytes B"
     }
 }
 

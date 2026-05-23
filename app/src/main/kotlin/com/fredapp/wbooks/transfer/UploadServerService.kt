@@ -120,6 +120,9 @@ class UploadServerService : Service() {
                     }
                 }
             },
+            onLibraryChanged = {
+                serviceScope.launch { app.libraryRepository.refresh() }
+            },
         )
         try {
             candidate.start(NANOHTTPD_TIMEOUT, /* daemon = */ true)

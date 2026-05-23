@@ -34,10 +34,15 @@ class LibraryRepository(private val booksDir: File) {
     suspend fun refresh() {
         if (!booksDir.exists()) booksDir.mkdirs()
         val (scanned, folderNames) = withContext(Dispatchers.IO) {
+            val order = libraryOrder()
             val files = booksDir.walkTopDown()
                 .filter { it.isFile }
                 .mapNotNull { toBook(it) }
-                .sortedBy { it.title.lowercase() }
+                .sortedWith(compareBy<Book>(
+                    { it.id.substringBeforeLast('/', "") },
+                    { order[it.id] ?: Int.MAX_VALUE },
+                    { it.title.lowercase() },
+                ))
                 .toList()
             val folders = booksDir.listFiles { f -> f.isDirectory }
                 ?.map { it.name }
@@ -147,9 +152,32 @@ class LibraryRepository(private val booksDir: File) {
     private fun File.isInsideBooksDir(): Boolean =
         canonicalFile.toPath().startsWith(booksDir.canonicalFile.toPath())
 
+    private fun libraryOrder(): Map<String, Int> {
+        val out = linkedMapOf<String, Int>()
+        fun readOrder(dir: File) {
+            val folder = if (dir.canonicalFile == booksDir.canonicalFile) "" else dir.name
+            val orderFile = File(dir, ORDER_FILE)
+            if (!orderFile.isFile) return
+            orderFile.readLines()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && !it.contains('/') && !it.contains('\\') }
+                .forEachIndexed { index, name ->
+                    val id = if (folder.isEmpty()) name else "$folder/$name"
+                    out[id] = index
+                }
+        }
+        readOrder(booksDir)
+        booksDir.listFiles { f -> f.isDirectory }?.forEach(::readOrder)
+        return out
+    }
+
     private fun currentFolderNames(): List<String> =
         booksDir.listFiles { f -> f.isDirectory }
             ?.map { it.name }
             ?.sorted()
             .orEmpty()
+
+    private companion object {
+        const val ORDER_FILE = ".wbooks-order"
+    }
 }

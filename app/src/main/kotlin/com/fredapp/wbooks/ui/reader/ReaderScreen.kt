@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.Text
+import com.fredapp.wbooks.data.position.BookPosition
 import com.fredapp.wbooks.data.settings.ReadingMode
 import com.fredapp.wbooks.ui.DocumentState
 import com.fredapp.wbooks.ui.ReaderViewModel
@@ -33,6 +34,7 @@ fun ReaderScreen(
     onExit: () -> Unit,
 ) {
     val settings by vm.settings.collectAsState()
+    val livePosition by vm.currentPosition.collectAsState()
 
     // Count reading time while the Reader page is the active pager page and we
     // have a loaded book. Pause when the user swipes to Tools / Settings or
@@ -86,31 +88,38 @@ fun ReaderScreen(
             is DocumentState.Failed -> Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
                 Text("Failed to open ${state.book.title}: ${state.message}")
             }
-            is DocumentState.Loaded -> when (settings.mode) {
-                ReadingMode.NORMAL -> NormalMode(
-                    document = state.doc,
-                    initialPosition = state.initialPosition,
-                    settings = settings,
-                    vm = vm,
-                    isActive = isActive,
-                    onAutoscrollSpeedChange = vm::setAutoscrollSpeed,
-                )
-                ReadingMode.SPEEDREAD -> SpeedReadMode(
-                    document = state.doc,
-                    initialPosition = state.initialPosition,
-                    settings = settings,
-                    vm = vm,
-                    isActive = isActive,
-                    onWpmChange = vm::setSpeedreadWpm,
-                )
-                ReadingMode.SENTENCE -> SentenceMode(
-                    document = state.doc,
-                    initialPosition = state.initialPosition,
-                    settings = settings,
-                    vm = vm,
-                    isActive = isActive,
-                    onAutoscrollSpeedChange = vm::setAutoscrollSpeed,
-                )
+            is DocumentState.Loaded -> {
+                val modePosition = if (livePosition == BookPosition.START && state.initialPosition != BookPosition.START) {
+                    state.initialPosition
+                } else {
+                    livePosition
+                }
+                when (settings.mode) {
+                    ReadingMode.NORMAL -> NormalMode(
+                        document = state.doc,
+                        initialPosition = modePosition,
+                        settings = settings,
+                        vm = vm,
+                        isActive = isActive,
+                        onAutoscrollSpeedChange = vm::setAutoscrollSpeed,
+                    )
+                    ReadingMode.SPEEDREAD -> SpeedReadMode(
+                        document = state.doc,
+                        initialPosition = modePosition,
+                        settings = settings,
+                        vm = vm,
+                        isActive = isActive,
+                        onWpmChange = vm::setSpeedreadWpm,
+                    )
+                    ReadingMode.SENTENCE -> SentenceMode(
+                        document = state.doc,
+                        initialPosition = modePosition,
+                        settings = settings,
+                        vm = vm,
+                        isActive = isActive,
+                        onAutoscrollSpeedChange = vm::setAutoscrollSpeed,
+                    )
+                }
             }
         }
     }

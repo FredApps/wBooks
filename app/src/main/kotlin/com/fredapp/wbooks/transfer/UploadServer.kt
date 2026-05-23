@@ -48,6 +48,7 @@ class UploadServer(
     private val onBookDeleted: (bookId: String) -> Unit = {},
     private val onBookMoved: (fromBookId: String, toBookId: String) -> Unit = { _, _ -> },
     private val onFolderRenamed: (oldFolder: String, newFolder: String) -> Unit = { _, _ -> },
+    private val onLibraryChanged: () -> Unit = {},
 ) : NanoHTTPD(hostAddress, port) {
 
     private val pinBytes = pin.toByteArray(Charsets.UTF_8)
@@ -64,6 +65,7 @@ class UploadServer(
             uri == "/delete" -> handleDelete(session)
             uri == "/mkdir" -> handleMkdir(session)
             uri == "/move" -> handleMove(session)
+            uri == "/reorder" -> handleReorder(session)
             uri == "/rename" -> handleRename(session)
             uri == "/settings" -> handleSettings(session)
             uri == "/pin-check" -> handlePinCheck(session)
@@ -96,7 +98,7 @@ class UploadServer(
             .sortedBy { it.name.lowercase() }
         val rootBooks = allEntries
             .filter { it.isFile && it.parentFile?.canonicalPath == booksDir.canonicalPath && BookFormat.fromExtension(it.extension) != null }
-            .sortedBy { it.name.lowercase() }
+            .orderedFor(booksDir)
 
         val library = StringBuilder()
         var fIdx = 0
@@ -106,7 +108,7 @@ class UploadServer(
             val folderRelEsc = htmlEscape(folderRel)
             val folderBooks = allEntries
                 .filter { it.isFile && it.parentFile?.canonicalPath == dir.canonicalPath && BookFormat.fromExtension(it.extension) != null }
-                .sortedBy { it.name.lowercase() }
+                .orderedFor(dir)
             val tbId = "f$fIdx"; fIdx++
             library.append("""<section class="library-section drop-zone" data-folder="$folderRelEsc">""")
             library.append("""<div class="folder-shell">""")
@@ -191,6 +193,7 @@ class UploadServer(
               .library-section.drag-over,.file-picker.drag-over{outline:3px solid rgba(179,83,24,.24);background:#fff4e4}
               .book-card[draggable="true"]{cursor:grab}
               .book-card.dragging{opacity:.45}
+              .book-card.drag-target{outline:3px solid rgba(31,111,105,.22);border-color:var(--accent-2)}
               .chev{display:inline-flex;width:14px;justify-content:center;color:var(--muted);font-size:0.9rem;flex:0 0 auto}
               .folder-shell,.folder-head{display:flex;align-items:center;gap:10px}
               .folder-shell{justify-content:space-between;background:var(--panel-2);border-bottom:1px solid var(--line);padding:12px}
@@ -637,6 +640,20 @@ class UploadServer(
                   });
                 });
                 document.querySelectorAll('.book-card[draggable="true"]').forEach(function(card) {
+                  card.addEventListener('dragover', function(e) {
+                    if (!activeBookDrag || activeBookDrag === (card.dataset.rel || '')) return;
+                    e.preventDefault();
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                    card.classList.add('drag-target');
+                  });
+                  card.addEventListener('dragleave', function() { card.classList.remove('drag-target'); });
+                  card.addEventListener('drop', function(e) {
+                    if (!activeBookDrag || activeBookDrag === (card.dataset.rel || '')) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    card.classList.remove('drag-target');
+                    reorderBookBefore(activeBookDrag, card.dataset.rel || '');
+                  });
                   card.addEventListener('dragstart', function(e) {
                     var rel = card.dataset.rel || '';
                     if (!rel) return;
@@ -652,6 +669,7 @@ class UploadServer(
                     card.classList.remove('dragging');
                     activeBookDrag = null;
                     document.querySelectorAll('.drop-zone.drag-over').forEach(function(z){ z.classList.remove('drag-over'); });
+                    document.querySelectorAll('.book-card.drag-target').forEach(function(z){ z.classList.remove('drag-target'); });
                   });
                 });
                 var pin = document.getElementById('pin');
@@ -711,12 +729,6 @@ class UploadServer(
                   })
                   .catch(function(e){ alert('Rename error: ' + e); });
               }
-              async function promptMoveBook(rel, currentFolder) {
-                var dest = prompt('Move "' + rel + '" to folder. Leave blank for Root:', currentFolder || '');
-                if (dest == null) return;
-                dest = dest.trim();
-                await moveBookTo(rel, dest);
-              }
               async function moveBookTo(rel, destFolder) {
                 if (!rel) return;
                 var curr = rel.indexOf('/') >= 0 ? rel.substring(0, rel.lastIndexOf('/')) : '';
@@ -737,6 +749,41 @@ class UploadServer(
                 } catch (err) {
                   alert('Move failed: ' + err);
                 }
+              }
+              async function reorderBookBefore(fromRel, beforeRel) {
+                if (!fromRel || !beforeRel || fromRel === beforeRel) return;
+                var fromCard = document.querySelector('.book-card[data-rel="' + cssEscape(fromRel) + '"]');
+                var beforeCard = document.querySelector('.book-card[data-rel="' + cssEscape(beforeRel) + '"]');
+                if (!fromCard || !beforeCard) return;
+                var list = beforeCard.closest('.book-list');
+                if (!list || fromCard.closest('.book-list') !== list) {
+                  await moveBookTo(fromRel, beforeRel.indexOf('/') >= 0 ? beforeRel.substring(0, beforeRel.lastIndexOf('/')) : '');
+                  return;
+                }
+                list.insertBefore(fromCard, beforeCard);
+                var order = Array.prototype.map.call(list.querySelectorAll('.book-card'), function(card) {
+                  return card.dataset.rel || '';
+                }).filter(Boolean);
+                var pin = await ensurePin();
+                if (pin == null) return;
+                var fd = new FormData();
+                fd.append('folder', list.dataset.folderKey === '(root)' ? '' : (list.dataset.folderKey || ''));
+                fd.append('order', order.join('\n'));
+                try {
+                  var resp = await fetch('/reorder?pin=' + encodeURIComponent(pin), {method:'POST', body: fd});
+                  if (!resp.ok) {
+                    var detail = await resp.text();
+                    alert('Reorder stopped: ' + (detail || resp.status));
+                    location.href = '/';
+                  }
+                } catch (err) {
+                  alert('Reorder failed: ' + err);
+                  location.href = '/';
+                }
+              }
+              function cssEscape(value) {
+                if (window.CSS && CSS.escape) return CSS.escape(value);
+                return String(value).replace(/["\\]/g, '\\$&');
               }
               function setColor(value) {
                 document.getElementById('textColorArgb').value = value;
@@ -965,8 +1012,10 @@ class UploadServer(
             val dest = uniqueFile(targetDir, safeName)
             if (!dest.isInsideBooksDir() || dest.canonicalFile == booksDir.canonicalFile) continue
             File(tempPath).copyTo(dest, overwrite = false)
+            appendToOrder(targetDir, dest.name)
             written++
         }
+        if (written > 0) onLibraryChanged()
         return redirectToIndex(if (written > 0) "Uploaded $written file(s)" else "No supported files found in upload")
     }
 
@@ -990,8 +1039,10 @@ class UploadServer(
             bookIds.forEach { onBookDeleted(it) }
         } else {
             target.delete()
+            removeFromOrder(target.parentFile ?: booksDir, target.name)
             onBookDeleted(path)
         }
+        onLibraryChanged()
         return redirectToIndex("Deleted $path")
     }
 
@@ -1006,6 +1057,7 @@ class UploadServer(
             return forbidden("name escapes books dir")
         }
         target.mkdirs()
+        onLibraryChanged()
         return redirectToIndex("Created $name")
     }
 
@@ -1034,8 +1086,35 @@ class UploadServer(
         if (!from.renameTo(dest)) {
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Move failed")
         }
+        removeFromOrder(from.parentFile ?: booksDir, from.name)
+        appendToOrder(toDir, dest.name)
         onBookMoved(from.relativeTo(booksDir).invariantSeparatorsPath, dest.relativeTo(booksDir).invariantSeparatorsPath)
+        onLibraryChanged()
         return redirectToIndex("Moved")
+    }
+
+    private fun handleReorder(session: IHTTPSession): Response {
+        if (session.method != Method.POST) return methodNotAllowed()
+        gatePin(session)?.let { return it }
+        val params = parsedForm(session)
+        val validation = FolderPolicy.validateMoveTarget(params["folder"]?.firstOrNull().orEmpty(), currentTopFolderNames())
+        val folder = validation.name ?: return badRequest(validation.error ?: "invalid folder")
+        val dir = if (folder.isEmpty()) booksDir else File(booksDir, folder)
+        if (!dir.isInsideBooksDir() || !dir.isDirectory) return notFound()
+        val requested = params["order"]?.firstOrNull().orEmpty()
+            .lines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+        val validNames = dir.listFiles { f -> f.isFile && BookFormat.fromExtension(f.extension) != null }
+            ?.map { it.name }
+            ?.toSet()
+            .orEmpty()
+        val names = requested.mapNotNull { rel ->
+            if (rel.substringBeforeLast('/', "") == folder) rel.substringAfterLast('/') else null
+        }.filter { it in validNames }.distinct()
+        writeOrder(dir, names + validNames.filter { it !in names }.sortedBy { it.lowercase() })
+        onLibraryChanged()
+        return newFixedLengthResponse(Response.Status.OK, "text/plain", "OK")
     }
 
     private fun handleRename(session: IHTTPSession): Response {
@@ -1055,6 +1134,7 @@ class UploadServer(
         }
         if (!src.renameTo(dest)) return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Rename failed")
         onFolderRenamed(from, to)
+        onLibraryChanged()
         return redirectToIndex("Renamed $from -> $to")
     }
 
@@ -1120,7 +1200,6 @@ class UploadServer(
                 <span class="book-path">$size</span>
               </div>
               <div class="book-actions">
-                <button type="button" onclick="promptMoveBook(${jsString(rel)}, ${jsString(currentFolder)})">Move</button>
                 <form method="post" action="/delete" class="inline" data-confirm="Delete $relEsc?" onsubmit="return confirmAndAttachPin(this)">
                   <input type="hidden" name="path" value="$relEsc">
                   <button class="danger">Delete</button>
@@ -1290,6 +1369,44 @@ class UploadServer(
 
     private fun intParam(params: Map<String, List<String>>, name: String, fallback: Int): Int =
         params[name]?.firstOrNull()?.toIntOrNull() ?: fallback
+
+    private fun List<File>.orderedFor(dir: File): List<File> {
+        val order = readOrder(dir)
+        return sortedWith(compareBy<File>(
+            { order[it.name] ?: Int.MAX_VALUE },
+            { it.name.lowercase() },
+        ))
+    }
+
+    private fun readOrder(dir: File): Map<String, Int> {
+        val orderFile = File(dir, ORDER_FILE)
+        if (!orderFile.isFile) return emptyMap()
+        return orderFile.readLines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.contains('/') && !it.contains('\\') }
+            .distinct()
+            .mapIndexed { index, name -> name to index }
+            .toMap()
+    }
+
+    private fun writeOrder(dir: File, names: List<String>) {
+        if (!dir.isInsideBooksDir() || !dir.isDirectory) return
+        File(dir, ORDER_FILE).writeText(
+            names.filter { it.isNotBlank() && !it.contains('/') && !it.contains('\\') }
+                .distinct()
+                .joinToString(separator = "\n", postfix = "\n"),
+        )
+    }
+
+    private fun removeFromOrder(dir: File, name: String) {
+        if (!dir.isInsideBooksDir() || !dir.isDirectory) return
+        writeOrder(dir, readOrder(dir).keys.filterNot { it == name })
+    }
+
+    private fun appendToOrder(dir: File, name: String) {
+        if (!dir.isInsideBooksDir() || !dir.isDirectory) return
+        writeOrder(dir, readOrder(dir).keys.filterNot { it == name } + name)
+    }
 
     private fun currentTopFolderNames(): List<String> =
         booksDir.listFiles { f -> f.isDirectory }
@@ -1492,6 +1609,7 @@ class UploadServer(
         private const val MAX_PIN_FAILURES = 10
         private const val PIN_WINDOW_MS = 60_000L
         private const val WEB_PIN_COOKIE = "wbooks_pin"
+        private const val ORDER_FILE = ".wbooks-order"
 
         // NanoHTTPD 2.3.1's Response.Status enum doesn't include 429.
         private val TOO_MANY_REQUESTS = object : Response.IStatus {
