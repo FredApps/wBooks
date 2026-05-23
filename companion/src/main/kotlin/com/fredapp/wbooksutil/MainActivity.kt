@@ -2,7 +2,9 @@ package com.fredapp.wbooksutil
 
 import android.content.ClipData
 import android.content.ClipDescription
+import android.content.Intent
 import android.os.Bundle
+import android.os.Parcelable
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -110,6 +112,28 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+        handleSharedBooks(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleSharedBooks(intent)
+    }
+
+    private fun handleSharedBooks(intent: Intent?) {
+        val uris = when (intent?.action) {
+            Intent.ACTION_SEND -> listOfNotNull(intent.getParcelableExtraCompat<android.net.Uri>(Intent.EXTRA_STREAM))
+            Intent.ACTION_SEND_MULTIPLE -> intent.getParcelableArrayListExtraCompat<android.net.Uri>(Intent.EXTRA_STREAM).orEmpty()
+            else -> emptyList()
+        }
+        if (uris.isNotEmpty()) {
+            mainViewModel.uploadShared(uris)
+            setIntent(Intent(intent).apply {
+                action = Intent.ACTION_MAIN
+                removeExtra(Intent.EXTRA_STREAM)
+            })
         }
     }
 
@@ -509,6 +533,14 @@ private fun LazyListScope.folderItems(
         }
     }
 }
+
+private inline fun <reified T : Parcelable> Intent.getParcelableExtraCompat(name: String): T? =
+    if (android.os.Build.VERSION.SDK_INT >= 33) getParcelableExtra(name, T::class.java)
+    else @Suppress("DEPRECATION") (getParcelableExtra(name) as? T)
+
+private inline fun <reified T : Parcelable> Intent.getParcelableArrayListExtraCompat(name: String): ArrayList<T>? =
+    if (android.os.Build.VERSION.SDK_INT >= 33) getParcelableArrayListExtra(name, T::class.java)
+    else @Suppress("DEPRECATION") getParcelableArrayListExtra(name)
 
 @Composable
 private fun BoxScope.FolderScrollbar(state: LazyListState) {

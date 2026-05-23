@@ -21,6 +21,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repo = WatchRepository(application)
     private var watchPollingJob: Job? = null
+    private var uploadJob: Job? = null
 
     data class UiState(
         val books: List<BookSummary> = emptyList(),
@@ -169,6 +170,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         uploadDirect(uri, filename)
     }
 
+    fun uploadShared(uris: List<Uri>) {
+        val supported = uris.mapNotNull { uri ->
+            val filename = displayNameFor(uri) ?: uri.lastPathSegment ?: return@mapNotNull null
+            if (isSupportedInputFilename(filename)) uri to filename else null
+        }
+        if (supported.isEmpty()) {
+            _state.value = _state.value.copy(errorMessage = "No supported book files found in share.")
+            return
+        }
+        uploadJob?.cancel()
+        uploadJob = viewModelScope.launch {
+            for ((uri, filename) in supported) {
+                val ok = if (filename.substringAfterLast('.', "").equals("pdf", ignoreCase = true)) {
+                    uploadPdfNow(PendingPdf(uri, filename))
+                } else {
+                    uploadDirectNow(uri, filename)
+                }
+                if (!ok) break
+            }
+            if (!_state.value.noWatch) refreshLibrary(showLoading = false)
+        }
+    }
+
     fun confirmPdfConversion() {
         val pending = _state.value.pendingPdf ?: return
         _state.value = _state.value.copy(pendingPdf = null, pdfWarningAcknowledged = true)
@@ -180,6 +204,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun runPdfConversion(pending: PendingPdf) = viewModelScope.launch {
+        if (uploadPdfNow(pending)) refresh()
+    }
+
+    private suspend fun uploadPdfNow(pending: PendingPdf): Boolean {
         _state.value = _state.value.copy(
             sending = true,
             sendingFilename = pending.filename,
@@ -194,7 +222,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 sendingFilename = null,
                 errorMessage = "Could not read PDF. It may be encrypted or corrupted.",
             )
-            return@launch
+            return false
         }
         val outName = pdfOutputName(pending.filename)
         val bytes = converted.html.toByteArray(Charsets.UTF_8)
@@ -215,15 +243,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             sendingProgressTotal = -1L,
         )
         when (result) {
-            is WatchRepository.Result.Ok -> refresh()
+            is WatchRepository.Result.Ok -> return true
             is WatchRepository.Result.NoWatch ->
                 _state.value = _state.value.disconnectedCopy()
             is WatchRepository.Result.Error ->
                 _state.value = _state.value.copy(errorMessage = result.message)
         }
+        return false
     }
 
     private fun uploadDirect(uri: Uri, filename: String) = viewModelScope.launch {
+        if (uploadDirectNow(uri, filename)) refresh()
+    }
+
+    private suspend fun uploadDirectNow(uri: Uri, filename: String): Boolean {
         _state.value = _state.value.copy(
             sending = true,
             sendingFilename = filename,
@@ -244,12 +277,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             sendingProgressTotal = -1L,
         )
         when (result) {
-            is WatchRepository.Result.Ok -> refresh()
+            is WatchRepository.Result.Ok -> return true
             is WatchRepository.Result.NoWatch ->
                 _state.value = _state.value.disconnectedCopy()
             is WatchRepository.Result.Error ->
                 _state.value = _state.value.copy(errorMessage = result.message)
         }
+        return false
     }
 
     private suspend fun convertPdf(pending: PendingPdf): PdfConverter.Result? = withContext(Dispatchers.IO) {
@@ -334,5 +368,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val WATCH_POLL_INTERVAL_MS = 5_000L
+        private val SUPPORTED_INPUT_EXTENSIONS = setOf(
+            "epub",
+            "txt",
+            "fb2",
+            "html",
+            "htm",
+            "xhtml",
+            "docx",
+            "odt",
+            "pdf",
+        )
+
+        private fun isSupportedInputFilename(filename: String): Boolean =
+            filename.substringAfterLast('.', "").lowercase() in SUPPORTED_INPUT_EXTENSIONS
     }
 }
