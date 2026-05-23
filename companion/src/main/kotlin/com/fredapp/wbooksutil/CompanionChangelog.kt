@@ -14,6 +14,16 @@ data class CompanionChangelogEntry(
 object CompanionChangelog {
     val ENTRIES: List<CompanionChangelogEntry> = listOf(
         CompanionChangelogEntry(
+            version = "0.8.0",
+            date = "2026-05-24",
+            notes = listOf(
+                "Library drag sorting now matches the web interface, including before/after drops inside a folder and first-position drops when moving into folders.",
+                "Project Gutenberg listings now use the same author, optional release date, format, and file-size layout for popular books, recent releases, and search results.",
+                "Utility library now shows watch library storage used, free space, and total disk space above the folder list.",
+                "Hardware Back now follows the same page navigation as the software back arrows.",
+            ),
+        ),
+        CompanionChangelogEntry(
             version = "0.7.0",
             date = "2026-05-23",
             notes = listOf(
@@ -22,10 +32,6 @@ object CompanionChangelog {
                 "Project Gutenberg lists support loading more results and keep an add-progress notification visible during downloads and uploads.",
                 "Project Gutenberg listings now show file size, active adds can be canceled from the progress bar, and interrupted transfers no longer leave partial books on the watch.",
                 "Project Gutenberg Add is disabled for books already on the watch, while canceled adds can be retried as an overwrite.",
-                "Library drag sorting now matches the web interface, including before/after drops inside a folder and first-position drops when moving into folders.",
-                "Project Gutenberg listings now use the same author, optional release date, format, and file-size layout for popular books, recent releases, and search results.",
-                "Utility library now shows watch library storage used, free space, and total disk space above the folder list.",
-                "Hardware Back now follows the same page navigation as the software back arrows.",
                 "Folder overflow stays scrollable while Root remains reachable below the folder list.",
                 "Changelog/About information refreshed to match the current watch release.",
             ),

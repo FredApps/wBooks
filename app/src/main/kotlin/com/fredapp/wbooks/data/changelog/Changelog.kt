@@ -12,6 +12,16 @@ data class ChangelogEntry(
  */
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.8.0",
+        date = "2026-05-24",
+        notes = listOf(
+            "Watch Search page now includes Project Gutenberg search, popular books, and recent releases directly on the watch.",
+            "Web and Utility library views now show watch library storage used, free space, and total disk space.",
+            "Web and Utility sorting now use the same drag behavior: dropping within a folder can place before or after a book, while moving into a folder places the book first.",
+            "Watch library book titles now wrap across multiple lines.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.7.0",
         date = "2026-05-23",
         notes = listOf(
@@ -20,9 +30,6 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
             "Web settings now render the same About and Changelog content as the watch, including seed books, GPLv3, Gutenberg notice, and open-source attribution.",
             "Bookmark labels now match reading mode: chapters in Normal, sentences in Sentence mode, and exact words in Speed Reading; Speed Reading also shows book percent finished.",
             "Web library books can be reordered by dragging within a folder; the order is reflected on the watch, and the watch library footer shows library storage used plus device space left.",
-            "Web and Utility sorting now use the same drag behavior: dropping within a folder can place before or after a book, while moving into a folder places the book first.",
-            "Watch Search page now includes Project Gutenberg search, popular books, and recent releases directly on the watch.",
-            "Web and Utility library views now show watch library storage used, free space, and total disk space.",
             "Watch-side Wear uploads now verify the expected byte count and delete partial files when a phone-side Gutenberg add is canceled or disconnected.",
             "Phone-side Gutenberg retries can explicitly overwrite a canceled upload instead of creating duplicate numbered files.",
         ),
