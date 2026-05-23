@@ -22,6 +22,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Local deploy helpers
+rebuild-reinstall.ps1
+
 # Captures
 captures/
 
