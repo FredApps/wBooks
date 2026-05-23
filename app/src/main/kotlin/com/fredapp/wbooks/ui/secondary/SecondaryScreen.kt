@@ -261,15 +261,16 @@ fun SecondaryScreen(
                     bookmarks,
                     key = { "bm:${it.mode.name}:${it.position.chapterIndex}-${it.position.blockIndex}-${it.position.subIndex}" },
                 ) { bm ->
-                    val chapterTitle = bm.label ?: chapterTitleAt(chapters, bm.position) ?: "Start"
                     val resolvedLabel = when (bm.mode) {
-                        ReadingMode.SPEEDREAD -> metrics?.let {
-                            "$chapterTitle · ${it.wordIndexAt(bm.position)}/${it.totalWords}"
-                        } ?: chapterTitle
-                        ReadingMode.SENTENCE -> metrics?.let {
-                            "$chapterTitle · ${it.sentenceIndexAt(bm.position)}/${it.totalSentences}"
-                        } ?: chapterTitle
-                        ReadingMode.NORMAL -> chapterTitle
+                        ReadingMode.SPEEDREAD -> bm.label
+                            ?: speedBookmarkLabel(state.doc, bm.position)
+                            ?: metrics?.let { "Word ${it.wordIndexAt(bm.position)}/${it.totalWords}" }
+                            ?: "Word"
+                        ReadingMode.SENTENCE -> bm.label
+                            ?: sentenceBookmarkLabel(state.doc, bm.position)
+                            ?: metrics?.let { "Sentence ${it.sentenceIndexAt(bm.position)}/${it.totalSentences}" }
+                            ?: "Sentence"
+                        ReadingMode.NORMAL -> bm.label ?: chapterTitleAt(chapters, bm.position) ?: "Start"
                     }
                     BookmarkRow(
                         bookmark = bm,
@@ -477,6 +478,81 @@ private fun chapterTitleAt(chapters: List<ChapterJump>, position: BookPosition):
     }
     return best
 }
+
+private fun speedBookmarkLabel(
+    doc: com.fredapp.wbooks.parser.model.Document,
+    position: BookPosition,
+): String? {
+    val text = blockTextAt(doc, position).takeIf { it.isNotBlank() } ?: return null
+    val words = text.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    val word = words.getOrNull(position.subIndex) ?: words.firstOrNull() ?: return null
+    return word.trimForBookmark()
+}
+
+private fun sentenceBookmarkLabel(
+    doc: com.fredapp.wbooks.parser.model.Document,
+    position: BookPosition,
+): String? {
+    val text = blockTextAt(doc, position).takeIf { it.isNotBlank() } ?: return null
+    val sentences = text.trim().splitAtBookmarkPunctuation()
+    val sentence = sentences.getOrNull(position.subIndex) ?: sentences.firstOrNull() ?: return null
+    return sentence.trimForBookmark(maxLength = 52)
+}
+
+private fun blockTextAt(
+    doc: com.fredapp.wbooks.parser.model.Document,
+    position: BookPosition,
+): String {
+    val block = doc.chapters
+        .getOrNull(position.chapterIndex)
+        ?.blocks
+        ?.getOrNull(position.blockIndex)
+        ?: return ""
+    return when (block) {
+        is com.fredapp.wbooks.parser.model.Block.Heading -> block.text
+        is com.fredapp.wbooks.parser.model.Block.Paragraph -> block.runs.joinToString("") { it.text }
+        is com.fredapp.wbooks.parser.model.Block.Code -> block.text
+        is com.fredapp.wbooks.parser.model.Block.Image -> block.alt
+        com.fredapp.wbooks.parser.model.Block.Divider -> ""
+    }
+}
+
+private fun String.trimForBookmark(maxLength: Int = 32): String {
+    val cleaned = replace(Regex("\\s+"), " ").trim()
+    if (cleaned.length <= maxLength) return cleaned
+    return cleaned.take(maxLength - 3).trimEnd() + "..."
+}
+
+private const val BOOKMARK_MIN_FRAGMENT_SPACES = 3
+
+private fun String.splitAtBookmarkPunctuation(): List<String> {
+    val pieces = mutableListOf<String>()
+    var start = 0
+    var i = 0
+    while (i < length) {
+        val c = this[i]
+        if (c == '.' || c == ',') {
+            var end = i + 1
+            if (end < length && this[end].isBookmarkCloseQuote()) end++
+            val nextIsBoundary = end >= length || this[end].isWhitespace()
+            if (nextIsBoundary) {
+                val fragment = substring(start, end).trim()
+                if (fragment.isNotEmpty() && fragment.count { it == ' ' } >= BOOKMARK_MIN_FRAGMENT_SPACES) {
+                    pieces += fragment
+                    start = end
+                }
+                i = end
+                continue
+            }
+        }
+        i++
+    }
+    substring(start).trim().takeIf { it.isNotEmpty() }?.let { pieces += it }
+    return pieces.ifEmpty { listOf(trim()) }
+}
+
+private fun Char.isBookmarkCloseQuote(): Boolean =
+    this == '"' || this == '\'' || this == '“' || this == '”' || this == '‘' || this == '’'
 
 private fun buildSearchIntent(): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)

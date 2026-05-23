@@ -36,7 +36,7 @@ data class DocumentMetrics(
         val ci = position.chapterIndex.coerceIn(0, wordsBeforeBlock.lastIndex)
         val chapterRow = wordsBeforeBlock[ci]
         val bi = position.blockIndex.coerceIn(0, chapterRow.size - 1)
-        return (chapterRow[bi] + 1).coerceIn(1, totalWords)
+        return (chapterRow[bi] + position.subIndex + 1).coerceIn(1, totalWords)
     }
 
     /** Sentence index (1-based) of the given position, clamped to [1, [totalSentences]]. */

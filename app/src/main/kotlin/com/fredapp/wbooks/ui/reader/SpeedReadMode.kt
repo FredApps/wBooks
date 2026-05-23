@@ -197,7 +197,7 @@ fun SpeedReadMode(
             }
         }
         Text(
-            text = "${index + 1}/${words.size}",
+            text = "${index + 1}/${words.size} · ${bookPercent(index, words.size)}%",
             color = Color(settings.textColorArgb).copy(alpha = 0.58f),
             style = MaterialTheme.typography.caption2,
             textAlign = TextAlign.Center,
@@ -288,8 +288,12 @@ private fun tokenize(doc: Document): List<WordItem> {
                 Block.Divider, is Block.Code, is Block.Image -> ""
             }
             if (text.isNotBlank()) {
-                val position = BookPosition(ci, bi)
-                out.addAll(text.trim().split(ws).filter { it.isNotEmpty() }.map { WordItem(it, position) })
+                out.addAll(
+                    text.trim()
+                        .split(ws)
+                        .filter { it.isNotEmpty() }
+                        .mapIndexed { wordIndex, word -> WordItem(word, BookPosition(ci, bi, wordIndex)) },
+                )
             }
         }
     }
@@ -298,8 +302,17 @@ private fun tokenize(doc: Document): List<WordItem> {
 
 private fun wordIndexFor(words: List<WordItem>, target: BookPosition): Int {
     val i = words.indexOfFirst { word ->
-        word.position.chapterIndex > target.chapterIndex ||
-            (word.position.chapterIndex == target.chapterIndex && word.position.blockIndex >= target.blockIndex)
+        val p = word.position
+        when {
+            p.chapterIndex != target.chapterIndex -> p.chapterIndex > target.chapterIndex
+            p.blockIndex != target.blockIndex -> p.blockIndex > target.blockIndex
+            else -> p.subIndex >= target.subIndex
+        }
     }
     return if (i >= 0) i else 0
+}
+
+private fun bookPercent(index: Int, totalWords: Int): Int {
+    if (totalWords <= 0) return 0
+    return (((index + 1).toDouble() / totalWords) * 100.0).toInt().coerceIn(0, 100)
 }
