@@ -78,7 +78,7 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
     ) { granted ->
         if (granted) {
             showNotificationPermission = false
-            vm.startTransfer()
+            if (vm.canStartTransferOnWifi()) vm.startTransfer()
         } else {
             showNotificationPermission = true
         }
@@ -102,7 +102,9 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
         BackHandler { showNotificationPermission = false }
         NotificationPermissionScreen(
             onGrant = {
-                if (hasNotificationPermission(context)) {
+                if (!vm.canStartTransferOnWifi()) {
+                    showNotificationPermission = false
+                } else if (hasNotificationPermission(context)) {
                     showNotificationPermission = false
                     vm.startTransfer()
                 } else {
@@ -173,7 +175,9 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                     checked = transfer.running,
                     onCheckedChange = { enabled ->
                         if (enabled) {
-                            if (hasNotificationPermission(context)) {
+                            if (!vm.canStartTransferOnWifi()) {
+                                showNotificationPermission = false
+                            } else if (hasNotificationPermission(context)) {
                                 vm.startTransfer()
                             } else {
                                 showNotificationPermission = true

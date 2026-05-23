@@ -426,6 +426,7 @@ class ReaderViewModel(
     // ---- Transfer ----
     val transferState: StateFlow<TransferState> = transferController.state
     fun startTransfer() = transferController.start()
+    fun canStartTransferOnWifi() = transferController.canStartOnWifi()
     fun stopTransfer() = transferController.stop()
 
     // ---- Search ----

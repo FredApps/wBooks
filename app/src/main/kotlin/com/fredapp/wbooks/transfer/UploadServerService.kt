@@ -77,6 +77,7 @@ class UploadServerService : Service() {
         val pin = generatePin()
 
         val candidate = UploadServer(
+            hostAddress = hostAddress,
             port = PORT,
             booksDir = app.booksDir,
             pin = pin,

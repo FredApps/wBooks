@@ -36,6 +36,7 @@ import java.security.MessageDigest
  * it is removed via the web UI so callers can clean up associated DataStore state.
  */
 class UploadServer(
+    hostAddress: String,
     port: Int,
     private val booksDir: File,
     private val pin: String,
@@ -45,7 +46,7 @@ class UploadServer(
     private val onBookDeleted: (bookId: String) -> Unit = {},
     private val onBookMoved: (fromBookId: String, toBookId: String) -> Unit = { _, _ -> },
     private val onFolderRenamed: (oldFolder: String, newFolder: String) -> Unit = { _, _ -> },
-) : NanoHTTPD(port) {
+) : NanoHTTPD(hostAddress, port) {
 
     private val pinBytes = pin.toByteArray(Charsets.UTF_8)
     private val failedAttempts = ArrayDeque<Long>()

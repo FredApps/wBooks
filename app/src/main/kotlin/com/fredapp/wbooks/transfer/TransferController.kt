@@ -23,9 +23,7 @@ class TransferController(private val appContext: Context) {
     fun start(): Boolean {
         val wifiAddress = activeWifiIpv4()
         if (wifiAddress == null) {
-            _state.value = TransferState(
-                message = "Connect to Wi-Fi to start the web server.",
-            )
+            publishWifiRequired()
             return false
         }
         val intent = Intent(appContext, UploadServerService::class.java)
@@ -33,6 +31,12 @@ class TransferController(private val appContext: Context) {
             .putExtra(UploadServerService.EXTRA_HOST_ADDRESS, wifiAddress)
         ContextCompat.startForegroundService(appContext, intent)
         return true
+    }
+
+    fun canStartOnWifi(): Boolean {
+        if (activeWifiIpv4() != null) return true
+        publishWifiRequired()
+        return false
     }
 
     fun stop() {
@@ -50,6 +54,12 @@ class TransferController(private val appContext: Context) {
         _state.value = TransferState()
     }
 
+    internal fun publishWifiRequired() {
+        _state.value = TransferState(
+            message = "Connect to Wi-Fi to start the web server.",
+        )
+    }
+
     /**
      * Return the active Wi-Fi IPv4 only. Wear OS can expose paired-phone Bluetooth
      * or cellular networks with private IPv4 addresses that are not reachable from
@@ -57,7 +67,14 @@ class TransferController(private val appContext: Context) {
      */
     private fun activeWifiIpv4(): String? {
         val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return null
-        val network = cm.activeNetwork ?: return null
+        val network = cm.allNetworks.firstOrNull { candidate ->
+            val caps = cm.getNetworkCapabilities(candidate) ?: return@firstOrNull false
+            val props = cm.getLinkProperties(candidate) ?: return@firstOrNull false
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                !caps.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH) &&
+                !caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+                props.interfaceName?.startsWith("wlan", ignoreCase = true) == true
+        } ?: return null
         val caps = cm.getNetworkCapabilities(network) ?: return null
         if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
         if (caps.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH)) return null
