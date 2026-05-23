@@ -6,9 +6,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
@@ -23,6 +25,7 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val snackbarState = remember { SnackbarHostState() }
     var selectedBook by remember { mutableStateOf<GutenbergBook?>(null) }
+    var homeSection by rememberSaveable { mutableStateOf(GutenbergHomeSection.POPULAR) }
 
     LaunchedEffect(state.lastSentTitle) {
         val title = state.lastSentTitle ?: return@LaunchedEffect
@@ -62,6 +65,8 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
                 else -> HomeSections(
                     popularBooks = state.popularBooks,
                     recentReleases = state.recentReleases,
+                    selectedSection = homeSection,
+                    onSectionChange = { homeSection = it },
                     downloadingId = state.downloadingId,
                     onOpen = { selectedBook = it },
                     onSend = vm::sendToWatch,
@@ -112,46 +117,68 @@ private fun SearchBar(value: String, onValueChange: (String) -> Unit, onSubmit: 
     )
 }
 
+private enum class GutenbergHomeSection(val label: String) {
+    POPULAR("Top most popular books"),
+    RECENT("Recent releases"),
+}
+
 @Composable
 private fun HomeSections(
     popularBooks: List<GutenbergBook>,
     recentReleases: List<GutenbergBook>,
+    selectedSection: GutenbergHomeSection,
+    onSectionChange: (GutenbergHomeSection) -> Unit,
     downloadingId: String?,
     onOpen: (GutenbergBook) -> Unit,
     onSend: (GutenbergBook) -> Unit,
 ) {
+    val books = when (selectedSection) {
+        GutenbergHomeSection.POPULAR -> popularBooks
+        GutenbergHomeSection.RECENT -> recentReleases
+    }
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        if (popularBooks.isNotEmpty()) {
-            sectionHeader("Top most popular books")
-            bookItems(
-                books = popularBooks,
-                keyPrefix = "popular",
-                downloadingId = downloadingId,
-                onOpen = onOpen,
-                onSend = onSend,
-            )
-        }
-        if (recentReleases.isNotEmpty()) {
-            sectionHeader("Recent releases")
-            bookItems(
-                books = recentReleases,
-                keyPrefix = "recent",
-                downloadingId = downloadingId,
-                onOpen = onOpen,
-                onSend = onSend,
-            )
-        }
+        sectionSwitcher(
+            selectedSection = selectedSection,
+            onSectionChange = onSectionChange,
+        )
+        bookItems(
+            books = books,
+            keyPrefix = selectedSection.name.lowercase(),
+            downloadingId = downloadingId,
+            onOpen = onOpen,
+            onSend = onSend,
+        )
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.sectionHeader(title: String) {
-    item(key = "header:$title") {
-        Text(
-            text = title,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
+private fun androidx.compose.foundation.lazy.LazyListScope.sectionSwitcher(
+    selectedSection: GutenbergHomeSection,
+    onSectionChange: (GutenbergHomeSection) -> Unit,
+) {
+    item(key = "home_section_switcher") {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            GutenbergHomeSection.entries.forEach { section ->
+                val selected = section == selectedSection
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            text = section.label,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                    },
+                    trailingContent = {
+                        if (!selected) {
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                        }
+                    },
+                    colors = ListItemDefaults.colors(
+                        containerColor = if (selected) MaterialTheme.colorScheme.surfaceVariant
+                        else MaterialTheme.colorScheme.surface,
+                    ),
+                    modifier = Modifier.clickable { onSectionChange(section) },
+                )
+            }
+        }
     }
 }
 
@@ -202,10 +229,8 @@ private fun BookListItem(
         headlineContent = { Text(book.title, fontWeight = FontWeight.Medium) },
         supportingContent = {
             Column {
-                val sub = book.author ?: ""
                 Text(
-                    text = if (sub.isEmpty()) book.extension.uppercase()
-                    else "$sub - ${book.extension.uppercase()}",
+                    text = book.resultInfo(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -230,7 +255,7 @@ private fun BookListItem(
                 ) { Text("Send") }
             }
         },
-        modifier = Modifier.clickable { onOpen(book) },
+        modifier = if (book.hasInfoDialogDetails()) Modifier.clickable { onOpen(book) } else Modifier,
     )
     HorizontalDivider()
 }
@@ -248,7 +273,8 @@ private fun BookInfoDialog(
         title = { Text(book.title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(book.author ?: "Unknown author", fontWeight = FontWeight.SemiBold)
+                book.author?.let { Text(it, fontWeight = FontWeight.SemiBold) }
+                book.releaseDate?.let { Text("Released: $it", style = MaterialTheme.typography.bodySmall) }
                 Text("Format: ${book.extension.uppercase()}", style = MaterialTheme.typography.bodySmall)
                 Text(
                     text = book.summary ?: "No description available from Project Gutenberg.",
@@ -274,6 +300,18 @@ private fun BookInfoDialog(
         },
     )
 }
+
+private fun GutenbergBook.resultInfo(): String {
+    val parts = buildList {
+        author?.takeIf { it.isNotBlank() }?.let(::add)
+        releaseDate?.takeIf { it.isNotBlank() }?.let { add("Released $it") }
+        add(extension.uppercase())
+    }
+    return parts.joinToString(" - ")
+}
+
+private fun GutenbergBook.hasInfoDialogDetails(): Boolean =
+    infoUrl != null || releaseDate != null || summary != null
 
 @Composable
 private fun CenteredProgress() {

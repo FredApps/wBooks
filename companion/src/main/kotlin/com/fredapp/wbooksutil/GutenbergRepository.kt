@@ -125,17 +125,19 @@ class GutenbergRepository {
                 }
             } ?: continue
             val pageUrl = bookPageUrl(id)
+            val contentText = entry.selectFirst("content")?.text()
+                ?.trim()?.takeIf { it.isNotEmpty() }
+            val author = authorName(entry) ?: contentText
             out += GutenbergBook(
                 id = id,
                 title = title,
-                author = entry.selectFirst("author > name")?.text()?.trim()
-                    ?.takeIf { it.isNotEmpty() },
-                summary = (entry.selectFirst("summary")?.text()
-                    ?: entry.selectFirst("content")?.text())
+                author = author,
+                summary = entry.selectFirst("summary")?.text()
                     ?.trim()?.takeIf { it.isNotEmpty() },
                 downloadUrl = preferred.url,
                 extension = preferred.extension,
                 infoUrl = pageUrl,
+                releaseDate = releaseDate(entry),
             )
         }
         return out
@@ -152,6 +154,27 @@ class GutenbergRepository {
             ?: Regex("""\burn:gutenberg:(\d+)\b""").find(id)?.groupValues?.get(1)
             ?: return null
         return "$BASE_NO_SLASH/ebooks/$numeric"
+    }
+
+    private fun authorName(entry: org.jsoup.nodes.Element): String? {
+        val atomAuthor = listOf(
+            "author > name",
+            "creator",
+            "author",
+        ).firstNotNullOfOrNull { selector ->
+            entry.selectFirst(selector)?.text()?.trim()?.takeIf { it.isNotEmpty() }
+        }
+        if (atomAuthor != null) return atomAuthor
+        return entry.children().firstOrNull { child ->
+            child.tagName().substringAfter(':') == "creator"
+        }?.text()?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun releaseDate(entry: org.jsoup.nodes.Element): String? {
+        val raw = entry.selectFirst("published")?.text()
+            ?: entry.selectFirst("updated")?.text()
+            ?: return null
+        return raw.trim().take(10).takeIf { it.isNotEmpty() }
     }
 
     private data class Acquisition(val url: String, val extension: String)
@@ -209,4 +232,5 @@ data class GutenbergBook(
     val downloadUrl: String,
     val extension: String,
     val infoUrl: String?,
+    val releaseDate: String?,
 )

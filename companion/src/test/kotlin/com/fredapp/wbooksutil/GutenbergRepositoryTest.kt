@@ -64,6 +64,7 @@ class GutenbergRepositoryTest {
     fun extracts_author_and_summary() {
         val moby = repo.parseFeed(FIXTURE).first { it.title == "Moby Dick" }
         assertEquals("Herman Melville", moby.author)
+        assertEquals("2024-01-02", moby.releaseDate)
         assertNotNull(moby.summary)
         assertTrue(
             "summary should contain key phrase, got: ${moby.summary}",
@@ -75,6 +76,44 @@ class GutenbergRepositoryTest {
     fun missing_author_becomes_null() {
         val pride = repo.parseFeed(FIXTURE).first { it.title == "Pride and Prejudice" }
         assertNull(pride.author)
+    }
+
+    @Test
+    fun extracts_namespaced_creator_author() {
+        val xml = """
+            <?xml version="1.0"?>
+            <feed xmlns="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/terms/">
+              <entry>
+                <id>urn:gutenberg:123</id>
+                <title>Namespaced Author</title>
+                <dc:creator>Jane Writer</dc:creator>
+                <link rel="http://opds-spec.org/acquisition"
+                      type="application/epub+zip"
+                      href="/cache/epub/123/pg123.epub"/>
+              </entry>
+            </feed>
+        """.trimIndent()
+
+        assertEquals("Jane Writer", repo.parseFeed(xml).single().author)
+    }
+
+    @Test
+    fun uses_search_feed_content_as_author() {
+        val xml = """
+            <?xml version="1.0"?>
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <entry>
+                <id>https://www.gutenberg.org/ebooks/78731.opds</id>
+                <title>With Scott : The silver lining</title>
+                <content type="text">Thomas Griffith Taylor</content>
+              </entry>
+            </feed>
+        """.trimIndent()
+
+        val book = repo.parseFeed(xml).single()
+
+        assertEquals("Thomas Griffith Taylor", book.author)
+        assertNull(book.summary)
     }
 
     @Test
@@ -138,6 +177,7 @@ class GutenbergRepositoryTest {
                 <id>urn:gutenberg:2701</id>
                 <title>Moby Dick</title>
                 <author><name>Herman Melville</name></author>
+                <published>2024-01-02T00:00:00Z</published>
                 <summary>A whaling voyage narrated by Ishmael, in pursuit of the white whale.</summary>
                 <link rel="http://opds-spec.org/acquisition" type="text/plain; charset=utf-8"
                       href="https://www.gutenberg.org/cache/epub/2701/pg2701.txt"/>

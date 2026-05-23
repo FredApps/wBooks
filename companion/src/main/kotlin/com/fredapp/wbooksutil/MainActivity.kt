@@ -374,12 +374,19 @@ private fun BoundedBookList(
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val folderMaxHeight = maxHeight / 2
+        val folderPaneHeight = folderPaneHeight(
+            folders = folders,
+            books = books,
+            bookFolders = bookFolders,
+            expandedFolders = expandedFolders,
+            maxHeight = folderMaxHeight,
+        )
         Column(modifier = Modifier.fillMaxSize()) {
             if (folders.isNotEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = folderMaxHeight),
+                        .height(folderPaneHeight),
                 ) {
                     LazyColumn(
                         state = folderListState,
@@ -431,6 +438,24 @@ private fun BoundedBookList(
             }
         }
     }
+}
+
+private fun folderPaneHeight(
+    folders: List<Folder>,
+    books: List<BookSummary>,
+    bookFolders: Map<String, String>,
+    expandedFolders: Set<String>,
+    maxHeight: androidx.compose.ui.unit.Dp,
+): androidx.compose.ui.unit.Dp {
+    val expandedRows = folders.sumOf { folder ->
+        if (folder.id !in expandedFolders) 0
+        else {
+            val count = books.count { bookFolders[it.id] == folder.id }
+            if (count == 0) 1 else count
+        }
+    }
+    val estimated = (folders.size * 64 + expandedRows * 56).dp
+    return minOf(estimated, maxHeight)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
