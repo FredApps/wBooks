@@ -11,6 +11,8 @@ All notable changes to wBooks are documented in this file.
 - Utility folder list height now shrinks as folders are removed, keeping Root directly below small folder sets and pinned no lower than half-screen for large sets.
 - Utility Project Gutenberg listings now show file size, downloads can be canceled from the progress bar, and interrupted watch transfers are cleaned up instead of leaving partial books.
 - Utility Project Gutenberg Add is disabled for books already on the watch, while canceled adds can be retried as an overwrite.
+- Web and Utility drag sorting now use the same behavior: before/after drops inside a folder, first-position drops when moving into folders, and matching How to use notes.
+- Utility Project Gutenberg listings now use the same author, optional true release date, format, and file-size layout for popular books, recent releases, and search results.
 
 ## [0.6.0] — 2026-05-22
 

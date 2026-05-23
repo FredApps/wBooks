@@ -50,6 +50,7 @@ import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -214,6 +215,7 @@ private fun CompanionScreen(
                     onDeleteFolder = { pendingDeleteFolder = it },
                     onRenameFolder = { folderToRename = it },
                     onAssignToFolder = vm::assignBookToFolder,
+                    onReorderBook = vm::reorderBook,
                 )
             }
         }
@@ -390,6 +392,7 @@ private fun BoundedBookList(
     onDeleteFolder: (Folder) -> Unit,
     onRenameFolder: (Folder) -> Unit,
     onAssignToFolder: (bookId: String, folderId: String?) -> Unit,
+    onReorderBook: (fromId: String, targetId: String, placeAfterTarget: Boolean) -> Unit,
 ) {
     var expandedFolders by rememberSaveable { mutableStateOf(emptySet<String>()) }
     var rootExpanded by rememberSaveable { mutableStateOf(true) }
@@ -426,6 +429,7 @@ private fun BoundedBookList(
                             onDeleteFolder = onDeleteFolder,
                             onRenameFolder = onRenameFolder,
                             onAssignToFolder = onAssignToFolder,
+                            onReorderBook = onReorderBook,
                         )
                     }
                     FolderScrollbar(state = folderListState)
@@ -453,7 +457,7 @@ private fun BoundedBookList(
                         }
                     } else {
                         items(rootBooks, key = { "rb_${it.id}" }) { book ->
-                            BookItem(book = book, onDelete = onDelete)
+                            BookItem(book = book, onDelete = onDelete, onReorderBook = onReorderBook)
                             HorizontalDivider()
                         }
                     }
@@ -493,6 +497,7 @@ private fun LazyListScope.folderItems(
     onDeleteFolder: (Folder) -> Unit,
     onRenameFolder: (Folder) -> Unit,
     onAssignToFolder: (bookId: String, folderId: String?) -> Unit,
+    onReorderBook: (fromId: String, targetId: String, placeAfterTarget: Boolean) -> Unit,
 ) {
     for (folder in folders) {
         val folderBooks = books.filter { bookFolders[it.id] == folder.id }
@@ -517,7 +522,7 @@ private fun LazyListScope.folderItems(
         }
         if (isExpanded) {
             items(folderBooks, key = { "b_${folder.id}_${it.id}" }) { book ->
-                BookItem(book = book, onDelete = onDelete)
+                BookItem(book = book, onDelete = onDelete, onReorderBook = onReorderBook)
                 HorizontalDivider()
             }
             if (folderBooks.isEmpty()) {
@@ -599,6 +604,7 @@ private fun BookList(
     onDeleteFolder: (Folder) -> Unit,
     onRenameFolder: (Folder) -> Unit,
     onAssignToFolder: (bookId: String, folderId: String?) -> Unit,
+    onReorderBook: (fromId: String, targetId: String, placeAfterTarget: Boolean) -> Unit,
 ) {
     var expandedFolders by rememberSaveable { mutableStateOf(emptySet<String>()) }
     var rootExpanded by rememberSaveable { mutableStateOf(true) }
@@ -626,7 +632,7 @@ private fun BookList(
             }
             if (isExpanded) {
                 items(folderBooks, key = { "b_${folder.id}_${it.id}" }) { book ->
-                    BookItem(book = book, onDelete = onDelete)
+                    BookItem(book = book, onDelete = onDelete, onReorderBook = onReorderBook)
                     HorizontalDivider()
                 }
                 if (folderBooks.isEmpty()) {
@@ -662,7 +668,7 @@ private fun BookList(
                 }
             } else {
                 items(rootBooks, key = { "rb_${it.id}" }) { book ->
-                    BookItem(book = book, onDelete = onDelete)
+                    BookItem(book = book, onDelete = onDelete, onReorderBook = onReorderBook)
                     HorizontalDivider()
                 }
             }
@@ -845,7 +851,24 @@ private fun FolderChip(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BookItem(book: BookSummary, onDelete: (BookSummary) -> Unit) {
+private fun BookItem(
+    book: BookSummary,
+    onDelete: (BookSummary) -> Unit,
+    onReorderBook: (fromId: String, targetId: String, placeAfterTarget: Boolean) -> Unit,
+) {
+    val heightPx = remember { mutableStateOf(1) }
+    val target = remember(book.id) {
+        object : DragAndDropTarget {
+            override fun onDrop(event: DragAndDropEvent): Boolean {
+                val draggedId = event.toAndroidDragEvent().clipData?.getItemAt(0)?.text?.toString()
+                    ?: return false
+                if (draggedId == book.id) return false
+                val placeAfter = event.toAndroidDragEvent().y > heightPx.value / 2f
+                onReorderBook(draggedId, book.id, placeAfter)
+                return true
+            }
+        }
+    }
     ListItem(
         headlineContent = { Text(displayTitleWithTag(book.title, book.format), fontWeight = FontWeight.Medium) },
         trailingContent = {
@@ -857,7 +880,15 @@ private fun BookItem(book: BookSummary, onDelete: (BookSummary) -> Unit) {
             detectTapGestures(onLongPress = {
                 startTransfer(DragAndDropTransferData(ClipData.newPlainText("bookId", book.id)))
             })
-        },
+        }
+            .onSizeChanged { heightPx.value = it.height.coerceAtLeast(1) }
+            .dragAndDropTarget(
+                shouldStartDragAndDrop = { event ->
+                    event.toAndroidDragEvent().clipDescription
+                        ?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true
+                },
+                target = target,
+            ),
     )
 }
 

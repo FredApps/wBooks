@@ -45,6 +45,9 @@ internal object WearProtocol {
 
     /** Phone -> watch. Payload: JSON `{"from":"<old>","to":"<new>"}`. Reply: [LibraryListJson]. */
     const val PATH_RENAME = "/wbooks/library/rename"
+
+    /** Phone -> watch. Payload: JSON `{"folder":"<folder>","order":["<bookId>",...]}`. Reply: [LibraryListJson]. */
+    const val PATH_REORDER = "/wbooks/library/reorder"
 }
 
 /**

@@ -197,6 +197,18 @@ class WatchRepository(context: Context) {
             }.getOrElse { Result.Error(it.message ?: "move failed") }
         }
 
+    suspend fun reorderBooks(folder: String, orderedIds: List<String>): Result<LibrarySnapshot> =
+        withContext(Dispatchers.IO) {
+            val node = bestNode() ?: return@withContext Result.NoWatch
+            runCatching {
+                val order = orderedIds.joinToString(",", prefix = "[", postfix = "]") { jsonString(it) }
+                val payload = """{"folder":${jsonString(folder)},"order":$order}"""
+                    .toByteArray(Charsets.UTF_8)
+                val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_REORDER, payload).await()
+                Result.Ok(LibraryListJson.decode(bytes))
+            }.getOrElse { Result.Error(it.message ?: "reorder failed") }
+        }
+
     suspend fun hasReachableWatch(): Boolean = withContext(Dispatchers.IO) {
         bestNode() != null
     }

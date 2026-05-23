@@ -652,7 +652,7 @@ class UploadServer(
                     e.preventDefault();
                     e.stopPropagation();
                     card.classList.remove('drag-target');
-                    reorderBookBefore(activeBookDrag, card.dataset.rel || '');
+                    reorderBookRelative(activeBookDrag, card.dataset.rel || '', dropPlacement(e, card));
                   });
                   card.addEventListener('dragstart', function(e) {
                     var rel = card.dataset.rel || '';
@@ -750,17 +750,25 @@ class UploadServer(
                   alert('Move failed: ' + err);
                 }
               }
-              async function reorderBookBefore(fromRel, beforeRel) {
-                if (!fromRel || !beforeRel || fromRel === beforeRel) return;
+              function dropPlacement(e, card) {
+                var rect = card.getBoundingClientRect();
+                return e.clientY > rect.top + rect.height / 2 ? 'after' : 'before';
+              }
+              async function reorderBookRelative(fromRel, targetRel, placement) {
+                if (!fromRel || !targetRel || fromRel === targetRel) return;
                 var fromCard = document.querySelector('.book-card[data-rel="' + cssEscape(fromRel) + '"]');
-                var beforeCard = document.querySelector('.book-card[data-rel="' + cssEscape(beforeRel) + '"]');
-                if (!fromCard || !beforeCard) return;
-                var list = beforeCard.closest('.book-list');
+                var targetCard = document.querySelector('.book-card[data-rel="' + cssEscape(targetRel) + '"]');
+                if (!fromCard || !targetCard) return;
+                var list = targetCard.closest('.book-list');
                 if (!list || fromCard.closest('.book-list') !== list) {
-                  await moveBookTo(fromRel, beforeRel.indexOf('/') >= 0 ? beforeRel.substring(0, beforeRel.lastIndexOf('/')) : '');
+                  await moveBookTo(fromRel, targetRel.indexOf('/') >= 0 ? targetRel.substring(0, targetRel.lastIndexOf('/')) : '');
                   return;
                 }
-                list.insertBefore(fromCard, beforeCard);
+                if (placement === 'after') {
+                  list.insertBefore(fromCard, targetCard.nextSibling);
+                } else {
+                  list.insertBefore(fromCard, targetCard);
+                }
                 var order = Array.prototype.map.call(list.querySelectorAll('.book-card'), function(card) {
                   return card.dataset.rel || '';
                 }).filter(Boolean);
@@ -884,7 +892,7 @@ class UploadServer(
 
                 <p><strong>Create folders:</strong> Type a folder name in the "New folder" field and click "Create folder". Books appear in Root until you move them. Folders are top-level only; you can have up to ${FolderPolicy.MAX_FOLDERS} folders, and each folder name can be up to ${FolderPolicy.MAX_NAME_LENGTH} characters.</p>
 
-                <p><strong>Organize books:</strong> Click Move on a book card, or drag book cards onto folder section headers. The watch syncs the changes automatically.</p>
+                <p><strong>Organize books:</strong> Drag book cards onto folder section headers to move them to the top of that folder. Drag a book above or below another book in the same folder to set the order. The watch syncs the changes automatically.</p>
 
                 <p><strong>Delete:</strong> Click the delete button on a book card or folder header. You'll be asked to confirm.</p>
 
@@ -1087,7 +1095,7 @@ class UploadServer(
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", "Move failed")
         }
         removeFromOrder(from.parentFile ?: booksDir, from.name)
-        appendToOrder(toDir, dest.name)
+        prependToOrder(toDir, dest.name)
         onBookMoved(from.relativeTo(booksDir).invariantSeparatorsPath, dest.relativeTo(booksDir).invariantSeparatorsPath)
         onLibraryChanged()
         return redirectToIndex("Moved")
@@ -1282,6 +1290,7 @@ class UploadServer(
           <section>
             <h3>Folders</h3>
             <p>Create folders from the library, then long-press a book to move it. Use the companion app or web UI to drag books between folders.</p>
+            <p>In the web library, drag a book above or below another book in the same folder to set the reading order. Dragging a book onto a folder moves it to the top of that folder.</p>
             <p>Folders are top-level only. You can have up to ${FolderPolicy.MAX_FOLDERS} folders, and each folder name can be up to ${FolderPolicy.MAX_NAME_LENGTH} characters. Names cannot contain path or reserved filesystem characters.</p>
           </section>
           <section>
@@ -1406,6 +1415,11 @@ class UploadServer(
     private fun appendToOrder(dir: File, name: String) {
         if (!dir.isInsideBooksDir() || !dir.isDirectory) return
         writeOrder(dir, readOrder(dir).keys.filterNot { it == name } + name)
+    }
+
+    private fun prependToOrder(dir: File, name: String) {
+        if (!dir.isInsideBooksDir() || !dir.isDirectory) return
+        writeOrder(dir, listOf(name) + readOrder(dir).keys.filterNot { it == name })
     }
 
     private fun currentTopFolderNames(): List<String> =

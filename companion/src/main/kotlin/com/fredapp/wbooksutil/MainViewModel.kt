@@ -127,6 +127,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun reorderBook(fromId: String, targetId: String, placeAfterTarget: Boolean) {
+        if (fromId == targetId) return
+        val state = _state.value
+        val fromFolder = state.bookFolders[fromId] ?: ""
+        val targetFolder = state.bookFolders[targetId] ?: ""
+        if (fromFolder != targetFolder) {
+            assignBookToFolder(fromId, targetFolder.ifEmpty { null })
+            return
+        }
+        val folderBooks = state.books.filter { (state.bookFolders[it.id] ?: "") == fromFolder }
+        val reordered = folderBooks.toMutableList()
+        val moved = reordered.firstOrNull { it.id == fromId } ?: return
+        reordered.removeAll { it.id == fromId }
+        val targetIndex = reordered.indexOfFirst { it.id == targetId }
+        if (targetIndex < 0) return
+        val insertAt = if (placeAfterTarget) targetIndex + 1 else targetIndex
+        reordered.add(insertAt.coerceIn(0, reordered.size), moved)
+        viewModelScope.launch {
+            applyResult(repo.reorderBooks(fromFolder, reordered.map { it.id }))
+        }
+    }
+
     private suspend fun pollWatchConnection() {
         if (_state.value.sending) return
         val reachable = repo.hasReachableWatch()

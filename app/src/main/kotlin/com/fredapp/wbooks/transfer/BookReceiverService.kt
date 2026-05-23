@@ -89,6 +89,13 @@ class BookReceiverService : WearableListenerService() {
                         if (from != null && to != null) renameFolder(from, to)
                         currentLibraryJson()
                     }
+                    WearProtocol.PATH_REORDER -> {
+                        val json = String(data, Charsets.UTF_8)
+                        val folder = parseString(json, "folder") ?: ""
+                        val order = parseStringArray(json, "order")
+                        reorderBooks(folder, order)
+                        currentLibraryJson()
+                    }
                     WearProtocol.PATH_STATS -> currentStatsJson()
                     WearProtocol.PATH_SETTINGS_GET -> currentSettingsJson()
                     WearProtocol.PATH_SETTINGS_SET -> {
@@ -281,6 +288,78 @@ class BookReceiverService : WearableListenerService() {
         return null
     }
 
+    private fun parseStringArray(json: String, key: String): List<String> {
+        val needle = "\"" + key + "\""
+        val ki = json.indexOf(needle)
+        if (ki < 0) return emptyList()
+        val open = json.indexOf('[', ki + needle.length)
+        if (open < 0) return emptyList()
+        val close = findMatchingBracket(json, open)
+        if (close <= open) return emptyList()
+        val out = mutableListOf<String>()
+        var i = open + 1
+        while (i < close) {
+            while (i < close && (json[i].isWhitespace() || json[i] == ',')) i++
+            if (i >= close || json[i] != '"') break
+            val parsed = readQuotedString(json, i) ?: break
+            out += parsed.first
+            i = parsed.second + 1
+        }
+        return out
+    }
+
+    private fun findMatchingBracket(s: String, openIdx: Int): Int {
+        var depth = 0
+        var i = openIdx
+        while (i < s.length) {
+            when (s[i]) {
+                '[' -> depth++
+                ']' -> {
+                    depth--
+                    if (depth == 0) return i
+                }
+                '"' -> i = skipQuotedString(s, i)
+            }
+            i++
+        }
+        return -1
+    }
+
+    private fun readQuotedString(s: String, quoteIdx: Int): Pair<String, Int>? {
+        val sb = StringBuilder()
+        var i = quoteIdx + 1
+        while (i < s.length) {
+            val c = s[i]
+            if (c == '"') return sb.toString() to i
+            if (c == '\\' && i + 1 < s.length) {
+                when (val esc = s[i + 1]) {
+                    '"', '\\', '/' -> sb.append(esc)
+                    'n' -> sb.append('\n')
+                    'r' -> sb.append('\r')
+                    't' -> sb.append('\t')
+                    else -> sb.append(esc)
+                }
+                i += 2
+            } else {
+                sb.append(c)
+                i++
+            }
+        }
+        return null
+    }
+
+    private fun skipQuotedString(s: String, quoteIdx: Int): Int {
+        var i = quoteIdx + 1
+        while (i < s.length) {
+            when (s[i]) {
+                '\\' -> i++
+                '"' -> return i
+            }
+            i++
+        }
+        return i
+    }
+
     private fun notifyReceived(filename: String) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (nm.getNotificationChannel(CHANNEL_ID) == null) {
@@ -297,6 +376,11 @@ class BookReceiverService : WearableListenerService() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
         nm.notify(filename.hashCode(), notif)
+    }
+
+    private suspend fun reorderBooks(folder: String, orderedIds: List<String>) {
+        val app = application as WBooksApp
+        app.libraryRepository.reorder(folder, orderedIds)
     }
 
     private fun parseUploadPath(path: String): UploadMeta {

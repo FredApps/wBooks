@@ -50,6 +50,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -827,7 +828,12 @@ private fun BookChip(book: Book, onClick: () -> Unit, onLongPress: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(book.title, style = MaterialTheme.typography.button, maxLines = 1)
+        Text(
+            book.title,
+            style = MaterialTheme.typography.button,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
         Text(
             book.format.name,
             style = MaterialTheme.typography.caption2,

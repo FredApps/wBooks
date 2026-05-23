@@ -192,9 +192,7 @@ class GutenbergRepository {
     }
 
     private fun releaseDate(entry: org.jsoup.nodes.Element): String? {
-        val raw = entry.selectFirst("published")?.text()
-            ?: entry.selectFirst("updated")?.text()
-            ?: return null
+        val raw = entry.selectFirst("published")?.text() ?: return null
         return raw.trim().take(10).takeIf { it.isNotEmpty() }
     }
 

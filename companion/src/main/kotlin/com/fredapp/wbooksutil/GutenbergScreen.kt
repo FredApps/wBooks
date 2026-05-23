@@ -205,7 +205,6 @@ private fun HomeSections(
             books = books,
             keyPrefix = selectedSection.name.lowercase(),
             downloadingId = downloadingId,
-            showReleaseDateOnOwnLine = selectedSection == GutenbergHomeSection.RECENT,
             isPresentOnDevice = isPresentOnDevice,
             onAdd = onAdd,
         )
@@ -248,7 +247,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bookItems(
     books: List<GutenbergBook>,
     keyPrefix: String,
     downloadingId: String?,
-    showReleaseDateOnOwnLine: Boolean,
     isPresentOnDevice: (GutenbergBook) -> Boolean,
     onAdd: (GutenbergBook) -> Unit,
 ) {
@@ -256,7 +254,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bookItems(
         BookListItem(
             book = book,
             downloadingId = downloadingId,
-            showReleaseDateOnOwnLine = showReleaseDateOnOwnLine,
             isPresentOnDevice = isPresentOnDevice,
             onAdd = onAdd,
         )
@@ -278,7 +275,6 @@ private fun ResultsList(
             BookListItem(
                 book = book,
                 downloadingId = downloadingId,
-                showReleaseDateOnOwnLine = false,
                 isPresentOnDevice = isPresentOnDevice,
                 onAdd = onAdd,
             )
@@ -330,7 +326,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.loadMoreItem(
 private fun BookListItem(
     book: GutenbergBook,
     downloadingId: String?,
-    showReleaseDateOnOwnLine: Boolean,
     isPresentOnDevice: (GutenbergBook) -> Boolean,
     onAdd: (GutenbergBook) -> Unit,
 ) {
@@ -339,27 +334,27 @@ private fun BookListItem(
         headlineContent = { Text(book.title, fontWeight = FontWeight.Medium) },
         supportingContent = {
             Column {
-                if (showReleaseDateOnOwnLine) {
+                book.author?.takeIf { it.isNotBlank() }?.let { author ->
                     Text(
-                        text = book.authorLine(),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    book.releaseDate?.takeIf { it.isNotBlank() }?.let { date ->
-                        Text(
-                            text = "Released $date",
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                } else {
-                    Text(
-                        text = book.resultInfo(),
+                        text = author,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                book.releaseDate?.takeIf { it.isNotBlank() }?.let { date ->
+                    Text(
+                        text = "Released $date",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Text(
+                    text = "${book.extension.uppercase()} - ${book.sizeLabel()}",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 book.summary?.let { s ->
                     Text(
                         text = s,
@@ -384,22 +379,6 @@ private fun BookListItem(
     )
     HorizontalDivider()
 }
-
-private fun GutenbergBook.resultInfo(): String {
-    val parts = buildList {
-        author?.takeIf { it.isNotBlank() }?.let(::add)
-        releaseDate?.takeIf { it.isNotBlank() }?.let { add("Released $it") }
-        add(extension.uppercase())
-        add(sizeLabel())
-    }
-    return parts.joinToString(" - ")
-}
-
-private fun GutenbergBook.authorLine(): String =
-    buildList {
-        author?.takeIf { it.isNotBlank() }?.let(::add)
-        add("${extension.uppercase()} - ${sizeLabel()}")
-    }.joinToString(" - ")
 
 private fun GutenbergBook.sizeLabel(): String =
     sizeBytes?.let(::formatBytes) ?: "Size unknown"

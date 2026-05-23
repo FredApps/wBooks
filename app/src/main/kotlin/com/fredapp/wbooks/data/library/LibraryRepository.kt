@@ -70,6 +70,8 @@ class LibraryRepository(private val booksDir: File) {
         if (src.parentFile?.canonicalFile == destDir.canonicalFile) return@withContext bookId
         val dest = uniqueFile(destDir, src.name)
         if (src.renameTo(dest)) {
+            removeFromOrder(src.parentFile ?: booksDir, src.name)
+            prependToOrder(destDir, dest.name)
             refresh()
             dest.relativeTo(booksDir).invariantSeparatorsPath
         } else {
@@ -87,6 +89,7 @@ class LibraryRepository(private val booksDir: File) {
         if (src.canonicalFile == desired.canonicalFile) return@withContext bookId
         val dest = if (desired.exists()) uniqueFile(parent, desired.name) else desired
         if (src.renameTo(dest)) {
+            renameInOrder(parent, src.name, dest.name)
             refresh()
             dest.relativeTo(booksDir).invariantSeparatorsPath
         } else {
@@ -130,6 +133,22 @@ class LibraryRepository(private val booksDir: File) {
         ids
     }
 
+    suspend fun reorder(folder: String, orderedIds: List<String>): Boolean = withContext(Dispatchers.IO) {
+        val cleanFolder = FolderPolicy.validateMoveTarget(folder, currentFolderNames()).name ?: return@withContext false
+        val dir = if (cleanFolder.isEmpty()) booksDir else File(booksDir, cleanFolder)
+        if (!dir.isInsideBooksDir() || !dir.isDirectory) return@withContext false
+        val validNames = dir.listFiles { f -> f.isFile && BookFormat.fromExtension(f.extension) != null }
+            ?.map { it.name }
+            ?.toSet()
+            .orEmpty()
+        val names = orderedIds.mapNotNull { id ->
+            if (id.substringBeforeLast('/', "") == cleanFolder) id.substringAfterLast('/') else null
+        }.filter { it in validNames }.distinct()
+        writeOrder(dir, names + validNames.filter { it !in names }.sortedBy { it.lowercase() })
+        refresh()
+        true
+    }
+
     private fun cleanBookTitle(raw: String): String? {
         val t = raw.trim().trim('/', '\\')
         if (t.isEmpty()) return null
@@ -169,6 +188,38 @@ class LibraryRepository(private val booksDir: File) {
         readOrder(booksDir)
         booksDir.listFiles { f -> f.isDirectory }?.forEach(::readOrder)
         return out
+    }
+
+    private fun readOrder(dir: File): List<String> {
+        val orderFile = File(dir, ORDER_FILE)
+        if (!orderFile.isFile) return emptyList()
+        return orderFile.readLines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.contains('/') && !it.contains('\\') }
+            .distinct()
+    }
+
+    private fun writeOrder(dir: File, names: List<String>) {
+        if (!dir.isInsideBooksDir() || !dir.isDirectory) return
+        File(dir, ORDER_FILE).writeText(
+            names.filter { it.isNotBlank() && !it.contains('/') && !it.contains('\\') }
+                .distinct()
+                .joinToString(separator = "\n", postfix = "\n"),
+        )
+    }
+
+    private fun removeFromOrder(dir: File, name: String) {
+        writeOrder(dir, readOrder(dir).filterNot { it == name })
+    }
+
+    private fun prependToOrder(dir: File, name: String) {
+        writeOrder(dir, listOf(name) + readOrder(dir).filterNot { it == name })
+    }
+
+    private fun renameInOrder(dir: File, oldName: String, newName: String) {
+        val current = readOrder(dir)
+        if (current.isEmpty()) return
+        writeOrder(dir, current.map { if (it == oldName) newName else it })
     }
 
     private fun currentFolderNames(): List<String> =
