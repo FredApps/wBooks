@@ -12,7 +12,7 @@ data class ChangelogEntry(
  */
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
-        version = "0.6.0",
+        version = "0.7.0",
         date = "2026-05-23",
         notes = listOf(
             "Book opening/parsing timeout increased to two minutes for large first-open conversions.",
