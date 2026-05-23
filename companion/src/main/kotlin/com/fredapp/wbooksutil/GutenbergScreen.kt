@@ -13,7 +13,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -24,12 +23,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val snackbarState = remember { SnackbarHostState() }
-    var selectedBook by remember { mutableStateOf<GutenbergBook?>(null) }
     var homeSection by rememberSaveable { mutableStateOf(GutenbergHomeSection.POPULAR) }
 
     LaunchedEffect(state.lastSentTitle) {
         val title = state.lastSentTitle ?: return@LaunchedEffect
-        snackbarState.showSnackbar("Sent to watch: $title")
+        snackbarState.showSnackbar("Added to watch: $title")
         vm.dismissSentToast()
     }
 
@@ -58,8 +56,7 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
                 state.showingSearch -> ResultsList(
                     results = state.searchResults,
                     downloadingId = state.downloadingId,
-                    onOpen = { selectedBook = it },
-                    onSend = vm::sendToWatch,
+                    onAdd = vm::sendToWatch,
                 )
                 state.popularBooks.isEmpty() && state.recentReleases.isEmpty() -> CenteredText("No books.")
                 else -> HomeSections(
@@ -68,20 +65,10 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
                     selectedSection = homeSection,
                     onSectionChange = { homeSection = it },
                     downloadingId = state.downloadingId,
-                    onOpen = { selectedBook = it },
-                    onSend = vm::sendToWatch,
+                    onAdd = vm::sendToWatch,
                 )
             }
         }
-    }
-
-    selectedBook?.let { book ->
-        BookInfoDialog(
-            book = book,
-            downloadingId = state.downloadingId,
-            onSend = vm::sendToWatch,
-            onDismiss = { selectedBook = null },
-        )
     }
 
     state.errorMessage?.let { msg ->
@@ -129,8 +116,7 @@ private fun HomeSections(
     selectedSection: GutenbergHomeSection,
     onSectionChange: (GutenbergHomeSection) -> Unit,
     downloadingId: String?,
-    onOpen: (GutenbergBook) -> Unit,
-    onSend: (GutenbergBook) -> Unit,
+    onAdd: (GutenbergBook) -> Unit,
 ) {
     val books = when (selectedSection) {
         GutenbergHomeSection.POPULAR -> popularBooks
@@ -145,8 +131,8 @@ private fun HomeSections(
             books = books,
             keyPrefix = selectedSection.name.lowercase(),
             downloadingId = downloadingId,
-            onOpen = onOpen,
-            onSend = onSend,
+            showReleaseDateOnOwnLine = selectedSection == GutenbergHomeSection.RECENT,
+            onAdd = onAdd,
         )
     }
 }
@@ -157,27 +143,23 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sectionSwitcher(
 ) {
     item(key = "home_section_switcher") {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-            GutenbergHomeSection.entries.forEach { section ->
-                val selected = section == selectedSection
-                ListItem(
-                    headlineContent = {
-                        Text(
-                            text = section.label,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        )
-                    },
-                    trailingContent = {
-                        if (!selected) {
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
-                        }
-                    },
-                    colors = ListItemDefaults.colors(
-                        containerColor = if (selected) MaterialTheme.colorScheme.surfaceVariant
-                        else MaterialTheme.colorScheme.surface,
-                    ),
-                    modifier = Modifier.clickable { onSectionChange(section) },
-                )
+            val nextSection = when (selectedSection) {
+                GutenbergHomeSection.POPULAR -> GutenbergHomeSection.RECENT
+                GutenbergHomeSection.RECENT -> GutenbergHomeSection.POPULAR
             }
+            ListItem(
+                headlineContent = {
+                    Text(
+                        text = selectedSection.label,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                },
+                trailingContent = {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                },
+                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.clickable { onSectionChange(nextSection) },
+            )
         }
     }
 }
@@ -186,15 +168,15 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bookItems(
     books: List<GutenbergBook>,
     keyPrefix: String,
     downloadingId: String?,
-    onOpen: (GutenbergBook) -> Unit,
-    onSend: (GutenbergBook) -> Unit,
+    showReleaseDateOnOwnLine: Boolean,
+    onAdd: (GutenbergBook) -> Unit,
 ) {
     items(books, key = { book -> "$keyPrefix:${book.id.ifEmpty { book.downloadUrl }}" }) { book ->
         BookListItem(
             book = book,
             downloadingId = downloadingId,
-            onOpen = onOpen,
-            onSend = onSend,
+            showReleaseDateOnOwnLine = showReleaseDateOnOwnLine,
+            onAdd = onAdd,
         )
     }
 }
@@ -203,16 +185,15 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bookItems(
 private fun ResultsList(
     results: List<GutenbergBook>,
     downloadingId: String?,
-    onOpen: (GutenbergBook) -> Unit,
-    onSend: (GutenbergBook) -> Unit,
+    onAdd: (GutenbergBook) -> Unit,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(results, key = { it.id.ifEmpty { it.downloadUrl } }) { book ->
             BookListItem(
                 book = book,
                 downloadingId = downloadingId,
-                onOpen = onOpen,
-                onSend = onSend,
+                showReleaseDateOnOwnLine = false,
+                onAdd = onAdd,
             )
         }
     }
@@ -222,18 +203,34 @@ private fun ResultsList(
 private fun BookListItem(
     book: GutenbergBook,
     downloadingId: String?,
-    onOpen: (GutenbergBook) -> Unit,
-    onSend: (GutenbergBook) -> Unit,
+    showReleaseDateOnOwnLine: Boolean,
+    onAdd: (GutenbergBook) -> Unit,
 ) {
     ListItem(
         headlineContent = { Text(book.title, fontWeight = FontWeight.Medium) },
         supportingContent = {
             Column {
-                Text(
-                    text = book.resultInfo(),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (showReleaseDateOnOwnLine) {
+                    Text(
+                        text = book.authorLine(),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    book.releaseDate?.takeIf { it.isNotBlank() }?.let { date ->
+                        Text(
+                            text = "Released $date",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                } else {
+                    Text(
+                        text = book.resultInfo(),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 book.summary?.let { s ->
                     Text(
                         text = s,
@@ -250,55 +247,13 @@ private fun BookListItem(
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
             } else {
                 TextButton(
-                    onClick = { onSend(book) },
+                    onClick = { onAdd(book) },
                     enabled = downloadingId == null,
-                ) { Text("Send") }
+                ) { Text("Add") }
             }
         },
-        modifier = if (book.hasInfoDialogDetails()) Modifier.clickable { onOpen(book) } else Modifier,
     )
     HorizontalDivider()
-}
-
-@Composable
-private fun BookInfoDialog(
-    book: GutenbergBook,
-    downloadingId: String?,
-    onSend: (GutenbergBook) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val uriHandler = LocalUriHandler.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(book.title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                book.author?.let { Text(it, fontWeight = FontWeight.SemiBold) }
-                book.releaseDate?.let { Text("Released: $it", style = MaterialTheme.typography.bodySmall) }
-                Text("Format: ${book.extension.uppercase()}", style = MaterialTheme.typography.bodySmall)
-                Text(
-                    text = book.summary ?: "No description available from Project Gutenberg.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onSend(book) },
-                enabled = downloadingId == null,
-            ) { Text(if (downloadingId == book.id) "Sending..." else "Send") }
-        },
-        dismissButton = {
-            Row {
-                book.infoUrl?.let { url ->
-                    TextButton(onClick = { uriHandler.openUri(url) }) {
-                        Text("Open Gutenberg")
-                    }
-                }
-                TextButton(onClick = onDismiss) { Text("Close") }
-            }
-        },
-    )
 }
 
 private fun GutenbergBook.resultInfo(): String {
@@ -310,8 +265,8 @@ private fun GutenbergBook.resultInfo(): String {
     return parts.joinToString(" - ")
 }
 
-private fun GutenbergBook.hasInfoDialogDetails(): Boolean =
-    infoUrl != null || releaseDate != null || summary != null
+private fun GutenbergBook.authorLine(): String =
+    author?.takeIf { it.isNotBlank() } ?: extension.uppercase()
 
 @Composable
 private fun CenteredProgress() {
