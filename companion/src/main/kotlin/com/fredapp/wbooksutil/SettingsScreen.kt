@@ -371,6 +371,11 @@ private fun AboutBlock() {
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(top = 4.dp),
         )
+        Text(
+            text = "This app uses open-source libraries including Jsoup, PDFBox, NanoHTTPD, and Google's Jetpack libraries. See ATTRIBUTION.md for full credits and licenses.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 8.dp),
+        )
     }
 }
 

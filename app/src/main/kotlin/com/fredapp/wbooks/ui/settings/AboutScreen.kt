@@ -74,13 +74,20 @@ fun AboutScreen(onBack: () -> Unit) {
                 )
             }
             item { SectionTitle("Built with") }
-            item { Body("Kotlin, Jetpack Compose for Wear OS, Jsoup, NanoHTTPD") }
+            item { Body("Kotlin, Jetpack Compose for Wear OS, Jsoup, NanoHTTPD, and more.") }
             item { SectionTitle("License") }
             item {
                 Body(
                     "wBooks is licensed under GPLv3.\n\n" +
                         "Source: github.com/FredApps/wBooks\n\n" +
                         "Bundled Gutenberg texts are public domain in the United States; check your jurisdiction.",
+                )
+            }
+            item { SectionTitle("Open Source") }
+            item {
+                Body(
+                    "This app uses many open-source libraries including jsoup, NanoHTTPD, PDFBox, and Google's Jetpack libraries.\n\n" +
+                        "See ATTRIBUTION.md for full credits and licenses.",
                 )
             }
             item {
