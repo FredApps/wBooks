@@ -100,6 +100,27 @@ class GutenbergRepositoryTest {
         assertEquals(emptyList<GutenbergBook>(), repo.parseFeed(xml))
     }
 
+    @Test
+    fun search_feed_entries_synthesize_epub_download_url() {
+        val xml = """
+            <?xml version="1.0"?>
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <entry>
+                <id>https://www.gutenberg.org/ebooks/2701.opds</id>
+                <title>Moby-Dick; or, The Whale</title>
+                <author><name>Herman Melville</name></author>
+              </entry>
+            </feed>
+        """.trimIndent()
+
+        val books = repo.parseFeed(xml)
+
+        assertEquals(1, books.size)
+        assertEquals("epub", books.single().extension)
+        assertEquals("https://www.gutenberg.org/ebooks/2701.epub3.images", books.single().downloadUrl)
+        assertEquals("https://www.gutenberg.org/ebooks/2701", books.single().infoUrl)
+    }
+
     private companion object {
         /** Synthetic feed modelled on PG's OPDS shape â€” minimal but realistic. */
         val FIXTURE = """

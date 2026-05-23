@@ -229,10 +229,6 @@ private fun SettingsList(
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-        SectionHeader("How to use")
-        InstructionsBlock()
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         SectionHeader("Changelog")
         ChangelogBlock()
 
@@ -264,7 +260,7 @@ private fun ChangelogBlock() {
 }
 
 @Composable
-private fun InstructionsBlock() {
+fun InstructionsBlock() {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Text(
             text = "Sending books to the watch",

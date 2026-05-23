@@ -17,6 +17,10 @@ object CompanionChangelog {
             version = "0.5.1",
             date = "2026-05-21",
             notes = listOf(
+                "Project Gutenberg opens with Top most popular books and Recent releases sections; searches temporarily replace those sections and clearing the query brings them back.",
+                "Project Gutenberg book rows open an info dialog with author, format, description, Send, and a Project Gutenberg page link.",
+                "How to use moved from Settings to the main library window help icon.",
+                "Large folder sets now stay in a half-screen scroll area so Root remains visible below them.",
                 "Books in an expanded folder now render directly under that folder's chip; Root sits below the folder list and scrolls to centre as folder count grows.",
                 "Rename-folder dialog (edit icon next to the delete icon).",
                 "Project Gutenberg search works again — search results now synthesise the EPUB download URL from the book id, and the keyboard Enter key submits.",

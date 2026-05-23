@@ -4,6 +4,10 @@ All notable changes to wBooks are documented in this file.
 
 ## [Unreleased]
 
+- Utility Project Gutenberg opens with separate Top most popular books and Recent releases sections; submitting a search replaces them, and clearing the search brings them back.
+- Utility Project Gutenberg book rows now open an info dialog, and the Utility How to use content moved from Settings to a main-window help icon.
+- Utility folder list now caps at half the screen with its own scrollbar so Root stays visible below large folder sets.
+
 ## [0.6.0] — 2026-05-22
 
 ### Added

@@ -16,8 +16,9 @@ import kotlin.coroutines.coroutineContext
  * Minimal Project Gutenberg client. Talks to PG's OPDS Atom feeds â€” the standard
  * way to programmatically browse and download. Endpoints used:
  *
- *   - Search:  https://www.gutenberg.org/ebooks/search.opds/?query=...
- *   - Browse:  https://www.gutenberg.org/ebooks.opds/  (popular, opening page)
+ *   - Search:           https://www.gutenberg.org/ebooks/search.opds/?query=...
+ *   - Popular:          https://www.gutenberg.org/ebooks/search.opds/?sort_order=downloads
+ *   - Recent releases:  https://www.gutenberg.org/ebooks/search.opds/?sort_order=release_date
  *
  * For each result we pick the best download link the reader can open natively
  * (EPUB > TXT) and surface a [GutenbergBook] with the direct URL. [withDownload]
@@ -37,9 +38,13 @@ class GutenbergRepository {
         return parseFeed(fetch(url))
     }
 
-    /** OPDS feed: popular / opening page. */
+    /** OPDS feed: top books sorted by download count. */
     suspend fun popular(): List<GutenbergBook> =
-        parseFeed(fetch(endpoint("ebooks.opds/")))
+        parseFeed(fetch(endpoint("ebooks/search.opds/", "sort_order" to "downloads")))
+
+    /** OPDS feed: newest Project Gutenberg releases. */
+    suspend fun recentReleases(): List<GutenbergBook> =
+        parseFeed(fetch(endpoint("ebooks/search.opds/", "sort_order" to "release_date")))
 
     /**
      * Open the book's download stream and hand it to [block]. Connection is
@@ -119,6 +124,7 @@ class GutenbergRepository {
                     )
                 }
             } ?: continue
+            val pageUrl = bookPageUrl(id)
             out += GutenbergBook(
                 id = id,
                 title = title,
@@ -129,6 +135,7 @@ class GutenbergRepository {
                     ?.trim()?.takeIf { it.isNotEmpty() },
                 downloadUrl = preferred.url,
                 extension = preferred.extension,
+                infoUrl = pageUrl,
             )
         }
         return out
@@ -138,6 +145,13 @@ class GutenbergRepository {
     private fun bookIdFromOpdsUrl(idUrl: String): String? {
         val m = Regex("/ebooks/(\\d+)(?:\\.opds)?\\b").find(idUrl) ?: return null
         return m.groupValues[1]
+    }
+
+    private fun bookPageUrl(id: String): String? {
+        val numeric = bookIdFromOpdsUrl(id)
+            ?: Regex("""\burn:gutenberg:(\d+)\b""").find(id)?.groupValues?.get(1)
+            ?: return null
+        return "$BASE_NO_SLASH/ebooks/$numeric"
     }
 
     private data class Acquisition(val url: String, val extension: String)
@@ -194,4 +208,5 @@ data class GutenbergBook(
     val summary: String?,
     val downloadUrl: String,
     val extension: String,
+    val infoUrl: String?,
 )

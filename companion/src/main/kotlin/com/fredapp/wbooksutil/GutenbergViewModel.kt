@@ -18,12 +18,20 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
 
     data class UiState(
         val query: String = "",
-        val results: List<GutenbergBook> = emptyList(),
+        val popularBooks: List<GutenbergBook> = emptyList(),
+        val recentReleases: List<GutenbergBook> = emptyList(),
+        val searchResults: List<GutenbergBook> = emptyList(),
         val loading: Boolean = false,
         val downloadingId: String? = null,
         val errorMessage: String? = null,
         val lastSentTitle: String? = null,
-    )
+    ) {
+        val showingSearch: Boolean
+            get() = query.trim().isNotEmpty()
+
+        val visibleBooks: List<GutenbergBook>
+            get() = if (showingSearch) searchResults else popularBooks + recentReleases
+    }
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
@@ -31,11 +39,24 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
     private var searchJob: Job? = null
 
     init {
-        // Pre-populate with the popular feed so the user has something to look at.
+        loadHomeSections()
+    }
+
+    private fun loadHomeSections() {
+        searchJob?.cancel()
         viewModelScope.launch {
-            _state.value = _state.value.copy(loading = true)
-            runCatching { gutenberg.popular() }
-                .onSuccess { _state.value = _state.value.copy(results = it, loading = false) }
+            _state.value = _state.value.copy(loading = true, errorMessage = null)
+            runCatching {
+                gutenberg.popular() to gutenberg.recentReleases()
+            }
+                .onSuccess { (popular, recent) ->
+                    _state.value = _state.value.copy(
+                        popularBooks = popular,
+                        recentReleases = recent,
+                        searchResults = emptyList(),
+                        loading = false,
+                    )
+                }
                 .onFailure {
                     _state.value = _state.value.copy(
                         loading = false,
@@ -46,18 +67,31 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun onQueryChange(value: String) {
-        _state.value = _state.value.copy(query = value)
+        val previous = _state.value
+        _state.value = previous.copy(
+            query = value,
+            searchResults = if (value.isBlank()) emptyList() else previous.searchResults,
+        )
+        if (value.isBlank() && previous.popularBooks.isEmpty() && previous.recentReleases.isEmpty()) {
+            loadHomeSections()
+        }
     }
 
     fun submitSearch() {
         val q = _state.value.query.trim()
         searchJob?.cancel()
+        if (q.isEmpty()) {
+            if (_state.value.popularBooks.isEmpty() && _state.value.recentReleases.isEmpty()) {
+                loadHomeSections()
+            } else {
+                _state.value = _state.value.copy(searchResults = emptyList(), errorMessage = null)
+            }
+            return
+        }
         searchJob = viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, errorMessage = null)
-            runCatching {
-                if (q.isEmpty()) gutenberg.popular() else gutenberg.search(q)
-            }
-                .onSuccess { _state.value = _state.value.copy(results = it, loading = false) }
+            runCatching { gutenberg.search(q) }
+                .onSuccess { _state.value = _state.value.copy(searchResults = it, loading = false) }
                 .onFailure {
                     _state.value = _state.value.copy(
                         loading = false,

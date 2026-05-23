@@ -9,15 +9,21 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -25,6 +31,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
@@ -38,6 +45,9 @@ import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.DragAndDropTransferData
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -124,12 +134,16 @@ private fun CompanionScreen(
     var pendingDeleteFolder by remember { mutableStateOf<Folder?>(null) }
     var folderToRename by remember { mutableStateOf<Folder?>(null) }
     var showNewFolderDialog by remember { mutableStateOf(false) }
+    var showHelp by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.library_title)) },
                 actions = {
+                    IconButton(onClick = { showHelp = true }) {
+                        Icon(Icons.Default.Info, contentDescription = "How to use")
+                    }
                     IconButton(onClick = onShowStats) {
                         Icon(Icons.Default.DateRange, contentDescription = "Reading stats")
                     }
@@ -168,7 +182,7 @@ private fun CompanionScreen(
                 state.noWatch -> CenteredText(stringResource(R.string.no_watch))
                 state.books.isEmpty() && state.folders.isEmpty() ->
                     CenteredText(stringResource(R.string.empty_library))
-                else -> BookList(
+                else -> BoundedBookList(
                     books = state.books,
                     folders = state.folders,
                     bookFolders = state.bookFolders,
@@ -312,6 +326,21 @@ private fun CompanionScreen(
         )
     }
 
+    if (showHelp) {
+        AlertDialog(
+            onDismissRequest = { showHelp = false },
+            title = { Text("How to use") },
+            text = {
+                Box(modifier = Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
+                    InstructionsBlock()
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHelp = false }) { Text("OK") }
+            },
+        )
+    }
+
     state.errorMessage?.let { msg ->
         AlertDialog(
             onDismissRequest = vm::dismissError,
@@ -319,6 +348,179 @@ private fun CompanionScreen(
             confirmButton = {
                 TextButton(onClick = vm::dismissError) { Text("OK") }
             },
+        )
+    }
+}
+
+/**
+ * Keeps Root pinned below the folder area. The folder stack can grow to half
+ * the available height; after that it scrolls independently.
+ */
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@Composable
+private fun BoundedBookList(
+    books: List<BookSummary>,
+    folders: List<Folder>,
+    bookFolders: Map<String, String>,
+    onDelete: (BookSummary) -> Unit,
+    onDeleteFolder: (Folder) -> Unit,
+    onRenameFolder: (Folder) -> Unit,
+    onAssignToFolder: (bookId: String, folderId: String?) -> Unit,
+) {
+    var expandedFolders by rememberSaveable { mutableStateOf(emptySet<String>()) }
+    var rootExpanded by rememberSaveable { mutableStateOf(true) }
+    val rootBooks = books.filter { it.id !in bookFolders }
+    val folderListState = rememberLazyListState()
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val folderMaxHeight = maxHeight / 2
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (folders.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = folderMaxHeight),
+                ) {
+                    LazyColumn(
+                        state = folderListState,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        folderItems(
+                            books = books,
+                            folders = folders,
+                            bookFolders = bookFolders,
+                            expandedFolders = expandedFolders,
+                            onExpandedFoldersChange = { expandedFolders = it },
+                            onDelete = onDelete,
+                            onDeleteFolder = onDeleteFolder,
+                            onRenameFolder = onRenameFolder,
+                            onAssignToFolder = onAssignToFolder,
+                        )
+                    }
+                    FolderScrollbar(state = folderListState)
+                }
+            }
+
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                item(key = "root_header") {
+                    RootHeader(
+                        rootBooks = rootBooks,
+                        expanded = rootExpanded,
+                        onToggle = { rootExpanded = !rootExpanded },
+                        onDrop = { bookId -> onAssignToFolder(bookId, null) },
+                    )
+                }
+                if (rootExpanded) {
+                    if (rootBooks.isEmpty()) {
+                        item(key = "root_empty") {
+                            Text(
+                                "Drop books here to move them to Root",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+                            )
+                        }
+                    } else {
+                        items(rootBooks, key = { "rb_${it.id}" }) { book ->
+                            BookItem(book = book, onDelete = onDelete)
+                            HorizontalDivider()
+                        }
+                    }
+                }
+                item(key = "fab_spacer") { Spacer(modifier = Modifier.height(80.dp)) }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+private fun LazyListScope.folderItems(
+    books: List<BookSummary>,
+    folders: List<Folder>,
+    bookFolders: Map<String, String>,
+    expandedFolders: Set<String>,
+    onExpandedFoldersChange: (Set<String>) -> Unit,
+    onDelete: (BookSummary) -> Unit,
+    onDeleteFolder: (Folder) -> Unit,
+    onRenameFolder: (Folder) -> Unit,
+    onAssignToFolder: (bookId: String, folderId: String?) -> Unit,
+) {
+    for (folder in folders) {
+        val folderBooks = books.filter { bookFolders[it.id] == folder.id }
+        val isExpanded = folder.id in expandedFolders
+        item(key = "fc_${folder.id}") {
+            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                FolderChip(
+                    folder = folder,
+                    bookCount = folderBooks.size,
+                    selected = isExpanded,
+                    onToggle = {
+                        onExpandedFoldersChange(
+                            if (isExpanded) expandedFolders - folder.id
+                            else expandedFolders + folder.id,
+                        )
+                    },
+                    onRename = { onRenameFolder(folder) },
+                    onDelete = { onDeleteFolder(folder) },
+                    onDrop = { bookId -> onAssignToFolder(bookId, folder.id) },
+                )
+            }
+        }
+        if (isExpanded) {
+            items(folderBooks, key = { "b_${folder.id}_${it.id}" }) { book ->
+                BookItem(book = book, onDelete = onDelete)
+                HorizontalDivider()
+            }
+            if (folderBooks.isEmpty()) {
+                item(key = "fe_${folder.id}") {
+                    Text(
+                        text = "Empty - drag a book onto the folder chip to add it.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.FolderScrollbar(state: LazyListState) {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+    val trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
+    Canvas(
+        modifier = Modifier
+            .align(Alignment.CenterEnd)
+            .fillMaxHeight()
+            .width(10.dp)
+            .padding(vertical = 6.dp, horizontal = 3.dp),
+    ) {
+        val visibleCount = state.layoutInfo.visibleItemsInfo.size
+        val totalCount = state.layoutInfo.totalItemsCount
+        if (totalCount <= visibleCount || visibleCount == 0) return@Canvas
+
+        val trackWidth = 2.dp.toPx()
+        val corner = CornerRadius(trackWidth, trackWidth)
+        val x = (size.width - trackWidth) / 2f
+        drawRoundRect(
+            color = trackColor,
+            topLeft = Offset(x, 0f),
+            size = Size(trackWidth, size.height),
+            cornerRadius = corner,
+        )
+
+        val thumbHeight = (size.height * visibleCount / totalCount)
+            .coerceAtLeast(24.dp.toPx())
+            .coerceAtMost(size.height)
+        val maxFirst = (totalCount - visibleCount).coerceAtLeast(1)
+        val progress = state.firstVisibleItemIndex.toFloat() / maxFirst.toFloat()
+        val thumbTop = (size.height - thumbHeight) * progress.coerceIn(0f, 1f)
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(x, thumbTop),
+            size = Size(trackWidth, thumbHeight),
+            cornerRadius = corner,
         )
     }
 }
