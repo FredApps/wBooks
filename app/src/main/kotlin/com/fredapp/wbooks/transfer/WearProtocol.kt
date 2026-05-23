@@ -60,8 +60,12 @@ internal object WearProtocol {
  * `\uXXXX`, so if you change the encoder to emit them, update the decoder too.
  */
 internal object LibraryListJson {
-    /** Build `{"books":[{"id":"...","title":"...","format":"EPUB"},...],"folders":["..."]}`. */
-    fun encode(books: List<BookSummary>, folders: List<String> = emptyList()): String {
+    /** Build `{"books":[...],"folders":[...],"storage":{...}}`. */
+    fun encode(
+        books: List<BookSummary>,
+        folders: List<String> = emptyList(),
+        storage: StorageSummary? = null,
+    ): String {
         val sb = StringBuilder("""{"books":[""")
         books.forEachIndexed { i, b ->
             if (i > 0) sb.append(',')
@@ -75,12 +79,23 @@ internal object LibraryListJson {
             if (i > 0) sb.append(',')
             sb.append(jsonString(folder))
         }
-        sb.append("]}")
+        sb.append(']')
+        if (storage != null) {
+            sb.append(""","storage":{"usedBytes":""")
+                .append(storage.usedBytes)
+                .append(""","freeBytes":""")
+                .append(storage.freeBytes)
+                .append(""","totalBytes":""")
+                .append(storage.totalBytes)
+                .append('}')
+        }
+        sb.append('}')
         return sb.toString()
     }
 }
 
 internal data class BookSummary(val id: String, val title: String, val format: String)
+internal data class StorageSummary(val usedBytes: Long, val freeBytes: Long, val totalBytes: Long)
 
 /**
  * Encoder for [com.fredapp.wbooks.data.stats.ReadingStatsRepository.Summary]. Same

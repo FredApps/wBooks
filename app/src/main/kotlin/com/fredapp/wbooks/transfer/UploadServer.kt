@@ -153,6 +153,7 @@ class UploadServer(
             """<p class="flash" role="status">${htmlEscape(flash)}</p>""" else ""
         val webSettings = runBlocking { settingsRepository.snapshot() }
         val settingsHtml = renderSettingsPanel(webSettings)
+        val storageHtml = renderStorageSummary()
         val bodyStyle = "font-family:${webFontCss(webSettings.font)},system-ui,sans-serif;color:${argbCss(webSettings.textColorArgb)};"
         val html = """
             <!doctype html>
@@ -184,6 +185,7 @@ class UploadServer(
               .upload-card{padding:18px;position:sticky;top:16px}
               .upload-card h2,.library h2,.settings h2{margin:0 0 12px}
               .upload-form{display:grid;gap:12px}
+              .storage-summary{margin-top:14px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:11px 12px;color:var(--muted);font-size:.94rem;line-height:1.4}
               .file-picker{border:1px dashed var(--accent);border-radius:8px;background:#fff8ed;padding:14px}
               .file-picker input{width:100%}
               .library{display:grid;gap:12px}
@@ -831,6 +833,7 @@ class UploadServer(
                     <label class="file-picker">Choose or drop files<input type="file" name="file" multiple accept=".epub,.txt,.fb2,.html,.htm,.xhtml,.docx,.odt,.pdf,application/pdf"></label>
                     <button class="primary">Upload to watch</button>
                   </form>
+                  $storageHtml
                   <form method="post" action="/mkdir" class="upload-form" onsubmit="return attachPin(this)">
                     <label>New folder<input type="text" name="name" required maxlength="${FolderPolicy.MAX_NAME_LENGTH}" placeholder="Folder name"></label>
                     <button>Create folder</button>
@@ -1365,6 +1368,11 @@ class UploadServer(
         return """<div class="setting checkbox-row"><input type="checkbox" name="$name"$attr onchange="submitSettings(this.form)"><label>$label</label></div>"""
     }
 
+    private fun renderStorageSummary(): String {
+        val info = booksDir.storageSummary()
+        return """<div class="storage-summary"><strong>Library:</strong> ${htmlEscape(humanBytes(info.usedBytes))} / ${htmlEscape(humanBytes(info.totalBytes))}<br><strong>Free:</strong> ${htmlEscape(humanBytes(info.freeBytes))}</div>"""
+    }
+
     private fun webFontCss(font: FontChoice): String = when (font) {
         FontChoice.DEFAULT -> "system-ui"
         FontChoice.SERIF -> "Georgia,serif"
@@ -1617,6 +1625,20 @@ class UploadServer(
         n >= 1024 * 1024 -> "%.1f MB".format(n / 1024.0 / 1024.0)
         n >= 1024 -> "%.0f KB".format(n / 1024.0)
         else -> "$n B"
+    }
+
+    private data class StorageInfo(val usedBytes: Long, val freeBytes: Long, val totalBytes: Long)
+
+    private fun File.storageSummary(): StorageInfo {
+        val used = if (exists()) {
+            walkTopDown()
+                .filter { it.isFile }
+                .sumOf { it.length() }
+        } else {
+            0L
+        }
+        val root = takeIf { exists() } ?: parentFile ?: this
+        return StorageInfo(usedBytes = used, freeBytes = root.usableSpace, totalBytes = root.totalSpace)
     }
 
     companion object {

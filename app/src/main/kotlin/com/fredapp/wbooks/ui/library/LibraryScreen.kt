@@ -88,7 +88,7 @@ private val FolderGreyText = Color(0xFF1C1C1C)
 private val BookChipBackground = Color(0xFF2A2A2A)
 private val DeleteRed = Color(0xFFE53935)
 
-private data class LibraryStorageInfo(val usedBytes: Long, val freeBytes: Long)
+private data class LibraryStorageInfo(val usedBytes: Long, val freeBytes: Long, val totalBytes: Long)
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -384,9 +384,10 @@ fun LibraryScreen(
 @Composable
 private fun LibraryStorageFooter(info: LibraryStorageInfo?) {
     val used = info?.usedBytes?.let(::formatBytes) ?: "..."
+    val total = info?.totalBytes?.let(::formatBytes) ?: "..."
     val free = info?.freeBytes?.let(::formatBytes) ?: "..."
     Text(
-        text = "Library: $used\nFree: $free",
+        text = "Library: $used / $total\nFree: $free",
         color = Color.White.copy(alpha = 0.58f),
         style = MaterialTheme.typography.caption2,
         textAlign = TextAlign.Center,
@@ -405,7 +406,7 @@ private fun File.storageInfo(): LibraryStorageInfo {
         0L
     }
     val storageRoot = takeIf { exists() } ?: parentFile ?: this
-    return LibraryStorageInfo(usedBytes = used, freeBytes = storageRoot.usableSpace)
+    return LibraryStorageInfo(usedBytes = used, freeBytes = storageRoot.usableSpace, totalBytes = storageRoot.totalSpace)
 }
 
 private fun formatBytes(bytes: Long): String {

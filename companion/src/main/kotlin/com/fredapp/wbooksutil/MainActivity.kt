@@ -5,6 +5,7 @@ import android.content.ClipDescription
 import android.content.Intent
 import android.os.Bundle
 import android.os.Parcelable
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -71,6 +72,10 @@ class MainActivity : ComponentActivity() {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
             MaterialTheme(colorScheme = colors) {
                 var screen by rememberSaveable { mutableStateOf(Screen.LIBRARY) }
+                BackHandler(enabled = screen != Screen.LIBRARY) {
+                    if (screen == Screen.GUTENBERG) mainViewModel.refresh()
+                    screen = Screen.LIBRARY
+                }
                 DisposableEffect(mainViewModel) {
                     val observer = LifecycleEventObserver { _, event ->
                         when (event) {
@@ -211,6 +216,7 @@ private fun CompanionScreen(
                     books = state.books,
                     folders = state.folders,
                     bookFolders = state.bookFolders,
+                    storage = state.storage,
                     onDelete = { pendingDelete = it },
                     onDeleteFolder = { pendingDeleteFolder = it },
                     onRenameFolder = { folderToRename = it },
@@ -388,6 +394,7 @@ private fun BoundedBookList(
     books: List<BookSummary>,
     folders: List<Folder>,
     bookFolders: Map<String, String>,
+    storage: StorageSummary?,
     onDelete: (BookSummary) -> Unit,
     onDeleteFolder: (Folder) -> Unit,
     onRenameFolder: (Folder) -> Unit,
@@ -409,6 +416,7 @@ private fun BoundedBookList(
             maxHeight = folderMaxHeight,
         )
         Column(modifier = Modifier.fillMaxSize()) {
+            LibraryStorageSummary(storage)
             if (folders.isNotEmpty()) {
                 Box(
                     modifier = Modifier
@@ -465,6 +473,26 @@ private fun BoundedBookList(
                 item(key = "fab_spacer") { Spacer(modifier = Modifier.height(80.dp)) }
             }
         }
+    }
+}
+
+@Composable
+private fun LibraryStorageSummary(storage: StorageSummary?) {
+    val used = storage?.usedBytes?.let(::humanBytes) ?: "..."
+    val total = storage?.totalBytes?.let(::humanBytes) ?: "..."
+    val free = storage?.freeBytes?.let(::humanBytes) ?: "..."
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Text(
+            text = "Library: $used / $total\nFree: $free",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
     }
 }
 

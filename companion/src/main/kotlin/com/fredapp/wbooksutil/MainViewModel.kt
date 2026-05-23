@@ -27,6 +27,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val books: List<BookSummary> = emptyList(),
         val folders: List<Folder> = emptyList(),
         val bookFolders: Map<String, String> = emptyMap(),
+        val storage: StorageSummary? = null,
         val loading: Boolean = false,
         val sending: Boolean = false,
         /** When [sending], the filename being uploaded — shown in the progress dialog. */
@@ -350,6 +351,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     books = books,
                     folders = allFolders,
                     bookFolders = bookFolders,
+                    storage = snapshot.storage,
                     noWatch = false,
                     pendingFolders = pending,
                 )
@@ -365,6 +367,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         books = emptyList(),
         folders = emptyList(),
         bookFolders = emptyMap(),
+        storage = null,
         loading = false,
         noWatch = true,
         pendingFolders = emptySet(),

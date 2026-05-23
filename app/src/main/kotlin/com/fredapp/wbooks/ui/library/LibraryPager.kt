@@ -61,6 +61,7 @@ fun LibraryPager(vm: ReaderViewModel) {
                 books = books,
                 isActive = searchActive,
                 onBookOpen = { vm.openBook(it) },
+                onRefresh = { vm.refreshLibrary() },
                 onBack = { goToLibrary() },
             )
             1 -> LibraryScreen(

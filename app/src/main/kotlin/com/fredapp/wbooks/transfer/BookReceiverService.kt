@@ -128,7 +128,7 @@ class BookReceiverService : WearableListenerService() {
             ?.map { it.name }
             ?.sorted()
             .orEmpty()
-        return LibraryListJson.encode(books, folders).toByteArray(Charsets.UTF_8)
+        return LibraryListJson.encode(books, folders, app.booksDir.storageSummary()).toByteArray(Charsets.UTF_8)
     }
 
     private suspend fun currentSettingsJson(): ByteArray {
@@ -358,6 +358,22 @@ class BookReceiverService : WearableListenerService() {
             i++
         }
         return i
+    }
+
+    private fun File.storageSummary(): StorageSummary {
+        val used = if (exists()) {
+            walkTopDown()
+                .filter { it.isFile }
+                .sumOf { it.length() }
+        } else {
+            0L
+        }
+        val root = takeIf { exists() } ?: parentFile ?: this
+        return StorageSummary(
+            usedBytes = used,
+            freeBytes = root.usableSpace,
+            totalBytes = root.totalSpace,
+        )
     }
 
     private fun notifyReceived(filename: String) {

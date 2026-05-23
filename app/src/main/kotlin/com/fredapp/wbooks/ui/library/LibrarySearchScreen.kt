@@ -67,11 +67,13 @@ import com.fredapp.wbooks.ui.layout.watchListPadding
 fun LibrarySearchScreen(
     books: List<Book>,
     onBookOpen: (Book) -> Unit,
+    onRefresh: () -> Unit,
     onBack: () -> Unit,
     isActive: Boolean = true,
 ) {
     var query by remember { mutableStateOf("") }
     var panelOpen by remember { mutableStateOf(false) }
+    var gutenbergOpen by remember { mutableStateOf(false) }
     val filtered = remember(query, books) {
         if (query.isBlank()) emptyList()
         else books.filter { it.title.contains(query, ignoreCase = true) }
@@ -88,6 +90,14 @@ fun LibrarySearchScreen(
         focusRequester,
         query,
     )
+
+    if (gutenbergOpen) {
+        WatchGutenbergScreen(
+            onBack = { gutenbergOpen = false },
+            onLibraryChanged = onRefresh,
+        )
+        return
+    }
 
     // Back: close the keyboard panel first; clear the query next; otherwise
     // bubble up to the pager-level back handler to return to library.
@@ -132,6 +142,20 @@ fun LibrarySearchScreen(
                     },
                     label = { Text("Search library") },
                     onClick = { panelOpen = true },
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
+                Chip(
+                    icon = {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_gutenberg_pg),
+                            contentDescription = null,
+                        )
+                    },
+                    label = { Text("Search Gutenberg") },
+                    onClick = { gutenbergOpen = true },
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )

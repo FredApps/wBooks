@@ -156,7 +156,13 @@ object SettingsJson {
 
 data class BookSummary(val id: String, val title: String, val format: String)
 
-data class LibrarySnapshot(val books: List<BookSummary>, val folders: List<String>)
+data class LibrarySnapshot(
+    val books: List<BookSummary>,
+    val folders: List<String>,
+    val storage: StorageSummary? = null,
+)
+
+data class StorageSummary(val usedBytes: Long, val freeBytes: Long, val totalBytes: Long)
 
 data class StatsSummary(
     val totalMs: Long,
@@ -297,6 +303,20 @@ object LibraryListJson {
         return LibrarySnapshot(
             books = decodeBooks(json),
             folders = readStringArray(json, "folders"),
+            storage = decodeStorage(json),
+        )
+    }
+
+    private fun decodeStorage(json: String): StorageSummary? {
+        val objStart = objectStart(json, "storage")
+        if (objStart < 0) return null
+        val objEnd = findMatchingBrace(json, objStart)
+        if (objEnd < 0) return null
+        val obj = json.substring(objStart, objEnd + 1)
+        return StorageSummary(
+            usedBytes = readLong(obj, "usedBytes") ?: return null,
+            freeBytes = readLong(obj, "freeBytes") ?: return null,
+            totalBytes = readLong(obj, "totalBytes") ?: return null,
         )
     }
 
@@ -349,6 +369,33 @@ object LibraryListJson {
         val k = json.indexOf(needle)
         if (k < 0) return -1
         return json.indexOf('[', k + needle.length)
+    }
+
+    private fun objectStart(json: String, key: String): Int {
+        val needle = "\"$key\""
+        val k = json.indexOf(needle)
+        if (k < 0) return -1
+        return json.indexOf('{', k + needle.length)
+    }
+
+    private fun readLong(s: String, key: String): Long? {
+        val needle = "\"$key\""
+        val k = s.indexOf(needle)
+        if (k < 0) return null
+        val colon = s.indexOf(':', k + needle.length)
+        if (colon < 0) return null
+        var i = colon + 1
+        while (i < s.length && s[i].isWhitespace()) i++
+        val sb = StringBuilder()
+        if (i < s.length && (s[i] == '-' || s[i].isDigit())) {
+            sb.append(s[i])
+            i++
+            while (i < s.length && s[i].isDigit()) {
+                sb.append(s[i])
+                i++
+            }
+        }
+        return sb.toString().toLongOrNull()
     }
 
     private fun findMatchingBrace(s: String, openIdx: Int): Int {

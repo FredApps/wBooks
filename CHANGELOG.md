@@ -13,6 +13,9 @@ All notable changes to wBooks are documented in this file.
 - Utility Project Gutenberg Add is disabled for books already on the watch, while canceled adds can be retried as an overwrite.
 - Web and Utility drag sorting now use the same behavior: before/after drops inside a folder, first-position drops when moving into folders, and matching How to use notes.
 - Utility Project Gutenberg listings now use the same author, optional true release date, format, and file-size layout for popular books, recent releases, and search results.
+- Watch Search page now includes Project Gutenberg search, popular books, and recent releases directly on the watch.
+- Web and Utility library views now show watch library storage used, free space, and total disk space.
+- Utility hardware Back now follows the same page navigation as the software back arrows.
 
 ## [0.6.0] — 2026-05-22
 
