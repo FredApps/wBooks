@@ -117,14 +117,16 @@ android {
     }
 }
 
+val hasSentryAuthToken = localProperty("sentry.auth.token").isNotBlank()
+
 sentry {
     org.set("fredapps")
     projectName.set("wbooks")
     authToken.set(localProperty("sentry.auth.token"))
 
-    autoUploadProguardMapping.set(true)
-    includeSourceContext.set(true)
-    autoUploadSourceContext.set(true)
+    autoUploadProguardMapping.set(hasSentryAuthToken)
+    includeSourceContext.set(hasSentryAuthToken)
+    autoUploadSourceContext.set(hasSentryAuthToken)
 
     tracingInstrumentation { enabled.set(false) }
 }

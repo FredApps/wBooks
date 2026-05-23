@@ -130,6 +130,11 @@ android {
     }
 }
 
+// Only enable Sentry symbol/source upload when an auth token is available.
+// CI builds debug only and has no token; without this gate the Sentry Gradle
+// plugin tries to bundle+upload source context during assembleDebug and fails.
+val hasSentryAuthToken = localProperty("sentry.auth.token").isNotBlank()
+
 sentry {
     org.set("fredapps")
     projectName.set("wbooks")
@@ -137,9 +142,9 @@ sentry {
 
     // Upload ProGuard/R8 mapping so minified release stack traces are readable.
     // Only runs on release variants where minify is on; debug builds are untouched.
-    autoUploadProguardMapping.set(true)
-    includeSourceContext.set(true)
-    autoUploadSourceContext.set(true)
+    autoUploadProguardMapping.set(hasSentryAuthToken)
+    includeSourceContext.set(hasSentryAuthToken)
+    autoUploadSourceContext.set(hasSentryAuthToken)
 
     // We don't want the plugin to bytecode-rewrite for performance tracing â€”
     // we're using Sentry for crashes only.
