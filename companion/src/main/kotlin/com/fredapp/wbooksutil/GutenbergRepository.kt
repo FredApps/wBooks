@@ -32,33 +32,39 @@ import kotlin.coroutines.coroutineContext
 class GutenbergRepository {
 
     /** OPDS feed: text search. */
-    suspend fun search(query: String): List<GutenbergBook> {
-        if (query.isBlank()) return emptyList()
-        val url = endpoint("ebooks/search.opds/", "query" to query)
-        return parseFeed(fetch(url))
-    }
+    suspend fun search(query: String, startIndex: Int = 1): GutenbergPage =
+        if (query.isBlank()) GutenbergPage.EMPTY
+        else fetchPage(endpoint("ebooks/search.opds/", "query" to query, "start_index" to startIndex.toString()))
 
     /** OPDS feed: top books sorted by download count. */
-    suspend fun popular(): List<GutenbergBook> =
-        parseFeed(fetch(endpoint("ebooks/search.opds/", "sort_order" to "downloads")))
+    suspend fun popular(startIndex: Int = 1): GutenbergPage =
+        fetchPage(endpoint("ebooks/search.opds/", "sort_order" to "downloads", "start_index" to startIndex.toString()))
 
     /** OPDS feed: newest Project Gutenberg releases. */
-    suspend fun recentReleases(): List<GutenbergBook> =
-        parseFeed(fetch(endpoint("ebooks/search.opds/", "sort_order" to "release_date")))
+    suspend fun recentReleases(startIndex: Int = 1): GutenbergPage =
+        fetchPage(endpoint("ebooks/search.opds/", "sort_order" to "release_date", "start_index" to startIndex.toString()))
 
     /**
      * Open the book's download stream and hand it to [block]. Connection is
      * closed when the block returns or when the surrounding coroutine cancels.
      */
-    suspend fun <T> withDownload(book: GutenbergBook, block: suspend (InputStream) -> T): T =
+    suspend fun <T> withDownload(book: GutenbergBook, block: suspend (InputStream, Long) -> T): T =
         withContext(Dispatchers.IO) {
             val conn = openConnection(book.downloadUrl, coroutineContext[Job])
             try {
-                conn.inputStream.use { input -> block(input) }
+                conn.inputStream.use { input -> block(input, conn.contentLengthLong) }
             } finally {
                 conn.disconnect()
             }
         }
+
+    private suspend fun fetchPage(url: String): GutenbergPage {
+        val xml = fetch(url)
+        return GutenbergPage(
+            books = parseFeed(xml),
+            hasMore = nextPageUrl(xml) != null,
+        )
+    }
 
     private suspend fun fetch(url: String): String = withContext(Dispatchers.IO) {
         val conn = openConnection(url, coroutineContext[Job])
@@ -143,6 +149,13 @@ class GutenbergRepository {
         return out
     }
 
+    internal fun nextPageUrl(xml: String): String? {
+        val doc = Jsoup.parse(xml, BASE, Parser.xmlParser())
+        val href = doc.selectFirst("link[rel=next]")?.attr("href")?.takeIf { it.isNotBlank() }
+            ?: return null
+        return resolveUrl(href)
+    }
+
     /** Extract the numeric book id from an `<id>https://www.gutenberg.org/ebooks/2701.opds</id>` URL. */
     private fun bookIdFromOpdsUrl(idUrl: String): String? {
         val m = Regex("/ebooks/(\\d+)(?:\\.opds)?\\b").find(idUrl) ?: return null
@@ -221,6 +234,15 @@ class GutenbergRepository {
         private const val BASE_NO_SLASH = "https://www.gutenberg.org"
         private const val USER_AGENT = "wBooks-companion/0.3 (https://github.com/FredApps/wBooks)"
         private val ALLOWED_PROTOCOLS = setOf("https", "http")
+    }
+}
+
+data class GutenbergPage(
+    val books: List<GutenbergBook>,
+    val hasMore: Boolean,
+) {
+    companion object {
+        val EMPTY = GutenbergPage(emptyList(), hasMore = false)
     }
 }
 

@@ -20,6 +20,7 @@ object CompanionChangelog {
                 "Project Gutenberg opens with Top most popular books and Recent releases sections; searches temporarily replace those sections and clearing the query brings them back.",
                 "Project Gutenberg home switches between Top most popular books and Recent releases at the top of the list; recent releases include release dates when available.",
                 "Project Gutenberg book rows show the listing plus an Add action.",
+                "Project Gutenberg lists can load more results, and adding a book now keeps a bottom progress notification visible until upload completes.",
                 "How to use moved from Settings to the main library window help icon.",
                 "Large folder sets now stay in a half-screen scroll area so Root remains visible below them, while small folder sets shrink upward dynamically.",
                 "Books in an expanded folder now render directly under that folder's chip; Root sits below the folder list and scrolls to centre as folder count grows.",

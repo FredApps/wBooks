@@ -42,7 +42,7 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
                 },
             )
         },
-        snackbarHost = { SnackbarHost(snackbarState) },
+        snackbarHost = { GutenbergSnackbarHost(state, snackbarState) },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             SearchBar(
@@ -56,6 +56,9 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
                 state.showingSearch -> ResultsList(
                     results = state.searchResults,
                     downloadingId = state.downloadingId,
+                    loadingMore = state.loadingMore,
+                    hasMore = state.searchHasMore,
+                    onLoadMore = { vm.loadMore(GutenbergListTarget.SEARCH) },
                     onAdd = vm::sendToWatch,
                 )
                 state.popularBooks.isEmpty() && state.recentReleases.isEmpty() -> CenteredText("No books.")
@@ -65,6 +68,17 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
                     selectedSection = homeSection,
                     onSectionChange = { homeSection = it },
                     downloadingId = state.downloadingId,
+                    loadingMore = state.loadingMore,
+                    popularHasMore = state.popularHasMore,
+                    recentHasMore = state.recentHasMore,
+                    onLoadMore = { section ->
+                        vm.loadMore(
+                            when (section) {
+                                GutenbergHomeSection.POPULAR -> GutenbergListTarget.POPULAR
+                                GutenbergHomeSection.RECENT -> GutenbergListTarget.RECENT
+                            },
+                        )
+                    },
                     onAdd = vm::sendToWatch,
                 )
             }
@@ -79,6 +93,39 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
                 TextButton(onClick = vm::dismissError) { Text("OK") }
             },
         )
+    }
+}
+
+@Composable
+private fun GutenbergSnackbarHost(
+    state: GutenbergViewModel.UiState,
+    snackbarState: SnackbarHostState,
+) {
+    if (state.downloadingId != null) {
+        Snackbar(modifier = Modifier.padding(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Adding ${state.downloadingTitle ?: "book"}",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val total = state.downloadProgressTotal
+                if (total > 0L) {
+                    LinearProgressIndicator(
+                        progress = { (state.downloadProgressBytes.toFloat() / total).coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = "${state.downloadProgressPercent()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
+        }
+    } else {
+        SnackbarHost(snackbarState)
     }
 }
 
@@ -116,11 +163,19 @@ private fun HomeSections(
     selectedSection: GutenbergHomeSection,
     onSectionChange: (GutenbergHomeSection) -> Unit,
     downloadingId: String?,
+    loadingMore: Boolean,
+    popularHasMore: Boolean,
+    recentHasMore: Boolean,
+    onLoadMore: (GutenbergHomeSection) -> Unit,
     onAdd: (GutenbergBook) -> Unit,
 ) {
     val books = when (selectedSection) {
         GutenbergHomeSection.POPULAR -> popularBooks
         GutenbergHomeSection.RECENT -> recentReleases
+    }
+    val hasMore = when (selectedSection) {
+        GutenbergHomeSection.POPULAR -> popularHasMore
+        GutenbergHomeSection.RECENT -> recentHasMore
     }
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         sectionSwitcher(
@@ -133,6 +188,11 @@ private fun HomeSections(
             downloadingId = downloadingId,
             showReleaseDateOnOwnLine = selectedSection == GutenbergHomeSection.RECENT,
             onAdd = onAdd,
+        )
+        loadMoreItem(
+            hasMore = hasMore,
+            loadingMore = loadingMore,
+            onLoadMore = { onLoadMore(selectedSection) },
         )
     }
 }
@@ -185,6 +245,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bookItems(
 private fun ResultsList(
     results: List<GutenbergBook>,
     downloadingId: String?,
+    loadingMore: Boolean,
+    hasMore: Boolean,
+    onLoadMore: () -> Unit,
     onAdd: (GutenbergBook) -> Unit,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -195,6 +258,46 @@ private fun ResultsList(
                 showReleaseDateOnOwnLine = false,
                 onAdd = onAdd,
             )
+        }
+        loadMoreItem(
+            hasMore = hasMore,
+            loadingMore = loadingMore,
+            onLoadMore = onLoadMore,
+        )
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.loadMoreItem(
+    hasMore: Boolean,
+    loadingMore: Boolean,
+    onLoadMore: () -> Unit,
+) {
+    item(key = "load_more") {
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (hasMore) {
+                OutlinedButton(
+                    onClick = onLoadMore,
+                    enabled = !loadingMore,
+                ) {
+                    if (loadingMore) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(if (loadingMore) "Loading..." else "Load more")
+                }
+            } else {
+                Text(
+                    text = "No more results",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -267,6 +370,12 @@ private fun GutenbergBook.resultInfo(): String {
 
 private fun GutenbergBook.authorLine(): String =
     author?.takeIf { it.isNotBlank() } ?: extension.uppercase()
+
+private fun GutenbergViewModel.UiState.downloadProgressPercent(): Int {
+    val total = downloadProgressTotal
+    if (total <= 0L) return 0
+    return ((downloadProgressBytes * 100) / total).coerceIn(0L, 100L).toInt()
+}
 
 @Composable
 private fun CenteredProgress() {

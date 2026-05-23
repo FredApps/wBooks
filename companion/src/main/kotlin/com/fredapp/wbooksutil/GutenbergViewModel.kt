@@ -22,7 +22,14 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
         val recentReleases: List<GutenbergBook> = emptyList(),
         val searchResults: List<GutenbergBook> = emptyList(),
         val loading: Boolean = false,
+        val loadingMore: Boolean = false,
         val downloadingId: String? = null,
+        val downloadingTitle: String? = null,
+        val downloadProgressBytes: Long = 0L,
+        val downloadProgressTotal: Long = -1L,
+        val popularHasMore: Boolean = false,
+        val recentHasMore: Boolean = false,
+        val searchHasMore: Boolean = false,
         val errorMessage: String? = null,
         val lastSentTitle: String? = null,
     ) {
@@ -37,6 +44,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private var searchJob: Job? = null
+    private var loadMoreJob: Job? = null
 
     init {
         loadHomeSections()
@@ -51,9 +59,12 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
             }
                 .onSuccess { (popular, recent) ->
                     _state.value = _state.value.copy(
-                        popularBooks = popular,
-                        recentReleases = recent,
+                        popularBooks = popular.books,
+                        recentReleases = recent.books,
+                        popularHasMore = popular.hasMore,
+                        recentHasMore = recent.hasMore,
                         searchResults = emptyList(),
+                        searchHasMore = false,
                         loading = false,
                     )
                 }
@@ -71,6 +82,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
         _state.value = previous.copy(
             query = value,
             searchResults = if (value.isBlank()) emptyList() else previous.searchResults,
+            searchHasMore = if (value.isBlank()) false else previous.searchHasMore,
         )
         if (value.isBlank() && previous.popularBooks.isEmpty() && previous.recentReleases.isEmpty()) {
             loadHomeSections()
@@ -91,13 +103,84 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
         searchJob = viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, errorMessage = null)
             runCatching { gutenberg.search(q) }
-                .onSuccess { _state.value = _state.value.copy(searchResults = it, loading = false) }
+                .onSuccess {
+                    _state.value = _state.value.copy(
+                        searchResults = it.books,
+                        searchHasMore = it.hasMore,
+                        loading = false,
+                    )
+                }
                 .onFailure {
                     _state.value = _state.value.copy(
                         loading = false,
                         errorMessage = it.message ?: "Search failed",
                     )
                 }
+        }
+    }
+
+    fun loadMore(target: GutenbergListTarget) {
+        if (loadMoreJob?.isActive == true) return
+        val current = _state.value
+        val count = when (target) {
+            GutenbergListTarget.POPULAR -> current.popularBooks.size
+            GutenbergListTarget.RECENT -> current.recentReleases.size
+            GutenbergListTarget.SEARCH -> current.searchResults.size
+        }
+        if (count >= MAX_LIST_ITEMS) {
+            _state.value = current.copy(errorMessage = "Showing the maximum $MAX_LIST_ITEMS Gutenberg results for this list.")
+            return
+        }
+        loadMoreJob = viewModelScope.launch {
+            _state.value = _state.value.copy(loadingMore = true, errorMessage = null)
+            val startIndex = count + 1
+            val result = runCatching {
+                when (target) {
+                    GutenbergListTarget.POPULAR -> gutenberg.popular(startIndex)
+                    GutenbergListTarget.RECENT -> gutenberg.recentReleases(startIndex)
+                    GutenbergListTarget.SEARCH -> gutenberg.search(_state.value.query.trim(), startIndex)
+                }
+            }
+            result
+                .onSuccess { page ->
+                    appendPage(target, page)
+                }
+                .onFailure {
+                    _state.value = _state.value.copy(
+                        loadingMore = false,
+                        errorMessage = it.message ?: "Could not load more books",
+                    )
+                }
+        }
+    }
+
+    private fun appendPage(target: GutenbergListTarget, page: GutenbergPage) {
+        val state = _state.value
+        when (target) {
+            GutenbergListTarget.POPULAR -> {
+                val merged = mergeBooks(state.popularBooks, page.books)
+                _state.value = state.copy(
+                    popularBooks = merged,
+                    popularHasMore = page.hasMore && merged.size < MAX_LIST_ITEMS,
+                    loadingMore = false,
+                )
+            }
+            GutenbergListTarget.RECENT -> {
+                val merged = mergeBooks(state.recentReleases, page.books)
+                _state.value = state.copy(
+                    recentReleases = merged,
+                    recentHasMore = page.hasMore && merged.size < MAX_LIST_ITEMS,
+                    loadingMore = false,
+                )
+            }
+            GutenbergListTarget.SEARCH -> {
+                val merged = mergeBooks(state.searchResults, page.books)
+                _state.value = state.copy(
+                    searchResults = merged,
+                    searchHasMore = page.hasMore && merged.size < MAX_LIST_ITEMS,
+                    loadingMore = false,
+                )
+            }
         }
     }
 
@@ -108,18 +191,49 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
      */
     fun sendToWatch(book: GutenbergBook) = viewModelScope.launch {
         if (_state.value.downloadingId != null) return@launch
-        _state.value = _state.value.copy(downloadingId = book.id, errorMessage = null)
+        _state.value = _state.value.copy(
+            downloadingId = book.id,
+            downloadingTitle = book.title,
+            downloadProgressBytes = 0L,
+            downloadProgressTotal = -1L,
+            errorMessage = null,
+        )
         val filename = filenameFor(book)
         val result = runCatching {
-            gutenberg.withDownload(book) { input -> watch.uploadStream(input, filename) }
+            gutenberg.withDownload(book) { input, totalBytes ->
+                watch.uploadStream(input, filename, totalBytes) { sent, total ->
+                    _state.value = _state.value.copy(
+                        downloadProgressBytes = sent,
+                        downloadProgressTotal = total,
+                    )
+                }
+            }
         }.getOrElse { WatchRepository.Result.Error(it.message ?: "Download failed") }
         _state.value = when (result) {
             is WatchRepository.Result.Ok ->
-                _state.value.copy(downloadingId = null, lastSentTitle = book.title)
+                _state.value.copy(
+                    downloadingId = null,
+                    downloadingTitle = null,
+                    downloadProgressBytes = 0L,
+                    downloadProgressTotal = -1L,
+                    lastSentTitle = book.title,
+                )
             is WatchRepository.Result.NoWatch ->
-                _state.value.copy(downloadingId = null, errorMessage = "No watch connected")
+                _state.value.copy(
+                    downloadingId = null,
+                    downloadingTitle = null,
+                    downloadProgressBytes = 0L,
+                    downloadProgressTotal = -1L,
+                    errorMessage = "No watch connected",
+                )
             is WatchRepository.Result.Error ->
-                _state.value.copy(downloadingId = null, errorMessage = result.message)
+                _state.value.copy(
+                    downloadingId = null,
+                    downloadingTitle = null,
+                    downloadProgressBytes = 0L,
+                    downloadProgressTotal = -1L,
+                    errorMessage = result.message,
+                )
         }
     }
 
@@ -136,9 +250,25 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
         return "$safeTitle.${book.extension}"
     }
 
+    private fun mergeBooks(current: List<GutenbergBook>, incoming: List<GutenbergBook>): List<GutenbergBook> {
+        val seen = current.mapTo(mutableSetOf()) { it.id.ifEmpty { it.downloadUrl } }
+        val merged = current + incoming.filter { seen.add(it.id.ifEmpty { it.downloadUrl }) }
+        return merged.take(MAX_LIST_ITEMS)
+    }
+
     class Factory(private val app: Application) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
             GutenbergViewModel(app) as T
     }
+
+    companion object {
+        const val MAX_LIST_ITEMS = 200
+    }
+}
+
+enum class GutenbergListTarget {
+    POPULAR,
+    RECENT,
+    SEARCH,
 }

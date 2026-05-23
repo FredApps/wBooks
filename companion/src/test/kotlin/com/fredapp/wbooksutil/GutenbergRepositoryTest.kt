@@ -123,6 +123,21 @@ class GutenbergRepositoryTest {
     }
 
     @Test
+    fun extracts_next_page_link() {
+        val xml = """
+            <?xml version="1.0"?>
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <link rel="next" href="/ebooks/search.opds/?sort_order=downloads&amp;start_index=26"/>
+            </feed>
+        """.trimIndent()
+
+        assertEquals(
+            "https://www.gutenberg.org/ebooks/search.opds/?sort_order=downloads&start_index=26",
+            repo.nextPageUrl(xml),
+        )
+    }
+
+    @Test
     fun entry_without_supported_format_is_skipped() {
         val xml = """
             <?xml version="1.0"?>
