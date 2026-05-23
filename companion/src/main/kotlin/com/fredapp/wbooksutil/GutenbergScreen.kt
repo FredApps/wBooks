@@ -65,6 +65,7 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
                     loadingMore = state.loadingMore,
                     hasMore = state.searchHasMore,
                     onLoadMore = { vm.loadMore(GutenbergListTarget.SEARCH) },
+                    isPresentOnDevice = vm::isPresentOnDevice,
                     onAdd = vm::sendToWatch,
                 )
                 state.popularBooks.isEmpty() && state.recentReleases.isEmpty() -> CenteredText("No books.")
@@ -85,6 +86,7 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
                             },
                         )
                     },
+                    isPresentOnDevice = vm::isPresentOnDevice,
                     onAdd = vm::sendToWatch,
                 )
             }
@@ -183,6 +185,7 @@ private fun HomeSections(
     popularHasMore: Boolean,
     recentHasMore: Boolean,
     onLoadMore: (GutenbergHomeSection) -> Unit,
+    isPresentOnDevice: (GutenbergBook) -> Boolean,
     onAdd: (GutenbergBook) -> Unit,
 ) {
     val books = when (selectedSection) {
@@ -203,6 +206,7 @@ private fun HomeSections(
             keyPrefix = selectedSection.name.lowercase(),
             downloadingId = downloadingId,
             showReleaseDateOnOwnLine = selectedSection == GutenbergHomeSection.RECENT,
+            isPresentOnDevice = isPresentOnDevice,
             onAdd = onAdd,
         )
         loadMoreItem(
@@ -245,6 +249,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bookItems(
     keyPrefix: String,
     downloadingId: String?,
     showReleaseDateOnOwnLine: Boolean,
+    isPresentOnDevice: (GutenbergBook) -> Boolean,
     onAdd: (GutenbergBook) -> Unit,
 ) {
     items(books, key = { book -> "$keyPrefix:${book.id.ifEmpty { book.downloadUrl }}" }) { book ->
@@ -252,6 +257,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bookItems(
             book = book,
             downloadingId = downloadingId,
             showReleaseDateOnOwnLine = showReleaseDateOnOwnLine,
+            isPresentOnDevice = isPresentOnDevice,
             onAdd = onAdd,
         )
     }
@@ -264,6 +270,7 @@ private fun ResultsList(
     loadingMore: Boolean,
     hasMore: Boolean,
     onLoadMore: () -> Unit,
+    isPresentOnDevice: (GutenbergBook) -> Boolean,
     onAdd: (GutenbergBook) -> Unit,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -272,6 +279,7 @@ private fun ResultsList(
                 book = book,
                 downloadingId = downloadingId,
                 showReleaseDateOnOwnLine = false,
+                isPresentOnDevice = isPresentOnDevice,
                 onAdd = onAdd,
             )
         }
@@ -323,8 +331,10 @@ private fun BookListItem(
     book: GutenbergBook,
     downloadingId: String?,
     showReleaseDateOnOwnLine: Boolean,
+    isPresentOnDevice: (GutenbergBook) -> Boolean,
     onAdd: (GutenbergBook) -> Unit,
 ) {
+    val alreadyPresent = isPresentOnDevice(book)
     ListItem(
         headlineContent = { Text(book.title, fontWeight = FontWeight.Medium) },
         supportingContent = {
@@ -367,8 +377,8 @@ private fun BookListItem(
             } else {
                 TextButton(
                     onClick = { onAdd(book) },
-                    enabled = downloadingId == null,
-                ) { Text("Add") }
+                    enabled = downloadingId == null && !alreadyPresent,
+                ) { Text(if (alreadyPresent) "Added" else "Add") }
             }
         },
     )

@@ -96,7 +96,7 @@ class WatchRepository(context: Context) {
         val total = querySize(uri) ?: -1L
         val input = appContext.contentResolver.openInputStream(uri)
             ?: return@withContext Result.Error("Cannot open file")
-        uploadStream(input, filename, total, onProgress)
+        uploadStream(input, filename, total, onProgress = onProgress)
     }
 
     /**
@@ -109,6 +109,7 @@ class WatchRepository(context: Context) {
         input: InputStream,
         filename: String,
         totalBytes: Long = -1L,
+        overwrite: Boolean = false,
         onProgress: (sentBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
     ): Result<Unit> =
         withContext(Dispatchers.IO) {
@@ -119,10 +120,7 @@ class WatchRepository(context: Context) {
             val node = bestNode() ?: run { input.close(); return@withContext Result.NoWatch }
             runCatching {
                 input.use { stream ->
-                    val path = WearProtocol.PATH_UPLOAD_PREFIX + URLEncoder.encode(filename, StandardCharsets.UTF_8)
-                        .let { encoded ->
-                            if (totalBytes >= 0L) "$encoded?bytes=$totalBytes" else encoded
-                        }
+                    val path = WearUploadPath.encode(filename, totalBytes, overwrite)
                     val channel = channelClient.openChannel(node.id, path).await()
                     try {
                         val out = channelClient.getOutputStream(channel).await()
@@ -145,6 +143,18 @@ class WatchRepository(context: Context) {
                 Result.Ok(Unit)
             }.getOrElse { Result.Error(it.message ?: "Upload failed") }
         }
+
+    internal object WearUploadPath {
+        fun encode(filename: String, totalBytes: Long, overwrite: Boolean): String {
+            val encoded = URLEncoder.encode(filename, StandardCharsets.UTF_8)
+            val params = buildList {
+                if (totalBytes >= 0L) add("bytes=$totalBytes")
+                if (overwrite) add("overwrite=1")
+            }
+            return WearProtocol.PATH_UPLOAD_PREFIX + encoded + params.joinToString("&", prefix = "?")
+                .takeIf { params.isNotEmpty() }.orEmpty()
+        }
+    }
 
     private fun querySize(uri: Uri): Long? {
         val resolver = appContext.contentResolver

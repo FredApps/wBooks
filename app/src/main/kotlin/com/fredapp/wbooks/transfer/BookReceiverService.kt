@@ -172,13 +172,16 @@ class BookReceiverService : WearableListenerService() {
         val app = application as WBooksApp
         scope.launch {
             val client = Wearable.getChannelClient(this@BookReceiverService)
-            val dest = uniqueFile(app.booksDir, safe)
+            val dest = if (uploadMeta.overwrite) File(app.booksDir, safe) else uniqueFile(app.booksDir, safe)
             if (!dest.canonicalFile.toPath().startsWith(app.booksDir.canonicalFile.toPath()) ||
                 dest.canonicalFile == app.booksDir.canonicalFile) {
                 client.close(channel).await()
                 return@launch
             }
             val ok = runCatching {
+                if (uploadMeta.overwrite && dest.exists() && !dest.isFile) {
+                    throw IOException("Cannot overwrite non-file destination")
+                }
                 client.getInputStream(channel).await().use { input ->
                     dest.outputStream().buffered().use { out ->
                         val copied = input.copyToLimited(out, MAX_BOOK_BYTES)
@@ -308,7 +311,13 @@ class BookReceiverService : WearableListenerService() {
                 if (key != "bytes") return@firstNotNullOfOrNull null
                 part.substring(eq + 1).toLongOrNull()?.takeIf { it >= 0L }
             }
-        return UploadMeta(encodedFilename = encodedFilename, expectedBytes = expectedBytes)
+        val overwrite = raw.substringAfter('?', "")
+            .split('&')
+            .any { part ->
+                val eq = part.indexOf('=')
+                eq > 0 && part.substring(0, eq) == "overwrite" && part.substring(eq + 1) == "1"
+            }
+        return UploadMeta(encodedFilename = encodedFilename, expectedBytes = expectedBytes, overwrite = overwrite)
     }
 
     private companion object {
@@ -319,7 +328,7 @@ class BookReceiverService : WearableListenerService() {
     }
 }
 
-private data class UploadMeta(val encodedFilename: String, val expectedBytes: Long?)
+private data class UploadMeta(val encodedFilename: String, val expectedBytes: Long?, val overwrite: Boolean)
 
 private fun File.isInside(root: File): Boolean =
     canonicalFile.toPath().startsWith(root.canonicalFile.toPath())

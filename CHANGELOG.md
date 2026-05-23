@@ -10,6 +10,7 @@ All notable changes to wBooks are documented in this file.
 - Utility Project Gutenberg home now switches between Top most popular books and Recent releases at the top of the list; recent releases show release dates when Project Gutenberg provides them.
 - Utility folder list height now shrinks as folders are removed, keeping Root directly below small folder sets and pinned no lower than half-screen for large sets.
 - Utility Project Gutenberg listings now show file size, downloads can be canceled from the progress bar, and interrupted watch transfers are cleaned up instead of leaving partial books.
+- Utility Project Gutenberg Add is disabled for books already on the watch, while canceled adds can be retried as an overwrite.
 
 ## [0.6.0] — 2026-05-22
 

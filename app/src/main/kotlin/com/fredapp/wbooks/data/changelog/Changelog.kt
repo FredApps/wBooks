@@ -21,6 +21,7 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
             "Bookmark labels now match reading mode: chapters in Normal, sentences in Sentence mode, and exact words in Speed Reading; Speed Reading also shows book percent finished.",
             "Web library books can be reordered by dragging within a folder; the order is reflected on the watch, and the watch library footer shows library storage used plus device space left.",
             "Watch-side Wear uploads now verify the expected byte count and delete partial files when a phone-side Gutenberg add is canceled or disconnected.",
+            "Phone-side Gutenberg retries can explicitly overwrite a canceled upload instead of creating duplicate numbered files.",
         ),
     ),
     ChangelogEntry(

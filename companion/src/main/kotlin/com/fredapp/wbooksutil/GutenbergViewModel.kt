@@ -28,6 +28,8 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
         val downloadingTitle: String? = null,
         val downloadProgressBytes: Long = 0L,
         val downloadProgressTotal: Long = -1L,
+        val deviceBookFilenames: Set<String> = emptySet(),
+        val canceledBookIds: Set<String> = emptySet(),
         val popularHasMore: Boolean = false,
         val recentHasMore: Boolean = false,
         val searchHasMore: Boolean = false,
@@ -52,6 +54,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         loadHomeSections()
+        refreshDeviceBooks()
     }
 
     private fun loadHomeSections() {
@@ -195,6 +198,9 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
      */
     fun sendToWatch(book: GutenbergBook) {
         if (_state.value.downloadingId != null) return
+        val filename = filenameFor(book)
+        val overwrite = _state.value.canceledBookIds.contains(book.id)
+        if (!overwrite && _state.value.deviceBookFilenames.contains(filename.normalizedFilename())) return
         downloadCancelRequested = false
         downloadJob = viewModelScope.launch {
             _state.value = _state.value.copy(
@@ -205,15 +211,20 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
                 errorMessage = null,
                 lastStatusMessage = null,
             )
-            val filename = filenameFor(book)
             val result = try {
                 gutenberg.withDownload(book) { input, totalBytes ->
-                    watch.uploadStream(input, filename, totalBytes) { sent, total ->
-                        _state.value = _state.value.copy(
-                            downloadProgressBytes = sent,
-                            downloadProgressTotal = total,
-                        )
-                    }
+                    watch.uploadStream(
+                        input = input,
+                        filename = filename,
+                        totalBytes = totalBytes,
+                        onProgress = { sent, total ->
+                            _state.value = _state.value.copy(
+                                downloadProgressBytes = sent,
+                                downloadProgressTotal = total,
+                            )
+                        },
+                        overwrite = overwrite,
+                    )
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -235,6 +246,8 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
                         downloadingTitle = null,
                         downloadProgressBytes = 0L,
                         downloadProgressTotal = -1L,
+                        deviceBookFilenames = _state.value.deviceBookFilenames + filename.normalizedFilename(),
+                        canceledBookIds = _state.value.canceledBookIds - book.id,
                         lastSentTitle = book.title,
                     )
                 result is WatchRepository.Result.NoWatch ->
@@ -264,6 +277,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
                         downloadingTitle = null,
                         downloadProgressBytes = 0L,
                         downloadProgressTotal = -1L,
+                        canceledBookIds = _state.value.canceledBookIds + (_state.value.downloadingId ?: ""),
                         lastStatusMessage = "Add canceled",
                     )
                     downloadJob = null
@@ -294,6 +308,25 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
         return "$safeTitle.${book.extension}"
     }
 
+    fun isPresentOnDevice(book: GutenbergBook): Boolean {
+        val state = _state.value
+        return filenameFor(book).normalizedFilename() in state.deviceBookFilenames &&
+            book.id !in state.canceledBookIds
+    }
+
+    private fun refreshDeviceBooks() = viewModelScope.launch {
+        when (val result = watch.fetchLibrary()) {
+            is WatchRepository.Result.Ok -> {
+                _state.value = _state.value.copy(
+                    deviceBookFilenames = result.value.books
+                        .map { it.id.substringAfterLast('/').normalizedFilename() }
+                        .toSet(),
+                )
+            }
+            else -> Unit
+        }
+    }
+
     private fun mergeBooks(current: List<GutenbergBook>, incoming: List<GutenbergBook>): List<GutenbergBook> {
         val seen = current.mapTo(mutableSetOf()) { it.id.ifEmpty { it.downloadUrl } }
         val merged = current + incoming.filter { seen.add(it.id.ifEmpty { it.downloadUrl }) }
@@ -316,3 +349,5 @@ enum class GutenbergListTarget {
     RECENT,
     SEARCH,
 }
+
+private fun String.normalizedFilename(): String = trim().lowercase()
