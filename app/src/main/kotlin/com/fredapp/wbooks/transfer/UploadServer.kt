@@ -1,6 +1,8 @@
 ﻿package com.fredapp.wbooks.transfer
 
 import android.content.res.AssetManager
+import com.fredapp.wbooks.BuildConfig
+import com.fredapp.wbooks.data.about.WATCH_ABOUT_SECTIONS
 import com.fredapp.wbooks.data.book.BookFormat
 import com.fredapp.wbooks.data.folder.FolderPolicy
 import com.fredapp.wbooks.data.settings.FontChoice
@@ -1227,12 +1229,29 @@ class UploadServer(
         <section class="settings">
           <h2>About</h2>
           <p>wBooks - Wear OS ebook reader.</p>
-          <p>Reads epub, txt, fb2, html, docx, and odt. The web interface can convert text-based PDFs to HTML before upload.</p>
+          <p>Version ${htmlEscape(BuildConfig.VERSION_NAME)} (${BuildConfig.VERSION_CODE})</p>
+          <p>An Android Wear ebook reader. Reads epub, txt, fb2, html, docx, and odt. The web interface can convert text-based PDFs to HTML before upload.</p>
           <p>This web interface runs on the watch over your local Wi-Fi; the URL and PIN are shown on the watch screen.</p>
-          <p>Source: <a href="https://github.com/FredApps/wBooks">github.com/FredApps/wBooks</a> - GPLv3.</p>
-          <p>Bundled Gutenberg texts are public domain in the United States; check your jurisdiction.</p>
+          ${renderAboutSectionsHtml()}
         </section>
     """.trimIndent()
+
+    private fun renderAboutSectionsHtml(): String = WATCH_ABOUT_SECTIONS.joinToString("") { section ->
+        val body = if (section.title == "License") {
+            section.lines.joinToString("") { line ->
+                when {
+                    line == "Source: github.com/FredApps/wBooks" ->
+                        """<p>Source: <a href="https://github.com/FredApps/wBooks">github.com/FredApps/wBooks</a></p>"""
+                    else -> "<p>${htmlEscape(line)}</p>"
+                }
+            }
+        } else if (section.lines.all { it.startsWith("- ") }) {
+            "<ul>${section.lines.joinToString("") { "<li>${htmlEscape(it.removePrefix("- "))}</li>" }}</ul>"
+        } else {
+            section.lines.joinToString("") { "<p>${htmlEscape(it)}</p>" }
+        }
+        """<section><h3>${htmlEscape(section.title)}</h3>$body</section>"""
+    }
 
     private fun selectSetting(label: String, name: String, options: List<String>, selected: String): String {
         val optionHtml = options.joinToString("") { value ->

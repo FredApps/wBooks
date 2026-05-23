@@ -12,6 +12,15 @@ data class ChangelogEntry(
  */
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.6.0",
+        date = "2026-05-23",
+        notes = listOf(
+            "Book opening/parsing timeout increased to two minutes for large first-open conversions.",
+            "The watch web server now starts only on Wi-Fi, refuses paired-phone Bluetooth and LTE paths, and binds only to the selected Wi-Fi address.",
+            "Web settings now render the same About and Changelog content as the watch, including seed books, GPLv3, Gutenberg notice, and open-source attribution.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.5.1",
         date = "2026-05-22",
         notes = listOf(

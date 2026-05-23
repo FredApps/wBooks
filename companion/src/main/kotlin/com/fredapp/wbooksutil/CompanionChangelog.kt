@@ -14,6 +14,17 @@ data class CompanionChangelogEntry(
 object CompanionChangelog {
     val ENTRIES: List<CompanionChangelogEntry> = listOf(
         CompanionChangelogEntry(
+            version = "0.6.0",
+            date = "2026-05-23",
+            notes = listOf(
+                "Utility can receive supported book files from Android share and add them to the watch.",
+                "Shared PDFs now use the same HTML-conversion heuristics as the watch web interface.",
+                "Project Gutenberg lists support loading more results and keep an add-progress notification visible during downloads and uploads.",
+                "Folder overflow stays scrollable while Root remains reachable below the folder list.",
+                "Changelog/About information refreshed to match the current watch release.",
+            ),
+        ),
+        CompanionChangelogEntry(
             version = "0.5.1",
             date = "2026-05-21",
             notes = listOf(

@@ -56,7 +56,7 @@ class TransferController(private val appContext: Context) {
 
     internal fun publishWifiRequired() {
         _state.value = TransferState(
-            message = "Connect to Wi-Fi to start the web server.",
+            message = "Connect to Wi-Fi to start the web server. You might have to disable bluetooth for the watch to connect.",
         )
     }
 

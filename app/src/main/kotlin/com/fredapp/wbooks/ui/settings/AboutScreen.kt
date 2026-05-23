@@ -25,6 +25,7 @@ import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import com.fredapp.wbooks.BuildConfig
+import com.fredapp.wbooks.data.about.WATCH_ABOUT_SECTIONS
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.focus.pageRotaryScrollOwner
 import com.fredapp.wbooks.ui.layout.watchListPadding
@@ -62,33 +63,9 @@ fun AboutScreen(onBack: () -> Unit) {
                     "An Android Wear ebook reader. Reads epub, txt, fb2, html, docx, and odt.",
                 )
             }
-            item { SectionTitle("Seed books") }
-            item {
-                Body(
-                    "- Moby Dick\n" +
-                        "- Pride and Prejudice\n" +
-                        "- The Adventures of Sherlock Holmes\n" +
-                        "- The Strange Case of Dr Jekyll and Mr Hyde\n" +
-                        "- The Time Machine\n" +
-                        "- The Yellow Wallpaper",
-                )
-            }
-            item { SectionTitle("Built with") }
-            item { Body("Kotlin, Jetpack Compose for Wear OS, Jsoup, NanoHTTPD, and more.") }
-            item { SectionTitle("License") }
-            item {
-                Body(
-                    "wBooks is licensed under GPLv3.\n\n" +
-                        "Source: github.com/FredApps/wBooks\n\n" +
-                        "Bundled Gutenberg texts are public domain in the United States; check your jurisdiction.",
-                )
-            }
-            item { SectionTitle("Open Source") }
-            item {
-                Body(
-                    "This app uses many open-source libraries including jsoup, NanoHTTPD, PDFBox, and Google's Jetpack libraries.\n\n" +
-                        "See ATTRIBUTION.md for full credits and licenses.",
-                )
+            for (section in WATCH_ABOUT_SECTIONS) {
+                item { SectionTitle(section.title) }
+                item { Body(section.lines.joinToString("\n\n")) }
             }
             item {
                 Chip(
