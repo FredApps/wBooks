@@ -25,6 +25,8 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.URLDecoder
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * Watch-side counterpart to the phone companion. Lives alongside the
@@ -186,8 +188,10 @@ class BookReceiverService : WearableListenerService() {
         scope.launch {
             val client = Wearable.getChannelClient(this@BookReceiverService)
             val dest = if (uploadMeta.overwrite) File(app.booksDir, safe) else uniqueFile(app.booksDir, safe)
+            val temp = File.createTempFile("wbooks-upload-", ".tmp", app.booksDir)
             if (!dest.canonicalFile.toPath().startsWith(app.booksDir.canonicalFile.toPath()) ||
                 dest.canonicalFile == app.booksDir.canonicalFile) {
+                temp.delete()
                 client.close(channel).await()
                 return@launch
             }
@@ -196,7 +200,7 @@ class BookReceiverService : WearableListenerService() {
                     throw IOException("Cannot overwrite non-file destination")
                 }
                 client.getInputStream(channel).await().use { input ->
-                    dest.outputStream().buffered().use { out ->
+                    temp.outputStream().buffered().use { out ->
                         val copied = input.copyToLimited(out, MAX_BOOK_BYTES)
                         val expected = uploadMeta.expectedBytes
                         if (expected != null && copied != expected) {
@@ -204,7 +208,12 @@ class BookReceiverService : WearableListenerService() {
                         }
                     }
                 }
-            }.onFailure { dest.delete() }
+                if (uploadMeta.overwrite) {
+                    Files.move(temp.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                } else {
+                    Files.move(temp.toPath(), dest.toPath())
+                }
+            }.onFailure { temp.delete() }
                 .also { runCatching { client.close(channel).await() } }
                 .isSuccess
             if (ok) {
