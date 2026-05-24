@@ -12,11 +12,24 @@ data class ChangelogEntry(
  */
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "0.9.0",
+        date = "2026-05-24",
+        notes = listOf(
+            "Reader memory pressure reduced: embedded images are decoded at watch-display size, and stale parsed-document cache writes are cancelled when switching or closing books.",
+            "Time left estimates now learn from sustained normal/sentence scrolling and speed-reading mode shows an immediate WPM-based estimate.",
+            "Watch Project Gutenberg search controls were tightened: keyboard search submits directly, voice/text controls match visually, and downloaded entries look like existing library books.",
+            "Book lists now show file size beside format, and bundled seed books use Gutenberg-compatible titles on fresh installs.",
+            "Web and Utility library storage summaries now show only library usage and free space, not the device's total storage volume.",
+            "Web same-folder drag-and-drop now updates book order directly instead of treating the drop as a move.",
+            "Wear and web uploads clean up interrupted transfers more aggressively and avoid extra temporary disk use where possible.",
+        ),
+    ),
+    ChangelogEntry(
         version = "0.8.0",
         date = "2026-05-24",
         notes = listOf(
             "Watch Search page now includes Project Gutenberg search, popular books, and recent releases directly on the watch.",
-            "Web and Utility library views now show watch library storage used, free space, and total disk space.",
+            "Web and Utility library views now show watch library storage used and free space.",
             "Web and Utility sorting now use the same drag behavior: dropping within a folder can place before or after a book, while moving into a folder places the book first.",
             "Watch library book titles now wrap across multiple lines.",
         ),

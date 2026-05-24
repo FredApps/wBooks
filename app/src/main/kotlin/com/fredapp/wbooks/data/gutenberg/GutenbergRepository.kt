@@ -195,7 +195,7 @@ class GutenbergRepository {
     companion object {
         private const val BASE = "https://www.gutenberg.org/"
         private const val BASE_NO_SLASH = "https://www.gutenberg.org"
-        private const val USER_AGENT = "wBooks-watch/0.8 (https://github.com/FredApps/wBooks)"
+        private const val USER_AGENT = "wBooks-watch/0.9 (https://github.com/FredApps/wBooks)"
         private const val MAX_SIZE_LOOKUPS = 4
         private val ALLOWED_PROTOCOLS = setOf("https", "http")
     }

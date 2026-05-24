@@ -14,6 +14,17 @@ data class CompanionChangelogEntry(
 object CompanionChangelog {
     val ENTRIES: List<CompanionChangelogEntry> = listOf(
         CompanionChangelogEntry(
+            version = "0.9.0",
+            date = "2026-05-24",
+            notes = listOf(
+                "Utility root layout is easier to manage: Root sits lower when folders exist and its position can be adjusted by dragging.",
+                "Storage summary now shows library usage and free space only, matching the watch web interface.",
+                "Project Gutenberg requests identify this release with the updated wBooks Utility user agent.",
+                "Folder assignment keeps same-folder drops useful by moving the dropped book to the top.",
+                "Shared upload and watch-sync behavior benefits from the watch-side transfer cleanup in this release.",
+            ),
+        ),
+        CompanionChangelogEntry(
             version = "0.8.0",
             date = "2026-05-24",
             notes = listOf(

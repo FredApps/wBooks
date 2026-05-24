@@ -810,6 +810,11 @@ class UploadServer(
               }
               async function moveBookTo(rel, destFolder) {
                 if (!rel) return;
+                var sourceFolder = folderForRel(rel);
+                if (sourceFolder === (destFolder || '')) {
+                  await reorderBookToFolderTop(rel, destFolder || '');
+                  return;
+                }
                 var pin = await ensurePin();
                 if (pin == null) return;
                 var fd = new FormData();
@@ -827,9 +832,24 @@ class UploadServer(
                   alert('Move failed: ' + err);
                 }
               }
+              function folderForRel(rel) {
+                var slash = rel.lastIndexOf('/');
+                return slash >= 0 ? rel.substring(0, slash) : '';
+              }
+              function listForFolder(folder) {
+                var key = folder || '(root)';
+                return document.querySelector('.book-list[data-folder-key="' + cssEscape(key) + '"]');
+              }
               function dropPlacement(e, card) {
                 var rect = card.getBoundingClientRect();
                 return e.clientY > rect.top + rect.height / 2 ? 'after' : 'before';
+              }
+              async function reorderBookToFolderTop(rel, folder) {
+                var list = listForFolder(folder || '');
+                var card = document.querySelector('.book-card[data-rel="' + cssEscape(rel) + '"]');
+                if (!list || !card || card.closest('.book-list') !== list) return;
+                list.insertBefore(card, list.querySelector('.book-card'));
+                await submitBookOrder(list);
               }
               async function reorderBookRelative(fromRel, targetRel, placement) {
                 if (!fromRel || !targetRel || fromRel === targetRel) return;
@@ -849,6 +869,14 @@ class UploadServer(
                 var order = Array.prototype.map.call(list.querySelectorAll('.book-card'), function(card) {
                   return card.dataset.rel || '';
                 }).filter(Boolean);
+                await submitBookOrder(list, order);
+              }
+              async function submitBookOrder(list, order) {
+                if (!order) {
+                  order = Array.prototype.map.call(list.querySelectorAll('.book-card'), function(card) {
+                    return card.dataset.rel || '';
+                  }).filter(Boolean);
+                }
                 var pin = await ensurePin();
                 if (pin == null) return;
                 var fd = new FormData();

@@ -4,6 +4,18 @@ All notable changes to wBooks are documented in this file.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-24
+
+- Reduced watch reader memory pressure: embedded images now decode at display size, and stale parsed-document cache writes are cancelled when switching or closing books.
+- Improved Time left behavior: normal/sentence scrolling now feeds the pace estimate more reliably, and speed-reading mode gets immediate WPM-based ETA.
+- Polished watch Project Gutenberg search: keyboard search submits directly, voice/text controls match, and downloaded entries look like existing library books.
+- Book lists now show file size beside format, and bundled seed books use Gutenberg-compatible titles on fresh installs.
+- Web and Utility storage summaries now show library usage and free space only, not total device storage.
+- Utility Root layout is adjustable by dragging and leaves more space when folders exist.
+- Web same-folder drag-and-drop now updates order directly instead of treating the drop as a move.
+- Hardened Wear/web transfer cleanup and reduced temporary disk use during web uploads.
+- GitHub Actions artifact/caching retention was tightened to reduce repository Actions storage usage.
+
 ## [0.8.0] — 2026-05-24
 
 - Utility Project Gutenberg opens with separate Top most popular books and Recent releases sections; submitting a search replaces them, and clearing the search brings them back.
@@ -16,7 +28,7 @@ All notable changes to wBooks are documented in this file.
 - Web and Utility drag sorting now use the same behavior: before/after drops inside a folder, first-position drops when moving into folders, and matching How to use notes.
 - Utility Project Gutenberg listings now use the same author, optional true release date, format, and file-size layout for popular books, recent releases, and search results.
 - Watch Search page now includes Project Gutenberg search, popular books, and recent releases directly on the watch.
-- Web and Utility library views now show watch library storage used, free space, and total disk space.
+- Web and Utility library views now show watch library storage used and free space.
 - Utility hardware Back now follows the same page navigation as the software back arrows.
 
 ## [0.6.0] — 2026-05-22
