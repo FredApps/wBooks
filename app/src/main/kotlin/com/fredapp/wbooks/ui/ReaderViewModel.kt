@@ -279,9 +279,9 @@ class ReaderViewModel(
      * 2. **Jumps** (chapter list, bookmark, search result) set
      *    [lastAdvancePosition] to null in [jumpTo] / [openSearchResult] so the
      *    next reportPosition just re-baselines without computing a delta.
-     * 3. **Non-natural advances** (chapter change, backwards, multi-block leap)
+     * 3. **Non-natural advances** (chapter change, backwards, large leap)
      *    are treated like jumps even if no explicit jumpTo ran â€" defends
-     *    against renderer quirks. See [isNaturalAdvance].
+     *    against renderer quirks. See [naturalAdvanceBlocks].
      *
      * Remaining outliers (long pauses, double-fires) are clamped at the
      * repository level via [ReadingPaceRepository]'s MIN/MAX bounds.
@@ -298,17 +298,27 @@ class ReaderViewModel(
         }
         val now = System.currentTimeMillis()
         val prior = lastAdvancePosition
-        if (prior != null && prior != position && isNaturalAdvance(prior, position)) {
-            val delta = now - lastAdvanceMs
-            viewModelScope.launch { paceRepo.recordAdvance(bookId, delta) }
+        if (prior != null && prior != position) {
+            val advancedBlocks = naturalAdvanceBlocks(prior, position)
+            if (advancedBlocks > 0) {
+                val deltaPerBlock = (now - lastAdvanceMs) / advancedBlocks
+                viewModelScope.launch { paceRepo.recordAdvance(bookId, deltaPerBlock) }
+            }
         }
         lastAdvancePosition = position
         lastAdvanceMs = now
     }
 
-    /** Stays in the same chapter and moves forward by exactly one block. */
-    private fun isNaturalAdvance(prev: BookPosition, next: BookPosition): Boolean =
-        prev.chapterIndex == next.chapterIndex && next.blockIndex - prev.blockIndex == 1
+    /**
+     * Stays in the same chapter and moves forward by a plausible scroll/page
+     * amount. Normal-mode swipes and taps can advance several blocks between
+     * debounced position reports, especially in books with short paragraphs.
+     */
+    private fun naturalAdvanceBlocks(prev: BookPosition, next: BookPosition): Int {
+        if (prev.chapterIndex != next.chapterIndex) return 0
+        val blocks = next.blockIndex - prev.blockIndex
+        return if (blocks in 1..MAX_NATURAL_ADVANCE_BLOCKS) blocks else 0
+    }
 
     // ---- Reading-pace ETA ----
     data class ReadingEta(val chapterMs: Long, val bookMs: Long)
@@ -788,6 +798,7 @@ class ReaderViewModel(
         const val SESSION_FLUSH_INTERVAL_MS = 60_000L
         const val MIN_TRUSTED_WPM = 50.0
         const val MAX_TRUSTED_WPM = 800.0
+        const val MAX_NATURAL_ADVANCE_BLOCKS = 12
     }
 
     class Factory(
