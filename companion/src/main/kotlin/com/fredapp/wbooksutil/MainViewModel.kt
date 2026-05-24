@@ -120,9 +120,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun assignBookToFolder(bookId: String, folderId: String?) {
         val targetFolder = folderId ?: ""
+        val state = _state.value
+        val currentFolder = state.bookFolders[bookId] ?: ""
+        if (currentFolder == targetFolder) {
+            moveBookToTopOfFolder(bookId, targetFolder)
+            return
+        }
         viewModelScope.launch {
             _state.value = _state.value.copy(sending = true)
             val result = repo.moveBook(bookId, targetFolder)
+            _state.value = _state.value.copy(sending = false)
+            applyResult(result)
+        }
+    }
+
+    private fun moveBookToTopOfFolder(bookId: String, folder: String) {
+        val state = _state.value
+        val folderBooks = state.books.filter { (state.bookFolders[it.id] ?: "") == folder }
+        if (folderBooks.firstOrNull()?.id == bookId) return
+        val reordered = listOfNotNull(folderBooks.firstOrNull { it.id == bookId }) +
+            folderBooks.filterNot { it.id == bookId }
+        if (reordered.size != folderBooks.size) return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(sending = true)
+            val result = repo.reorderBooks(folder, reordered.map { it.id })
             _state.value = _state.value.copy(sending = false)
             applyResult(result)
         }

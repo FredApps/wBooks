@@ -195,6 +195,7 @@ class UploadServer(
               .library-section.drag-over,.file-picker.drag-over{outline:3px solid rgba(179,83,24,.24);background:#fff4e4}
               .book-card[draggable="true"]{cursor:grab}
               .book-card.dragging{opacity:.45}
+              .book-card.touch-dragging{opacity:.72;transform:scale(.985);touch-action:none}
               .book-card.drag-target{outline:3px solid rgba(31,111,105,.22);border-color:var(--accent-2)}
               .chev{display:inline-flex;width:14px;justify-content:center;color:var(--muted);font-size:0.9rem;flex:0 0 auto}
               .folder-shell,.folder-head{display:flex;align-items:center;gap:10px}
@@ -610,6 +611,79 @@ class UploadServer(
               // dragover for security. Track the active in-page drag so we can
               // still highlight valid drop targets while a book is being moved.
               var activeBookDrag = null;
+              var touchBookDrag = null;
+              function isInteractiveDragStart(target) {
+                return !!(target && target.closest && target.closest('button,input,select,textarea,a,form'));
+              }
+              function clearTouchDragTargets() {
+                document.querySelectorAll('.drop-zone.drag-over').forEach(function(z){ z.classList.remove('drag-over'); });
+                document.querySelectorAll('.book-card.drag-target').forEach(function(z){ z.classList.remove('drag-target'); });
+              }
+              function dragTargetAtPoint(x, y, sourceCard) {
+                var el = document.elementFromPoint(x, y);
+                if (!el || !el.closest) return null;
+                var card = el.closest('.book-card');
+                if (card && card !== sourceCard) return {type:'card', el:card};
+                var zone = el.closest('.drop-zone');
+                if (zone) return {type:'zone', el:zone};
+                return null;
+              }
+              function installTouchBookSorting(card) {
+                if (!window.PointerEvent) return;
+                card.addEventListener('pointerdown', function(e) {
+                  if (e.pointerType === 'mouse' || e.button !== 0 || isInteractiveDragStart(e.target)) return;
+                  var rel = card.dataset.rel || '';
+                  if (!rel || touchBookDrag) return;
+                  var startX = e.clientX;
+                  var startY = e.clientY;
+                  var timer = window.setTimeout(function() {
+                    touchBookDrag.active = true;
+                    activeBookDrag = rel;
+                    card.classList.add('touch-dragging');
+                    try { card.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                  }, 320);
+                  touchBookDrag = {rel:rel, card:card, pointerId:e.pointerId, startX:startX, startY:startY, active:false, timer:timer};
+                });
+                card.addEventListener('pointermove', function(e) {
+                  if (!touchBookDrag || touchBookDrag.pointerId !== e.pointerId) return;
+                  var dx = e.clientX - touchBookDrag.startX;
+                  var dy = e.clientY - touchBookDrag.startY;
+                  if (!touchBookDrag.active && Math.sqrt(dx * dx + dy * dy) > 12) {
+                    window.clearTimeout(touchBookDrag.timer);
+                    touchBookDrag = null;
+                    return;
+                  }
+                  if (!touchBookDrag.active) return;
+                  e.preventDefault();
+                  clearTouchDragTargets();
+                  var target = dragTargetAtPoint(e.clientX, e.clientY, touchBookDrag.card);
+                  if (target) target.el.classList.add(target.type === 'zone' ? 'drag-over' : 'drag-target');
+                });
+                function finishPointerDrag(e, shouldDrop) {
+                  if (!touchBookDrag || touchBookDrag.pointerId !== e.pointerId) return;
+                  window.clearTimeout(touchBookDrag.timer);
+                  var drag = touchBookDrag;
+                  touchBookDrag = null;
+                  drag.card.classList.remove('touch-dragging');
+                  try { drag.card.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                  if (drag.active && shouldDrop) {
+                    e.preventDefault();
+                    var target = dragTargetAtPoint(e.clientX, e.clientY, drag.card);
+                    clearTouchDragTargets();
+                    activeBookDrag = null;
+                    if (target && target.type === 'card') {
+                      reorderBookRelative(drag.rel, target.el.dataset.rel || '', dropPlacement(e, target.el));
+                    } else if (target && target.type === 'zone') {
+                      moveBookTo(drag.rel, target.el.dataset.folder || '');
+                    }
+                  } else {
+                    clearTouchDragTargets();
+                    activeBookDrag = null;
+                  }
+                }
+                card.addEventListener('pointerup', function(e) { finishPointerDrag(e, true); });
+                card.addEventListener('pointercancel', function(e) { finishPointerDrag(e, false); });
+              }
               function installDropZones() {
                 document.querySelectorAll('.drop-zone').forEach(function(zone) {
                   zone.addEventListener('dragover', function(e) {
@@ -673,6 +747,7 @@ class UploadServer(
                     document.querySelectorAll('.drop-zone.drag-over').forEach(function(z){ z.classList.remove('drag-over'); });
                     document.querySelectorAll('.book-card.drag-target').forEach(function(z){ z.classList.remove('drag-target'); });
                   });
+                  installTouchBookSorting(card);
                 });
                 var pin = document.getElementById('pin');
                 pin.value = sessionStorage.getItem('wbooksPin') || '';

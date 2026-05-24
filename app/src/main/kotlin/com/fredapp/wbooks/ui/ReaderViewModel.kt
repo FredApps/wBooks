@@ -333,10 +333,15 @@ class ReaderViewModel(
     val readingEta: StateFlow<ReadingEta?> = _document
         .flatMapLatest { state ->
             if (state !is DocumentState.Loaded) flow { emit(null) }
-            else combine(paceRepo.paceFlow(state.book.id), currentPosition) { pace, pos ->
+            else combine(paceRepo.paceFlow(state.book.id), currentPosition, settings) { pace, pos, settings ->
                 val metrics = state.metrics
-                if (pace == null || !pace.isReady || metrics == null) null
-                else computeEta(state.doc, metrics, pos, pace.msPerBlock)
+                when {
+                    metrics == null -> null
+                    settings.mode == ReadingMode.SPEEDREAD ->
+                        computeSpeedreadEta(state.doc, metrics, pos, settings.speedreadWpm)
+                    pace == null || !pace.isReady -> null
+                    else -> computeEta(state.doc, metrics, pos, pace.msPerBlock)
+                }
             }
         }
         .stateIn(
@@ -384,6 +389,30 @@ class ReaderViewModel(
 
         val wordsConsumedInBook = chapterRow[safeBi]
         val wordsRemainingInBook = (totalWords - wordsConsumedInBook).coerceAtLeast(0)
+
+        return ReadingEta(
+            chapterMs = (wordsRemainingInChapter * msPerWord).toLong(),
+            bookMs = (wordsRemainingInBook * msPerWord).toLong(),
+        )
+    }
+
+    private fun computeSpeedreadEta(
+        doc: Document,
+        metrics: DocumentMetrics,
+        position: BookPosition,
+        wpm: Int,
+    ): ReadingEta? {
+        if (doc.chapters.isEmpty() || metrics.totalWords == 0 || wpm <= 0) return null
+
+        val ci = position.chapterIndex.coerceIn(0, doc.chapters.lastIndex)
+        val chapter = doc.chapters.getOrNull(ci) ?: return null
+        if (chapter.blocks.isEmpty()) return null
+
+        val wordsRead = metrics.wordIndexAt(position)
+        val chapterWordsEnd = metrics.wordsBeforeBlock[ci][chapter.blocks.size]
+        val msPerWord = 60_000.0 / wpm.coerceIn(ReaderSettings.WPM_RANGE)
+        val wordsRemainingInChapter = (chapterWordsEnd - wordsRead).coerceAtLeast(0)
+        val wordsRemainingInBook = (metrics.totalWords - wordsRead).coerceAtLeast(0)
 
         return ReadingEta(
             chapterMs = (wordsRemainingInChapter * msPerWord).toLong(),
