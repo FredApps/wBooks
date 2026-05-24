@@ -1,6 +1,6 @@
 ﻿package com.fredapp.wbooks.tile
 
-import androidx.concurrent.futures.ResolvableFuture
+import androidx.concurrent.futures.CallbackToFutureAdapter
 import androidx.wear.protolayout.ActionBuilders
 import androidx.wear.protolayout.ColorBuilders
 import androidx.wear.protolayout.DeviceParametersBuilders.DeviceParameters
@@ -103,6 +103,7 @@ class BooksTileService : TileService() {
         val chipLabel = if (hasBook) getString(R.string.tile_resume) else getString(R.string.tile_open)
 
         val foreground = PrimaryLayout.Builder(device)
+            .setResponsiveContentInsetEnabled(true)
             .setPrimaryLabelTextContent(
                 Text.Builder(this, timeLabel)
                     .setTypography(Typography.TYPOGRAPHY_CAPTION1)
@@ -144,7 +145,10 @@ class BooksTileService : TileService() {
     }
 
     private fun <T> resolved(value: T): ListenableFuture<T> =
-        ResolvableFuture.create<T>().also { it.set(value) }
+        CallbackToFutureAdapter.getFuture { completer ->
+            completer.set(value)
+            "resolved tile value"
+        }
 
     private fun launchActivity(showLibrary: Boolean): ActionBuilders.LaunchAction {
         val activity = ActionBuilders.AndroidActivity.Builder()

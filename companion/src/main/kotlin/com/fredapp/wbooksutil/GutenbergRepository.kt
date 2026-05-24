@@ -14,7 +14,6 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -270,7 +269,7 @@ class GutenbergRepository {
     /** Build `<BASE>/path?k1=v1&k2=v2` with proper URL-encoding. */
     private fun endpoint(path: String, vararg params: Pair<String, String>): String {
         val query = if (params.isEmpty()) "" else params.joinToString("&", prefix = "?") { (k, v) ->
-            "$k=" + URLEncoder.encode(v, StandardCharsets.UTF_8)
+            "$k=" + URLEncoder.encode(v, "UTF-8")
         }
         return "$BASE_NO_SLASH/$path$query"
     }

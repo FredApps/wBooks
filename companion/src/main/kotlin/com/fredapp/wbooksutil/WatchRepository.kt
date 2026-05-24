@@ -10,7 +10,6 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 
 /**
  * Thin wrapper over the Wear Data Layer. The watch app advertises a
@@ -146,7 +145,7 @@ class WatchRepository(context: Context) {
 
     internal object WearUploadPath {
         fun encode(filename: String, totalBytes: Long, overwrite: Boolean): String {
-            val encoded = URLEncoder.encode(filename, StandardCharsets.UTF_8)
+            val encoded = URLEncoder.encode(filename, "UTF-8")
             val params = buildList {
                 if (totalBytes >= 0L) add("bytes=$totalBytes")
                 if (overwrite) add("overwrite=1")
