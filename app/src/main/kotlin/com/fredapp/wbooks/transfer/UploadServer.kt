@@ -733,8 +733,6 @@ class UploadServer(
               }
               async function moveBookTo(rel, destFolder) {
                 if (!rel) return;
-                var curr = rel.indexOf('/') >= 0 ? rel.substring(0, rel.lastIndexOf('/')) : '';
-                if (curr === destFolder) return;
                 var pin = await ensurePin();
                 if (pin == null) return;
                 var fd = new FormData();
@@ -1091,6 +1089,8 @@ class UploadServer(
         }
         toDir.mkdirs()
         if (from.parentFile?.canonicalFile == toDir.canonicalFile) {
+            prependToOrder(toDir, from.name)
+            onLibraryChanged()
             return redirectToIndex("Moved")
         }
         val dest = uniqueFile(toDir, from.name)

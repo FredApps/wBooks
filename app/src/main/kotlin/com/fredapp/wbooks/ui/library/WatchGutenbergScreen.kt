@@ -97,6 +97,9 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     var downloadProgressBytes by remember { mutableStateOf(0L) }
     var downloadProgressTotal by remember { mutableStateOf(-1L) }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
+    var homeJob by remember { mutableStateOf<Job?>(null) }
+    var searchJob by remember { mutableStateOf<Job?>(null) }
+    var loadMoreJob by remember { mutableStateOf<Job?>(null) }
     var addedFilenames by remember { mutableStateOf(emptySet<String>()) }
     var addedTitleKeys by remember { mutableStateOf(emptySet<String>()) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -115,7 +118,8 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     }
 
     fun loadHome() {
-        scope.launch {
+        homeJob?.cancel()
+        homeJob = scope.launch {
             loading = true
             error = null
             runCatching {
@@ -125,20 +129,27 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                 popularHasMore = popularPage.hasMore
                 recent = recentPage.books
                 recentHasMore = recentPage.hasMore
-            }.onFailure { error = it.message ?: "Could not reach Project Gutenberg" }
+            }.onFailure {
+                if (it is CancellationException) throw it
+                error = it.message ?: "Could not reach Project Gutenberg"
+            }
             loading = false
+            homeJob = null
         }
     }
 
     fun submitSearch(text: String) {
+        searchJob?.cancel()
         query = text.trim()
         searchText = query
         if (query.isBlank()) {
             results = emptyList()
             searchHasMore = false
+            loading = false
+            error = null
             return
         }
-        scope.launch {
+        searchJob = scope.launch {
             loading = true
             error = null
             runCatching { repo.search(query) }
@@ -146,8 +157,12 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                     results = it.books
                     searchHasMore = it.hasMore
                 }
-                .onFailure { error = it.message ?: "Search failed" }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    error = it.message ?: "Search failed"
+                }
             loading = false
+            searchJob = null
         }
     }
 
@@ -161,6 +176,7 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     }
 
     fun loadMore(target: GutenbergTarget) {
+        if (loadMoreJob?.isActive == true) return
         val currentCount = when (target) {
             GutenbergTarget.POPULAR -> popular.size
             GutenbergTarget.RECENT -> recent.size
@@ -170,7 +186,7 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
             error = "Showing the maximum $MAX_LIST_ITEMS Gutenberg results for this list."
             return
         }
-        scope.launch {
+        loadMoreJob = scope.launch {
             loading = true
             error = null
             val start = when (target) {
@@ -202,8 +218,12 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                         searchHasMore = page.hasMore && merged.size < MAX_LIST_ITEMS
                     }
                 }
-            }.onFailure { error = it.message ?: "Load more failed" }
+            }.onFailure {
+                if (it is CancellationException) throw it
+                error = it.message ?: "Load more failed"
+            }
             loading = false
+            loadMoreJob = null
         }
     }
 
@@ -245,6 +265,10 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                                     withContext(Dispatchers.Main) {
                                         downloadProgressBytes = copied
                                     }
+                                }
+                                val expectedBytes = totalBytes.takeIf { it > 0L } ?: book.sizeBytes
+                                if (expectedBytes != null && copied < expectedBytes) {
+                                    error("Download stopped after ${formatBytes(copied)} of ${formatBytes(expectedBytes)}")
                                 }
                             }
                         }

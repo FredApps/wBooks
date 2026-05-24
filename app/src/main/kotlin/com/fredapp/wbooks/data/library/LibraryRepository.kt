@@ -67,7 +67,11 @@ class LibraryRepository(private val booksDir: File) {
         val destDir = if (folder.isEmpty()) booksDir else File(booksDir, folder)
         if (!destDir.isInsideBooksDir()) return@withContext null
         if (folder.isNotEmpty() && !destDir.isDirectory) return@withContext null
-        if (src.parentFile?.canonicalFile == destDir.canonicalFile) return@withContext bookId
+        if (src.parentFile?.canonicalFile == destDir.canonicalFile) {
+            prependToOrder(destDir, src.name)
+            refresh()
+            return@withContext bookId
+        }
         val dest = uniqueFile(destDir, src.name)
         if (src.renameTo(dest)) {
             removeFromOrder(src.parentFile ?: booksDir, src.name)

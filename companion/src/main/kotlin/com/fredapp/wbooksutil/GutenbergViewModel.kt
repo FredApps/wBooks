@@ -29,6 +29,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
         val downloadProgressBytes: Long = 0L,
         val downloadProgressTotal: Long = -1L,
         val deviceBookFilenames: Set<String> = emptySet(),
+        val deviceBookTitleKeys: Set<String> = emptySet(),
         val canceledBookIds: Set<String> = emptySet(),
         val popularHasMore: Boolean = false,
         val recentHasMore: Boolean = false,
@@ -76,6 +77,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 }
                 .onFailure {
+                    if (it is CancellationException) throw it
                     _state.value = _state.value.copy(
                         loading = false,
                         errorMessage = it.message ?: "Could not reach Project Gutenberg",
@@ -118,6 +120,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 }
                 .onFailure {
+                    if (it is CancellationException) throw it
                     _state.value = _state.value.copy(
                         loading = false,
                         errorMessage = it.message ?: "Search failed",
@@ -153,6 +156,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
                     appendPage(target, page)
                 }
                 .onFailure {
+                    if (it is CancellationException) throw it
                     _state.value = _state.value.copy(
                         loadingMore = false,
                         errorMessage = it.message ?: "Could not load more books",
@@ -247,6 +251,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
                         downloadProgressBytes = 0L,
                         downloadProgressTotal = -1L,
                         deviceBookFilenames = _state.value.deviceBookFilenames + filename.normalizedFilename(),
+                        deviceBookTitleKeys = _state.value.deviceBookTitleKeys + book.title.normalizedTitleKey(),
                         canceledBookIds = _state.value.canceledBookIds - book.id,
                         lastSentTitle = book.title,
                     )
@@ -310,7 +315,11 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun isPresentOnDevice(book: GutenbergBook): Boolean {
         val state = _state.value
-        return filenameFor(book).normalizedFilename() in state.deviceBookFilenames &&
+        return (filenameFor(book).normalizedFilename() in state.deviceBookFilenames ||
+            book.gutenbergId()?.let { id ->
+                SEED_GUTENBERG_FILES[id]?.normalizedFilename() in state.deviceBookFilenames
+            } == true ||
+            book.title.normalizedTitleKey() in state.deviceBookTitleKeys) &&
             book.id !in state.canceledBookIds
     }
 
@@ -318,9 +327,12 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
         when (val result = watch.fetchLibrary()) {
             is WatchRepository.Result.Ok -> {
                 _state.value = _state.value.copy(
-                    deviceBookFilenames = result.value.books
-                        .map { it.id.substringAfterLast('/').normalizedFilename() }
-                        .toSet(),
+                    deviceBookFilenames = result.value.books.mapTo(mutableSetOf()) {
+                        it.id.substringAfterLast('/').normalizedFilename()
+                    },
+                    deviceBookTitleKeys = result.value.books.mapTo(mutableSetOf()) {
+                        it.title.normalizedTitleKey()
+                    },
                 )
             }
             else -> Unit
@@ -351,3 +363,19 @@ enum class GutenbergListTarget {
 }
 
 private fun String.normalizedFilename(): String = trim().lowercase()
+
+private fun String.normalizedTitleKey(): String =
+    lowercase().replace(Regex("[^a-z0-9]"), "")
+
+private fun GutenbergBook.gutenbergId(): String? =
+    Regex("/ebooks/(\\d+)").find(id)?.groupValues?.get(1)
+        ?: Regex("/ebooks/(\\d+)").find(downloadUrl)?.groupValues?.get(1)
+
+private val SEED_GUTENBERG_FILES = mapOf(
+    "35" to "The Time Machine.odt",
+    "43" to "The strange case of Dr. Jekyll and Mr. Hyde.docx",
+    "1342" to "Pride and Prejudice.txt",
+    "1661" to "The Adventures of Sherlock Holmes.html",
+    "1952" to "The Yellow Wallpaper.fb2",
+    "2701" to "Moby Dick; Or, The Whale.epub",
+)
