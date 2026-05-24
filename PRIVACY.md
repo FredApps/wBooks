@@ -8,6 +8,8 @@ wBooks and wBooks Utility are privacy-focused book reading apps for Wear OS and 
 
 wBooks does not sell personal data, does not show ads, and does not use advertising trackers. The app is designed so your books, reading positions, bookmarks, settings, folders, and reading statistics stay on your own devices unless you choose to transfer files between your phone, watch, and browser on your local network.
 
+wBooks does not collect the contents, titles, filenames, or metadata of user-added books.
+
 ## Data Stored on Your Devices
 
 wBooks may store the following data locally on your watch:
@@ -40,9 +42,9 @@ Use the web interface only on trusted networks. wBooks does not send the web int
 
 When you search or download books from Project Gutenberg, your device contacts Project Gutenberg directly to fetch catalog results and book files. Project Gutenberg may receive standard network information such as your IP address, user agent, request time, and requested URLs. Their handling of that information is governed by Project Gutenberg's own policies.
 
-## Optional Crash Reports
+## Crash Reports
 
-wBooks includes optional crash reporting through Sentry. Crash reporting is disabled unless you enable it in settings. If enabled, crash reports may include technical diagnostic information such as:
+wBooks includes crash reporting through Sentry. Crash reporting is enabled by default to help diagnose crashes during normal app use. You can disable it at any time in settings. If enabled, crash reports may include technical diagnostic information such as:
 
 - App version, device model, operating system version, and crash time.
 - Stack traces and error details.
@@ -54,6 +56,7 @@ Crash reports are used only to find and fix bugs. They are not used for advertis
 
 wBooks does not collect:
 
+- The contents, titles, filenames, or metadata of user-added books.
 - Account information.
 - Contacts, calendars, call logs, SMS, or precise location.
 - Payment information.
@@ -75,6 +78,10 @@ This policy may be updated as wBooks changes. Updates will be published in this 
 
 ## Contact
 
-For privacy questions, bug reports, or feature requests, open an issue at:
+For privacy questions, contact:
+
+FreddApps@outlook.com
+
+For bug reports or feature requests, open an issue at:
 
 https://github.com/FredApps/wBooks/issues
