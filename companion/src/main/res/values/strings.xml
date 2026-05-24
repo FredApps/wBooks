@@ -10,6 +10,7 @@
     <string name="cancel">Cancel</string>
     <string name="sending">Sending…</string>
     <string name="refresh">Refresh</string>
+    <string name="reconnect">Reconnect</string>
     <string name="new_folder">New folder</string>
     <string name="folder_name">Folder name</string>
     <string name="create">Create</string>

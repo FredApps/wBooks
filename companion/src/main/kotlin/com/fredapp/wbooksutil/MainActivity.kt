@@ -212,7 +212,10 @@ private fun CompanionScreen(
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             when {
                 state.loading && state.books.isEmpty() -> CenteredProgress()
-                state.noWatch -> CenteredText(stringResource(R.string.no_watch))
+                state.noWatch -> ReconnectPrompt(
+                    text = stringResource(R.string.no_watch),
+                    onReconnect = vm::refresh,
+                )
                 state.books.isEmpty() && state.folders.isEmpty() ->
                     CenteredText(stringResource(R.string.empty_library))
                 else -> BoundedBookList(
@@ -990,6 +993,24 @@ private fun CenteredText(text: String) {
         modifier = Modifier.fillMaxSize().padding(24.dp),
         contentAlignment = Alignment.Center,
     ) { Text(text) }
+}
+
+@Composable
+private fun ReconnectPrompt(text: String, onReconnect: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(text, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Button(onClick = onReconnect) {
+                Text(stringResource(R.string.reconnect))
+            }
+        }
+    }
 }
 
 /** MIME types that SAF should offer. Matches the parsers in `:app`, plus
