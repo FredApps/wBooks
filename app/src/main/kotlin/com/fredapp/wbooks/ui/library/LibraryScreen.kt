@@ -384,10 +384,9 @@ fun LibraryScreen(
 @Composable
 private fun LibraryStorageFooter(info: LibraryStorageInfo?) {
     val used = info?.usedBytes?.let(::formatBytes) ?: "..."
-    val total = info?.totalBytes?.let(::formatBytes) ?: "..."
     val free = info?.freeBytes?.let(::formatBytes) ?: "..."
     Text(
-        text = "Library: $used / $total\nFree: $free",
+        text = "Library: $used\nFree: $free",
         color = Color.White.copy(alpha = 0.58f),
         style = MaterialTheme.typography.caption2,
         textAlign = TextAlign.Center,

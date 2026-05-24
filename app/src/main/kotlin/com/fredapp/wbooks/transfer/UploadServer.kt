@@ -185,7 +185,7 @@ class UploadServer(
               .upload-card{padding:18px;position:sticky;top:16px}
               .upload-card h2,.library h2,.settings h2{margin:0 0 12px}
               .upload-form{display:grid;gap:12px}
-              .storage-summary{margin-top:14px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:11px 12px;color:var(--muted);font-size:.94rem;line-height:1.4}
+              .storage-summary{margin:14px 0 14px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:11px 12px;color:var(--muted);font-size:.94rem;line-height:1.4}
               .file-picker{border:1px dashed var(--accent);border-radius:8px;background:#fff8ed;padding:14px}
               .file-picker input{width:100%}
               .library{display:grid;gap:12px}
@@ -1370,7 +1370,7 @@ class UploadServer(
 
     private fun renderStorageSummary(): String {
         val info = booksDir.storageSummary()
-        return """<div class="storage-summary"><strong>Library:</strong> ${htmlEscape(humanBytes(info.usedBytes))} / ${htmlEscape(humanBytes(info.totalBytes))}<br><strong>Free:</strong> ${htmlEscape(humanBytes(info.freeBytes))}</div>"""
+        return """<div class="storage-summary"><strong>Library:</strong> ${htmlEscape(humanBytes(info.usedBytes))}<br><strong>Free:</strong> ${htmlEscape(humanBytes(info.freeBytes))}</div>"""
     }
 
     private fun webFontCss(font: FontChoice): String = when (font) {
