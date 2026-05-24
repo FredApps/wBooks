@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
                     documentCache = app.documentCache,
                     paceRepo = app.readingPaceRepository,
                     statsRepo = app.readingStatsRepository,
+                    gutenbergDownloadsRepo = app.gutenbergDownloadsRepository,
                     appScope = app.appScope,
                 ),
             )

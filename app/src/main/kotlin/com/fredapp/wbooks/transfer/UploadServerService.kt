@@ -91,6 +91,7 @@ class UploadServerService : Service() {
                     app.readingPaceRepository.clear(bookId)
                     app.positionsRepository.clear(bookId)
                     app.bookmarksRepository.clear(bookId)
+                    app.gutenbergDownloadsRepository.clear(bookId)
                     app.documentCache.invalidate(bookId)
                 }
             },
@@ -100,6 +101,7 @@ class UploadServerService : Service() {
                     app.positionsRepository.moveBookId(fromBookId, toBookId)
                     app.bookmarksRepository.moveBookId(fromBookId, toBookId)
                     app.readingStatsRepository.moveBookId(fromBookId, toBookId)
+                    app.gutenbergDownloadsRepository.moveBookId(fromBookId, toBookId)
                     app.documentCache.moveBookId(fromBookId, toBookId)
                 }
             },
@@ -117,6 +119,7 @@ class UploadServerService : Service() {
                         app.positionsRepository.moveBookId(b.id, newId)
                         app.bookmarksRepository.moveBookId(b.id, newId)
                         app.readingStatsRepository.moveBookId(b.id, newId)
+                        app.gutenbergDownloadsRepository.moveBookId(b.id, newId)
                         app.documentCache.moveBookId(b.id, newId)
                     }
                 }

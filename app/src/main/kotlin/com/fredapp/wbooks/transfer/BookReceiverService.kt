@@ -238,6 +238,7 @@ class BookReceiverService : WearableListenerService() {
             app.readingPaceRepository.clear(id)
             app.positionsRepository.clear(id)
             app.bookmarksRepository.clear(id)
+            app.gutenbergDownloadsRepository.clear(id)
             app.documentCache.invalidate(id)
         } else {
             // id may be a folder name — delete it and all books inside recursively
@@ -248,6 +249,7 @@ class BookReceiverService : WearableListenerService() {
                     app.readingPaceRepository.clear(bookId)
                     app.positionsRepository.clear(bookId)
                     app.bookmarksRepository.clear(bookId)
+                    app.gutenbergDownloadsRepository.clear(bookId)
                     app.documentCache.invalidate(bookId)
                 }
                 dir.deleteRecursively()
@@ -276,6 +278,7 @@ class BookReceiverService : WearableListenerService() {
             app.positionsRepository.moveBookId(oldId, newId)
             app.bookmarksRepository.moveBookId(oldId, newId)
             app.readingStatsRepository.moveBookId(oldId, newId)
+            app.gutenbergDownloadsRepository.moveBookId(oldId, newId)
             app.documentCache.moveBookId(oldId, newId)
         }
     }
@@ -288,6 +291,7 @@ class BookReceiverService : WearableListenerService() {
         app.positionsRepository.moveBookId(id, newId)
         app.bookmarksRepository.moveBookId(id, newId)
         app.readingStatsRepository.moveBookId(id, newId)
+        app.gutenbergDownloadsRepository.moveBookId(id, newId)
         app.documentCache.moveBookId(id, newId)
     }
 

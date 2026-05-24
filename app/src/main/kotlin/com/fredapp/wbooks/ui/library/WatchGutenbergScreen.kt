@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -104,6 +105,7 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     var addedFilenames by remember { mutableStateOf(emptySet<String>()) }
     var addedTitleKeys by remember { mutableStateOf(emptySet<String>()) }
     var addedGutenbergKeys by remember { mutableStateOf(emptySet<String>()) }
+    val persistedGutenbergKeys by app.gutenbergDownloadsRepository.downloadedKeysFlow.collectAsState(emptySet())
     var message by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val listState = rememberScalingLazyListState()
@@ -230,7 +232,7 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     }
 
     fun isPresent(book: GutenbergBook): Boolean =
-        book.addedKeys().any { it in addedGutenbergKeys } ||
+        book.addedKeys().any { it in addedGutenbergKeys || it in persistedGutenbergKeys } ||
         filenameFor(book).normalizedFilename() in addedFilenames ||
             book.gutenbergId()?.let { id ->
                 SEED_GUTENBERG_FILES[id]?.normalizedFilename() in addedFilenames
@@ -292,8 +294,10 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                     app.libraryRepository.refresh()
                 }
                 destFile?.let {
+                    val bookId = it.relativeTo(app.booksDir).invariantSeparatorsPath
                     addedFilenames = addedFilenames + it.name.normalizedFilename()
                     addedTitleKeys = addedTitleKeys + it.nameWithoutExtension.normalizedTitleKey()
+                    app.gutenbergDownloadsRepository.markDownloaded(bookId, book.addedKeys())
                 }
                 addedGutenbergKeys = addedGutenbergKeys + book.addedKeys()
                 message = null

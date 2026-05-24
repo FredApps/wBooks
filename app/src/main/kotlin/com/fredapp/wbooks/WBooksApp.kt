@@ -2,6 +2,7 @@ package com.fredapp.wbooks
 
 import android.app.Application
 import com.fredapp.wbooks.data.bookmarks.BookmarksRepository
+import com.fredapp.wbooks.data.gutenberg.GutenbergDownloadsRepository
 import com.fredapp.wbooks.data.library.LibraryRepository
 import com.fredapp.wbooks.data.pace.ReadingPaceRepository
 import com.fredapp.wbooks.data.position.PositionsRepository
@@ -29,6 +30,7 @@ class WBooksApp : Application() {
     val bookmarksRepository: BookmarksRepository by lazy { BookmarksRepository(this) }
     val readingPaceRepository: ReadingPaceRepository by lazy { ReadingPaceRepository(this) }
     val readingStatsRepository: ReadingStatsRepository by lazy { ReadingStatsRepository(this) }
+    val gutenbergDownloadsRepository: GutenbergDownloadsRepository by lazy { GutenbergDownloadsRepository(this) }
     val transferController: TransferController by lazy { TransferController(this) }
     val documentCache: DocumentCache by lazy { DocumentCache(File(cacheDir, "parsed")) }
     val crashReportingPref: CrashReportingPref by lazy { CrashReportingPref(this) }

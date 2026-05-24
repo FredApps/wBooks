@@ -8,6 +8,7 @@ import com.fredapp.wbooks.data.book.Book
 import com.fredapp.wbooks.data.book.BookFormat
 import com.fredapp.wbooks.data.bookmarks.Bookmark
 import com.fredapp.wbooks.data.bookmarks.BookmarksRepository
+import com.fredapp.wbooks.data.gutenberg.GutenbergDownloadsRepository
 import com.fredapp.wbooks.data.library.LibraryRepository
 import com.fredapp.wbooks.data.pace.ReadingPaceRepository
 import com.fredapp.wbooks.data.position.BookPosition
@@ -82,6 +83,7 @@ class ReaderViewModel(
     private val documentCache: DocumentCache,
     private val paceRepo: ReadingPaceRepository,
     private val statsRepo: ReadingStatsRepository,
+    private val gutenbergDownloadsRepo: GutenbergDownloadsRepository,
     /** Application-level scope used for cache writes that must outlive this ViewModel. */
     private val appScope: CoroutineScope,
 ) : ViewModel() {
@@ -142,6 +144,7 @@ class ReaderViewModel(
                 paceRepo.clear(id)
                 positionsRepo.clear(id)
                 bookmarksRepo.clear(id)
+                gutenbergDownloadsRepo.clear(id)
                 documentCache.invalidate(id)
             }
         }
@@ -604,6 +607,7 @@ class ReaderViewModel(
                 paceRepo.clear(bookId)
                 positionsRepo.clear(bookId)
                 bookmarksRepo.clear(bookId)
+                gutenbergDownloadsRepo.clear(bookId)
                 documentCache.invalidate(bookId)
             }
         }
@@ -615,6 +619,7 @@ class ReaderViewModel(
         positionsRepo.moveBookId(oldId, newId)
         bookmarksRepo.moveBookId(oldId, newId)
         statsRepo.moveBookId(oldId, newId)
+        gutenbergDownloadsRepo.moveBookId(oldId, newId)
         documentCache.moveBookId(oldId, newId)
     }
 
@@ -872,6 +877,7 @@ class ReaderViewModel(
         private val documentCache: DocumentCache,
         private val paceRepo: ReadingPaceRepository,
         private val statsRepo: ReadingStatsRepository,
+        private val gutenbergDownloadsRepo: GutenbergDownloadsRepository,
         private val appScope: CoroutineScope,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -879,7 +885,7 @@ class ReaderViewModel(
             require(modelClass == ReaderViewModel::class.java)
             return ReaderViewModel(
                 settingsRepo, libraryRepo, positionsRepo, bookmarksRepo, transferController,
-                documentCache, paceRepo, statsRepo, appScope,
+                documentCache, paceRepo, statsRepo, gutenbergDownloadsRepo, appScope,
             ) as T
         }
     }
