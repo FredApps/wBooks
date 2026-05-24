@@ -234,7 +234,7 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                     app.libraryRepository.refresh()
                 }
                 destFile?.let { addedFilenames = addedFilenames + it.name.normalizedFilename() }
-                message = "Added ${book.title}"
+                message = null
                 onLibraryChanged()
             } catch (_: CancellationException) {
                 destFile?.delete()
@@ -373,16 +373,24 @@ private fun GutenbergSearchInput(
     val keyboard = LocalSoftwareKeyboardController.current
     val onSurface = MaterialTheme.colors.onSurface
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+        Chip(
+            icon = {
+                Icon(
+                    painter = painterResource(R.drawable.ic_search),
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+            },
+            label = { Text("Voice") },
+            onClick = onVoice,
+            colors = ChipDefaults.primaryChipColors(),
+            modifier = Modifier.fillMaxWidth(),
+        )
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_search),
-                contentDescription = null,
-                tint = onSurface,
-            )
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -392,7 +400,15 @@ private fun GutenbergSearchInput(
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
-                if (value.isBlank()) Text("Search Gutenberg", color = onSurface.copy(alpha = 0.5f))
+                if (value.isBlank()) {
+                    Text(
+                        "Search Gutenberg",
+                        color = onSurface.copy(alpha = 0.5f),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip,
+                    )
+                }
                 BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
@@ -407,22 +423,21 @@ private fun GutenbergSearchInput(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-            CompactChip(
-                label = { Text("Voice") },
-                onClick = onVoice,
-                colors = ChipDefaults.primaryChipColors(),
-                modifier = Modifier.weight(1f),
-            )
-            CompactChip(
+            Chip(
+                icon = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_search),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
                 label = { Text("Go") },
                 onClick = {
                     keyboard?.hide()
                     onSubmit()
                 },
                 colors = ChipDefaults.secondaryChipColors(),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(0.62f),
             )
         }
     }
