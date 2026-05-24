@@ -309,7 +309,7 @@ private fun wordIndexFor(words: List<WordItem>, target: BookPosition): Int {
             else -> p.subIndex >= target.subIndex
         }
     }
-    return if (i >= 0) i else 0
+    return if (i >= 0) i else words.lastIndex
 }
 
 private fun bookPercent(index: Int, totalWords: Int): Int {

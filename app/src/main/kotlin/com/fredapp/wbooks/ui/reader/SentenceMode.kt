@@ -367,5 +367,5 @@ private fun sentenceIndexFor(sentences: List<SentenceItem>, target: BookPosition
             else -> p.subIndex >= target.subIndex
         }
     }
-    return if (i >= 0) i else 0
+    return if (i >= 0) i else sentences.lastIndex
 }

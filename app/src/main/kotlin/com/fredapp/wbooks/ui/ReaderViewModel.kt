@@ -375,6 +375,7 @@ class ReaderViewModel(
         val ci = position.chapterIndex.coerceIn(0, doc.chapters.lastIndex)
         val bi = position.blockIndex.coerceAtLeast(0)
         val chapter = doc.chapters.getOrNull(ci) ?: return null
+        if (chapter.blocks.isEmpty()) return null
         val chapterRow = metrics.wordsBeforeBlock[ci]
         val safeBi = bi.coerceIn(0, chapter.blocks.size - 1)
         val wordsConsumedInChapter = chapterRow[safeBi]

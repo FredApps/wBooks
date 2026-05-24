@@ -171,9 +171,15 @@ class BookReceiverService : WearableListenerService() {
         if (!channel.path.startsWith(WearProtocol.PATH_UPLOAD_PREFIX)) return
         val uploadMeta = parseUploadPath(channel.path)
         val filename = URLDecoder.decode(uploadMeta.encodedFilename, "UTF-8")
-        if (filename.isBlank()) return
+        if (filename.isBlank()) {
+            closeChannel(channel)
+            return
+        }
         val ext = filename.substringAfterLast('.', "")
-        if (BookFormat.fromExtension(ext) == null) return
+        if (BookFormat.fromExtension(ext) == null) {
+            closeChannel(channel)
+            return
+        }
         val safe = filename.replace(Regex("[\\\\/:*?\"<>|]"), "_")
 
         val app = application as WBooksApp
@@ -198,10 +204,20 @@ class BookReceiverService : WearableListenerService() {
                         }
                     }
                 }
-            }.onFailure { dest.delete() }.isSuccess
+            }.onFailure { dest.delete() }
+                .also { runCatching { client.close(channel).await() } }
+                .isSuccess
             if (ok) {
                 notifyReceived(dest.name)
                 app.libraryRepository.refresh()
+            }
+        }
+    }
+
+    private fun closeChannel(channel: ChannelClient.Channel) {
+        scope.launch {
+            runCatching {
+                Wearable.getChannelClient(this@BookReceiverService).close(channel).await()
             }
         }
     }
@@ -238,6 +254,7 @@ class BookReceiverService : WearableListenerService() {
 
     private suspend fun renameFolder(oldName: String, newName: String) {
         val app = application as WBooksApp
+        app.libraryRepository.refresh()
         val booksBefore = app.libraryRepository.books.value
             .filter { it.id.substringBeforeLast('/', "") == oldName }
             .map { it.id }
