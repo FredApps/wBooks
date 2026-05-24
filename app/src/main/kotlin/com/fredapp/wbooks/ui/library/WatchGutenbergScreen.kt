@@ -1,6 +1,10 @@
 package com.fredapp.wbooks.ui.library
 
+import android.content.Intent
+import android.speech.RecognizerIntent
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -31,6 +36,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -45,12 +51,15 @@ import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.foundation.rotary.rotaryScrollable
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
+import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.CompactChip
+import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.ListHeader
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
+import com.fredapp.wbooks.R
 import com.fredapp.wbooks.WBooksApp
 import com.fredapp.wbooks.data.book.BookFormat
 import com.fredapp.wbooks.data.gutenberg.GutenbergBook
@@ -60,7 +69,9 @@ import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.focus.pageRotaryScrollOwner
 import com.fredapp.wbooks.ui.layout.watchListPadding
 import com.fredapp.wbooks.util.uniqueFile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -72,7 +83,7 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     val scope = rememberCoroutineScope()
     val repo = remember { GutenbergRepository() }
     var query by remember { mutableStateOf("") }
-    var searchOpen by remember { mutableStateOf(false) }
+    var searchText by remember { mutableStateOf("") }
     var section by remember { mutableStateOf(GutenbergHomeSection.POPULAR) }
     var popular by remember { mutableStateOf(emptyList<GutenbergBook>()) }
     var recent by remember { mutableStateOf(emptyList<GutenbergBook>()) }
@@ -82,11 +93,24 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     var searchHasMore by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var addingId by remember { mutableStateOf<String?>(null) }
+    var addingTitle by remember { mutableStateOf<String?>(null) }
+    var downloadProgressBytes by remember { mutableStateOf(0L) }
+    var downloadProgressTotal by remember { mutableStateOf(-1L) }
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
+    var addedFilenames by remember { mutableStateOf(emptySet<String>()) }
     var message by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val listState = rememberScalingLazyListState()
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
+
+    fun refreshAddedFilenames() {
+        addedFilenames = app.booksDir
+            .listFiles()
+            ?.filter { it.isFile }
+            ?.mapTo(mutableSetOf()) { it.name.normalizedFilename() }
+            ?: emptySet()
+    }
 
     fun loadHome() {
         scope.launch {
@@ -106,7 +130,7 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
 
     fun submitSearch(text: String) {
         query = text.trim()
-        searchOpen = false
+        searchText = query
         if (query.isBlank()) {
             results = emptyList()
             searchHasMore = false
@@ -123,6 +147,15 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                 .onFailure { error = it.message ?: "Search failed" }
             loading = false
         }
+    }
+
+    val searchLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val text = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+        if (!text.isNullOrBlank()) submitSearch(text)
     }
 
     fun loadMore(target: GutenbergTarget) {
@@ -160,39 +193,76 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
         }
     }
 
+    fun isPresent(book: GutenbergBook): Boolean =
+        filenameFor(book).normalizedFilename() in addedFilenames
+
     fun addBook(book: GutenbergBook) {
-        scope.launch {
+        if (downloadJob?.isActive == true || isPresent(book)) return
+        downloadJob = scope.launch {
             addingId = book.id
+            addingTitle = book.title
+            downloadProgressBytes = 0L
+            downloadProgressTotal = book.sizeBytes ?: -1L
             message = null
             error = null
-            runCatching {
+            var destFile: File? = null
+            try {
                 withContext(Dispatchers.IO) {
-                    repo.withDownload(book) { input, _ ->
+                    repo.withDownload(book) { input, totalBytes ->
+                        withContext(Dispatchers.Main) {
+                            downloadProgressTotal = totalBytes.takeIf { it > 0L } ?: book.sizeBytes ?: -1L
+                        }
                         val safeName = filenameFor(book).replace(Regex("[\\\\/:*?\"<>|]"), "_")
                         val dest = uniqueFile(app.booksDir, safeName)
-                        input.use { source -> dest.outputStream().use { source.copyTo(it) } }
+                        destFile = dest
+                        input.use { source ->
+                            dest.outputStream().use { output ->
+                                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                                var copied = 0L
+                                while (true) {
+                                    val read = source.read(buffer)
+                                    if (read < 0) break
+                                    output.write(buffer, 0, read)
+                                    copied += read
+                                    withContext(Dispatchers.Main) {
+                                        downloadProgressBytes = copied
+                                    }
+                                }
+                            }
+                        }
                     }
                     app.libraryRepository.refresh()
                 }
-            }.onSuccess {
+                destFile?.let { addedFilenames = addedFilenames + it.name.normalizedFilename() }
                 message = "Added ${book.title}"
                 onLibraryChanged()
-            }.onFailure { error = it.message ?: "Add failed" }
-            addingId = null
+            } catch (_: CancellationException) {
+                destFile?.delete()
+                message = "Add canceled"
+            } catch (t: Throwable) {
+                destFile?.delete()
+                error = t.message ?: "Add failed"
+            } finally {
+                addingId = null
+                addingTitle = null
+                downloadProgressBytes = 0L
+                downloadProgressTotal = -1L
+                downloadJob = null
+                refreshAddedFilenames()
+            }
         }
     }
 
     BackHandler {
-        if (searchOpen) searchOpen = false else onBack()
+        onBack()
     }
-    ClaimRotaryFocusOnActive(!searchOpen, focusRequester, query, popular.size, recent.size, results.size)
-    LaunchedEffect(Unit) { loadHome() }
+    ClaimRotaryFocusOnActive(true, focusRequester, query, searchText, popular.size, recent.size, results.size)
+    LaunchedEffect(Unit) {
+        refreshAddedFilenames()
+        loadHome()
+    }
 
     Scaffold(timeText = { TimeText() }) {
-        if (searchOpen) {
-            GutenbergSearchPanel(initial = query, onSubmit = ::submitSearch, onCancel = { searchOpen = false })
-            return@Scaffold
-        }
         val showingSearch = query.isNotBlank()
         val books = if (showingSearch) results else if (section == GutenbergHomeSection.POPULAR) popular else recent
         val hasMore = if (showingSearch) searchHasMore else if (section == GutenbergHomeSection.POPULAR) popularHasMore else recentHasMore
@@ -211,11 +281,14 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
         ) {
             item(key = "back") { BackChipRow(onClick = onBack) }
             item(key = "search") {
-                Chip(
-                    label = { Text("Search Gutenberg") },
-                    onClick = { searchOpen = true },
-                    colors = ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.fillMaxWidth(),
+                GutenbergSearchInput(
+                    value = searchText,
+                    onValueChange = { searchText = it },
+                    onSubmit = { submitSearch(searchText) },
+                    onVoice = {
+                        runCatching { searchLauncher.launch(buildSearchIntent()) }
+                            .onFailure { message = "Voice search unavailable" }
+                    },
                 )
             }
             if (showingSearch) {
@@ -225,6 +298,7 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                         label = { Text("Clear search") },
                         onClick = {
                             query = ""
+                            searchText = ""
                             results = emptyList()
                             searchHasMore = false
                         },
@@ -243,6 +317,16 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                     )
                 }
             }
+            if (addingId != null) {
+                item(key = "download_progress") {
+                    GutenbergDownloadStatus(
+                        title = addingTitle ?: "book",
+                        bytes = downloadProgressBytes,
+                        total = downloadProgressTotal,
+                        onCancel = { downloadJob?.cancel() },
+                    )
+                }
+            }
             message?.let { msg ->
                 item(key = "message") { Text(msg, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
             }
@@ -255,7 +339,14 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                 item(key = "empty") { Text("No books", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             } else {
                 items(books, key = { it.id.ifEmpty { it.downloadUrl } }) { book ->
-                    GutenbergBookChip(book = book, adding = addingId == book.id, onAdd = { addBook(book) })
+                    GutenbergBookChip(
+                        book = book,
+                        adding = addingId == book.id,
+                        added = isPresent(book),
+                        progressBytes = downloadProgressBytes,
+                        progressTotal = downloadProgressTotal,
+                        onAdd = { addBook(book) },
+                    )
                 }
             }
             item(key = "load_more") {
@@ -273,7 +364,105 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
 }
 
 @Composable
-private fun GutenbergBookChip(book: GutenbergBook, adding: Boolean, onAdd: () -> Unit) {
+private fun GutenbergSearchInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onVoice: () -> Unit,
+) {
+    val keyboard = LocalSoftwareKeyboardController.current
+    val onSurface = MaterialTheme.colors.onSurface
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_search),
+                contentDescription = null,
+                tint = onSurface,
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .border(1.dp, onSurface.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (value.isBlank()) Text("Search Gutenberg", color = onSurface.copy(alpha = 0.5f))
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = true,
+                    textStyle = TextStyle(color = onSurface, fontSize = 14.sp, textAlign = TextAlign.Start),
+                    cursorBrush = SolidColor(onSurface),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = {
+                        keyboard?.hide()
+                        onSubmit()
+                    }),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            CompactChip(
+                label = { Text("Voice") },
+                onClick = onVoice,
+                colors = ChipDefaults.primaryChipColors(),
+                modifier = Modifier.weight(1f),
+            )
+            CompactChip(
+                label = { Text("Go") },
+                onClick = {
+                    keyboard?.hide()
+                    onSubmit()
+                },
+                colors = ChipDefaults.secondaryChipColors(),
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun GutenbergDownloadStatus(title: String, bytes: Long, total: Long, onCancel: () -> Unit) {
+    val progress = if (total > 0L) (bytes.toFloat() / total).coerceIn(0f, 1f) else 0f
+    Chip(
+        icon = {
+            CircularProgressIndicator(
+                progress = progress,
+                modifier = Modifier.size(24.dp),
+            )
+        },
+        label = {
+            Text(
+                "Adding $title",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        secondaryLabel = {
+            Text(if (total > 0L) "${downloadProgressPercent(bytes, total)}%" else "Downloading...")
+        },
+        onClick = onCancel,
+        colors = ChipDefaults.secondaryChipColors(),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun GutenbergBookChip(
+    book: GutenbergBook,
+    adding: Boolean,
+    added: Boolean,
+    progressBytes: Long,
+    progressTotal: Long,
+    onAdd: () -> Unit,
+) {
     Chip(
         label = {
             Text(
@@ -285,69 +474,23 @@ private fun GutenbergBookChip(book: GutenbergBook, adding: Boolean, onAdd: () ->
         },
         secondaryLabel = {
             Text(
-                book.metaLines().joinToString("\n"),
+                book.metaLines(
+                    extra = when {
+                        added -> "Added"
+                        adding && progressTotal > 0L -> "${downloadProgressPercent(progressBytes, progressTotal)}%"
+                        adding -> "Adding..."
+                        else -> null
+                    },
+                ).joinToString("\n"),
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
         },
         onClick = onAdd,
-        enabled = !adding,
+        enabled = !adding && !added,
         colors = ChipDefaults.secondaryChipColors(),
         modifier = Modifier.fillMaxWidth(),
     )
-}
-
-@OptIn(ExperimentalComposeUiApi::class)
-@Composable
-private fun GutenbergSearchPanel(initial: String, onSubmit: (String) -> Unit, onCancel: () -> Unit) {
-    var text by remember { mutableStateOf(initial) }
-    val keyboard = LocalSoftwareKeyboardController.current
-    val onSurface = MaterialTheme.colors.onSurface
-    Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("Search Gutenberg")
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(38.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .border(1.dp, onSurface.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
-                .padding(horizontal = 12.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            if (text.isBlank()) Text("Title or author", color = onSurface.copy(alpha = 0.5f))
-            BasicTextField(
-                value = text,
-                onValueChange = { text = it },
-                singleLine = true,
-                textStyle = TextStyle(color = onSurface, fontSize = 14.sp, textAlign = TextAlign.Start),
-                cursorBrush = SolidColor(onSurface),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = {
-                    keyboard?.hide()
-                    onSubmit(text)
-                }),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-            Chip(
-                label = { Text("Go") },
-                onClick = { onSubmit(text) },
-                colors = ChipDefaults.primaryChipColors(),
-                modifier = Modifier.weight(1f),
-            )
-            Chip(
-                label = { Text("Cancel") },
-                onClick = onCancel,
-                colors = ChipDefaults.secondaryChipColors(),
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
 }
 
 private enum class GutenbergHomeSection(val label: String) {
@@ -360,10 +503,11 @@ private enum class GutenbergTarget { POPULAR, RECENT, SEARCH }
 private fun mergeBooks(current: List<GutenbergBook>, page: GutenbergPage): List<GutenbergBook> =
     (current + page.books).distinctBy { it.id.ifEmpty { it.downloadUrl } }.take(MAX_LIST_ITEMS)
 
-private fun GutenbergBook.metaLines(): List<String> = buildList {
+private fun GutenbergBook.metaLines(extra: String? = null): List<String> = buildList {
     author?.takeIf { it.isNotBlank() }?.let(::add)
     releaseDate?.takeIf { it.isNotBlank() }?.let { add("Released $it") }
     add("${extension.uppercase()} - ${sizeBytes?.let(::formatBytes) ?: "Size unknown"}")
+    extra?.let(::add)
 }
 
 private fun filenameFor(book: GutenbergBook): String {
@@ -383,6 +527,18 @@ private fun formatBytes(bytes: Long): String {
         bytes >= kib -> "%d KB".format((bytes + 1023L) / 1024L)
         else -> "$bytes B"
     }
+}
+
+private fun downloadProgressPercent(bytes: Long, total: Long): Int {
+    if (total <= 0L) return 0
+    return ((bytes * 100L) / total).coerceIn(0L, 100L).toInt()
+}
+
+private fun String.normalizedFilename(): String = trim().lowercase()
+
+private fun buildSearchIntent(): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+    putExtra(RecognizerIntent.EXTRA_PROMPT, "Search Gutenberg")
 }
 
 private const val MAX_LIST_ITEMS = 150
