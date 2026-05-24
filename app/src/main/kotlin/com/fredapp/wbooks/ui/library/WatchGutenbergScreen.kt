@@ -1,6 +1,7 @@
 package com.fredapp.wbooks.ui.library
 
 import android.content.Intent
+import android.os.SystemClock
 import android.speech.RecognizerIntent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -257,14 +258,27 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                             dest.outputStream().use { output ->
                                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                                 var copied = 0L
+                                var lastProgressBytes = 0L
+                                var lastProgressMs = SystemClock.elapsedRealtime()
                                 while (true) {
                                     val read = source.read(buffer)
                                     if (read < 0) break
                                     output.write(buffer, 0, read)
                                     copied += read
-                                    withContext(Dispatchers.Main) {
-                                        downloadProgressBytes = copied
+                                    val now = SystemClock.elapsedRealtime()
+                                    if (
+                                        copied - lastProgressBytes >= DOWNLOAD_PROGRESS_STEP_BYTES ||
+                                        now - lastProgressMs >= DOWNLOAD_PROGRESS_STEP_MS
+                                    ) {
+                                        lastProgressBytes = copied
+                                        lastProgressMs = now
+                                        withContext(Dispatchers.Main) {
+                                            downloadProgressBytes = copied
+                                        }
                                     }
+                                }
+                                withContext(Dispatchers.Main) {
+                                    downloadProgressBytes = copied
                                 }
                                 val expectedBytes = totalBytes.takeIf { it > 0L } ?: book.sizeBytes
                                 if (expectedBytes != null && copied < expectedBytes) {
@@ -534,7 +548,18 @@ private fun GutenbergBookChip(
     progressTotal: Long,
     onAdd: () -> Unit,
 ) {
+    val progress = if (progressTotal > 0L) (progressBytes.toFloat() / progressTotal).coerceIn(0f, 1f) else 0f
     Chip(
+        icon = if (adding) {
+            {
+                CircularProgressIndicator(
+                    progress = progress,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        } else {
+            null
+        },
         label = {
             Text(
                 book.title,
@@ -613,3 +638,5 @@ private fun buildSearchIntent(): Intent = Intent(RecognizerIntent.ACTION_RECOGNI
 }
 
 private const val MAX_LIST_ITEMS = 150
+private const val DOWNLOAD_PROGRESS_STEP_BYTES = 256L * 1024L
+private const val DOWNLOAD_PROGRESS_STEP_MS = 250L
