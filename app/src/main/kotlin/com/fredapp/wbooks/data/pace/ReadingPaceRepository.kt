@@ -57,19 +57,26 @@ class ReadingPaceRepository(context: Context) {
     }
 
     suspend fun recordAdvance(bookId: String, deltaMs: Long) {
+        recordAdvances(bookId, deltaMs, 1)
+    }
+
+    suspend fun recordAdvances(bookId: String, deltaMs: Long, count: Int) {
         if (deltaMs !in MIN_DELTA_MS..MAX_DELTA_MS) return
+        val safeCount = count.coerceIn(1, MAX_ADVANCES_PER_REPORT)
         val key = stringPreferencesKey("pace:$bookId")
         store.edit { prefs ->
             val prior = prefs[key]?.let(::decode)
-            val next = if (prior == null) {
-                Pace(deltaMs.toDouble(), 1)
-            } else {
-                Pace(
-                    msPerBlock = ALPHA * deltaMs + (1.0 - ALPHA) * prior.msPerBlock,
-                    sampleCount = (prior.sampleCount + 1).coerceAtMost(MAX_SAMPLE_COUNT),
-                )
+            var msPerBlock = prior?.msPerBlock ?: deltaMs.toDouble()
+            var sampleCount = prior?.sampleCount ?: 0
+            repeat(safeCount) {
+                msPerBlock = if (sampleCount == 0) {
+                    deltaMs.toDouble()
+                } else {
+                    ALPHA * deltaMs + (1.0 - ALPHA) * msPerBlock
+                }
+                sampleCount = (sampleCount + 1).coerceAtMost(MAX_SAMPLE_COUNT)
             }
-            prefs[key] = encode(next)
+            prefs[key] = encode(Pace(msPerBlock, sampleCount))
         }
     }
 
@@ -106,5 +113,12 @@ class ReadingPaceRepository(context: Context) {
 
         /** Cap the count so the EMA's "weight" stays bounded in the UI. */
         const val MAX_SAMPLE_COUNT = 10_000
+
+        /**
+         * One renderer report can cover many blocks during a continuous swipe.
+         * Cap it high enough for a deliberate scroll, low enough that accidental
+         * same-chapter teleports don't instantly make the ETA look established.
+         */
+        const val MAX_ADVANCES_PER_REPORT = 60
     }
 }

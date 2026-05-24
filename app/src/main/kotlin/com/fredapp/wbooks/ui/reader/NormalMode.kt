@@ -35,6 +35,7 @@ import com.fredapp.wbooks.ui.layout.watchReaderPadding
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -97,9 +98,17 @@ fun NormalMode(
 
     // ---- Save position as the user scrolls. drop(1) skips the initial restore. ----
     LaunchedEffect(document) {
-        snapshotFlow { listState.firstVisibleItemIndex }
+        val visiblePositions = snapshotFlow { listState.firstVisibleItemIndex }
             .drop(1)
             .distinctUntilChanged()
+
+        launch {
+            visiblePositions
+                .sample(1_000)
+                .collect { flat -> vm.reportPosition(document.positionAt(flat)) }
+        }
+
+        visiblePositions
             .debounce(500)
             .collect { flat -> vm.reportPosition(document.positionAt(flat)) }
     }

@@ -302,7 +302,7 @@ class ReaderViewModel(
             val advancedBlocks = naturalAdvanceBlocks(prior, position)
             if (advancedBlocks > 0) {
                 val deltaPerBlock = (now - lastAdvanceMs) / advancedBlocks
-                viewModelScope.launch { paceRepo.recordAdvance(bookId, deltaPerBlock) }
+                viewModelScope.launch { paceRepo.recordAdvances(bookId, deltaPerBlock, advancedBlocks) }
             }
         }
         lastAdvancePosition = position
@@ -311,8 +311,8 @@ class ReaderViewModel(
 
     /**
      * Stays in the same chapter and moves forward by a plausible scroll/page
-     * amount. Normal-mode swipes and taps can advance several blocks between
-     * debounced position reports, especially in books with short paragraphs.
+     * amount. Normal-mode swipes can advance dozens of short paragraphs between
+     * sampled position reports, especially in books like The Time Machine.
      */
     private fun naturalAdvanceBlocks(prev: BookPosition, next: BookPosition): Int {
         if (prev.chapterIndex != next.chapterIndex) return 0
@@ -798,7 +798,7 @@ class ReaderViewModel(
         const val SESSION_FLUSH_INTERVAL_MS = 60_000L
         const val MIN_TRUSTED_WPM = 50.0
         const val MAX_TRUSTED_WPM = 800.0
-        const val MAX_NATURAL_ADVANCE_BLOCKS = 12
+        const val MAX_NATURAL_ADVANCE_BLOCKS = 60
     }
 
     class Factory(
