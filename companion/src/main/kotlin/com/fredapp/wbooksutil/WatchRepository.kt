@@ -6,8 +6,11 @@ import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.Node
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.InputStream
 import java.net.URLEncoder
 
@@ -38,26 +41,26 @@ class WatchRepository(context: Context) {
     suspend fun fetchLibrary(): Result<LibrarySnapshot> = withContext(Dispatchers.IO) {
         val node = bestNode() ?: return@withContext Result.NoWatch
         runCatching {
-            val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_LIST, ByteArray(0)).await()
+            val bytes = sendRequest(node, WearProtocol.PATH_LIST, ByteArray(0))
             Result.Ok(LibraryListJson.decode(bytes))
-        }.getOrElse { Result.Error(it.message ?: "Failed to fetch library") }
+        }.getOrElse { it.toFetchResult("Failed to fetch library") }
     }
 
     suspend fun fetchStats(): Result<StatsSummary> = withContext(Dispatchers.IO) {
         val node = bestNode() ?: return@withContext Result.NoWatch
         runCatching {
-            val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_STATS, ByteArray(0)).await()
+            val bytes = sendRequest(node, WearProtocol.PATH_STATS, ByteArray(0))
             Result.Ok(StatsJson.decode(bytes))
-        }.getOrElse { Result.Error(it.message ?: "Failed to fetch stats") }
+        }.getOrElse { it.toFetchResult("Failed to fetch stats") }
     }
 
     suspend fun fetchSettings(): Result<SettingsSnapshot> = withContext(Dispatchers.IO) {
         val node = bestNode() ?: return@withContext Result.NoWatch
         runCatching {
-            val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_SETTINGS_GET, ByteArray(0)).await()
+            val bytes = sendRequest(node, WearProtocol.PATH_SETTINGS_GET, ByteArray(0))
             val snap = SettingsJson.decode(bytes) ?: return@runCatching Result.Error("Empty settings response")
             Result.Ok(snap)
-        }.getOrElse { Result.Error(it.message ?: "Failed to fetch settings") }
+        }.getOrElse { it.toFetchResult("Failed to fetch settings") }
     }
 
     /**
@@ -69,19 +72,19 @@ class WatchRepository(context: Context) {
         val node = bestNode() ?: return@withContext Result.NoWatch
         runCatching {
             val payload = SettingsJson.encodeSetRequest(key, value)
-            val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_SETTINGS_SET, payload).await()
+            val bytes = sendRequest(node, WearProtocol.PATH_SETTINGS_SET, payload)
             val snap = SettingsJson.decode(bytes) ?: return@runCatching Result.Error("Empty settings response")
             Result.Ok(snap)
-        }.getOrElse { Result.Error(it.message ?: "Failed to update setting") }
+        }.getOrElse { it.toActionError("Failed to update setting") }
     }
 
     suspend fun deleteBook(id: String): Result<LibrarySnapshot> = withContext(Dispatchers.IO) {
         val node = bestNode() ?: return@withContext Result.NoWatch
         runCatching {
             val payload = org.json.JSONObject().put("id", id).toString().toByteArray(Charsets.UTF_8)
-            val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_DELETE, payload).await()
+            val bytes = sendRequest(node, WearProtocol.PATH_DELETE, payload)
             Result.Ok(LibraryListJson.decode(bytes))
-        }.getOrElse { Result.Error(it.message ?: "Delete failed") }
+        }.getOrElse { it.toActionError("Delete failed") }
     }
 
     suspend fun uploadBook(
@@ -170,9 +173,9 @@ class WatchRepository(context: Context) {
         val node = bestNode() ?: return@withContext Result.NoWatch
         runCatching {
             val payload = """{"name":${jsonString(name)}}""".toByteArray(Charsets.UTF_8)
-            val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_MKDIR, payload).await()
+            val bytes = sendRequest(node, WearProtocol.PATH_MKDIR, payload)
             Result.Ok(LibraryListJson.decode(bytes))
-        }.getOrElse { Result.Error(it.message ?: "mkdir failed") }
+        }.getOrElse { it.toActionError("mkdir failed") }
     }
 
     suspend fun renameFolder(oldName: String, newName: String): Result<LibrarySnapshot> = withContext(Dispatchers.IO) {
@@ -180,9 +183,9 @@ class WatchRepository(context: Context) {
         runCatching {
             val payload = """{"from":${jsonString(oldName)},"to":${jsonString(newName)}}"""
                 .toByteArray(Charsets.UTF_8)
-            val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_RENAME, payload).await()
+            val bytes = sendRequest(node, WearProtocol.PATH_RENAME, payload)
             Result.Ok(LibraryListJson.decode(bytes))
-        }.getOrElse { Result.Error(it.message ?: "rename failed") }
+        }.getOrElse { it.toActionError("rename failed") }
     }
 
     suspend fun moveBook(bookId: String, targetFolder: String): Result<LibrarySnapshot> =
@@ -191,9 +194,9 @@ class WatchRepository(context: Context) {
             runCatching {
                 val payload = """{"id":${jsonString(bookId)},"folder":${jsonString(targetFolder)}}"""
                     .toByteArray(Charsets.UTF_8)
-                val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_MOVE, payload).await()
+                val bytes = sendRequest(node, WearProtocol.PATH_MOVE, payload)
                 Result.Ok(LibraryListJson.decode(bytes))
-            }.getOrElse { Result.Error(it.message ?: "move failed") }
+            }.getOrElse { it.toActionError("move failed") }
         }
 
     suspend fun reorderBooks(folder: String, orderedIds: List<String>): Result<LibrarySnapshot> =
@@ -203,9 +206,9 @@ class WatchRepository(context: Context) {
                 val order = orderedIds.joinToString(",", prefix = "[", postfix = "]") { jsonString(it) }
                 val payload = """{"folder":${jsonString(folder)},"order":$order}"""
                     .toByteArray(Charsets.UTF_8)
-                val bytes = messageClient.sendRequest(node.id, WearProtocol.PATH_REORDER, payload).await()
+                val bytes = sendRequest(node, WearProtocol.PATH_REORDER, payload)
                 Result.Ok(LibraryListJson.decode(bytes))
-            }.getOrElse { Result.Error(it.message ?: "reorder failed") }
+            }.getOrElse { it.toActionError("reorder failed") }
         }
 
     suspend fun hasReachableWatch(): Boolean = withContext(Dispatchers.IO) {
@@ -214,19 +217,35 @@ class WatchRepository(context: Context) {
 
     /** Find a connected node that has the wBooks watch app installed. */
     private suspend fun bestNode(): Node? {
-        val info = runCatching {
-            capabilityClient
-                .getCapability(WBOOKS_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
-                .await()
-        }.getOrNull()
+        val info = withTimeoutOrNull(NODE_LOOKUP_TIMEOUT_MS) {
+            runCatching {
+                capabilityClient
+                    .getCapability(WBOOKS_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
+                    .await()
+            }.getOrNull()
+        }
         val capabilityNode = info
             ?.nodes
             ?.let { nodes -> nodes.firstOrNull { it.isNearby } ?: nodes.firstOrNull() }
         if (capabilityNode != null) return capabilityNode
 
-        val connectedNodes = runCatching { nodeClient.connectedNodes.await() }.getOrNull().orEmpty()
+        val connectedNodes = withTimeoutOrNull(NODE_LOOKUP_TIMEOUT_MS) {
+            runCatching { nodeClient.connectedNodes.await() }.getOrNull().orEmpty()
+        }.orEmpty()
         return connectedNodes.firstOrNull { it.isNearby } ?: connectedNodes.firstOrNull()
     }
+
+    private suspend fun sendRequest(node: Node, path: String, payload: ByteArray): ByteArray =
+        withTimeout(REQUEST_TIMEOUT_MS) {
+            messageClient.sendRequest(node.id, path, payload).await()
+        }
+
+    private fun <T> Throwable.toFetchResult(fallback: String): Result<T> =
+        if (this is TimeoutCancellationException) Result.NoWatch
+        else Result.Error(message ?: fallback)
+
+    private fun <T> Throwable.toActionError(fallback: String): Result<T> =
+        Result.Error(if (this is TimeoutCancellationException) "Watch did not respond." else message ?: fallback)
 
     companion object {
         /** Must match the capability the watch app advertises in res/values/wear.xml. */
@@ -260,5 +279,7 @@ class WatchRepository(context: Context) {
             "docx",
             "odt",
         )
+        private const val NODE_LOOKUP_TIMEOUT_MS = 5_000L
+        private const val REQUEST_TIMEOUT_MS = 12_000L
     }
 }
