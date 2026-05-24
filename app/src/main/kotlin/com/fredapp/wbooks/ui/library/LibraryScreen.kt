@@ -836,7 +836,7 @@ private fun BookChip(book: Book, onClick: () -> Unit, onLongPress: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            book.format.name,
+            "${book.format.name} - ${formatBytes(book.file.length())}",
             style = MaterialTheme.typography.caption2,
             color = MaterialTheme.colors.onSurface.copy(alpha = 0.65f),
             maxLines = 1,

@@ -7,7 +7,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Parses the bundled time-machine.odt seed and checks the core promises
+ * Parses the bundled The Time Machine.odt seed and checks the core promises
  * the [OdtParser] is supposed to keep: title + author from meta.xml, a
  * non-trivial Heading-1-split chapter count, and prose blocks in those
  * chapters. Mirrors [DocxParserTest] â€” one golden file catches the
@@ -15,7 +15,7 @@ import java.io.File
  */
 class OdtParserTest {
 
-    private val seed = File("src/main/assets/seed-books/time-machine.odt")
+    private val seed = File("src/main/assets/seed-books/The Time Machine.odt")
 
     @Test
     fun parses_title_and_author_from_meta() {

@@ -7,7 +7,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Parses the bundled jekyll-and-hyde.docx seed and checks the core promises
+ * Parses the bundled The strange case of Dr. Jekyll and Mr. Hyde.docx seed and checks the core promises
  * the [DocxParser] is supposed to keep: title + author from docProps/core.xml,
  * a non-trivial Heading-1-split chapter count, and prose blocks in those
  * chapters. If pandoc's output ever drifts these need updating, but a single
@@ -15,7 +15,7 @@ import java.io.File
  */
 class DocxParserTest {
 
-    private val seed = File("src/main/assets/seed-books/jekyll-and-hyde.docx")
+    private val seed = File("src/main/assets/seed-books/The strange case of Dr. Jekyll and Mr. Hyde.docx")
 
     @Test
     fun parses_title_and_author_from_core_props() {

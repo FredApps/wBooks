@@ -6,10 +6,10 @@ data class AboutSection(
 )
 
 val WATCH_SEED_BOOKS: List<String> = listOf(
-    "Moby Dick",
+    "Moby Dick; Or, The Whale",
     "Pride and Prejudice",
     "The Adventures of Sherlock Holmes",
-    "The Strange Case of Dr Jekyll and Mr Hyde",
+    "The strange case of Dr. Jekyll and Mr. Hyde",
     "The Time Machine",
     "The Yellow Wallpaper",
 )
@@ -39,4 +39,3 @@ val WATCH_ABOUT_SECTIONS: List<AboutSection> = listOf(
         ),
     ),
 )
-

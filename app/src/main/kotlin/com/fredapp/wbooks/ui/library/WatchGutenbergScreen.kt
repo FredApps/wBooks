@@ -448,12 +448,12 @@ private fun GutenbergSearchInput(
 }
 
 private val SEED_GUTENBERG_FILES = mapOf(
-    "35" to "time-machine.odt",
-    "43" to "jekyll-and-hyde.docx",
-    "1342" to "pride-and-prejudice.txt",
-    "1661" to "sherlock-holmes.html",
-    "1952" to "yellow-wallpaper.fb2",
-    "2701" to "moby-dick.epub",
+    "35" to "The Time Machine.odt",
+    "43" to "The strange case of Dr. Jekyll and Mr. Hyde.docx",
+    "1342" to "Pride and Prejudice.txt",
+    "1661" to "The Adventures of Sherlock Holmes.html",
+    "1952" to "The Yellow Wallpaper.fb2",
+    "2701" to "Moby Dick; Or, The Whale.epub",
 )
 
 private fun GutenbergBook.gutenbergId(): String? =
