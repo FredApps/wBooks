@@ -103,6 +103,7 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     var loadMoreJob by remember { mutableStateOf<Job?>(null) }
     var addedFilenames by remember { mutableStateOf(emptySet<String>()) }
     var addedTitleKeys by remember { mutableStateOf(emptySet<String>()) }
+    var addedGutenbergKeys by remember { mutableStateOf(emptySet<String>()) }
     var message by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val listState = rememberScalingLazyListState()
@@ -229,6 +230,7 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     }
 
     fun isPresent(book: GutenbergBook): Boolean =
+        book.addedKeys().any { it in addedGutenbergKeys } ||
         filenameFor(book).normalizedFilename() in addedFilenames ||
             book.gutenbergId()?.let { id ->
                 SEED_GUTENBERG_FILES[id]?.normalizedFilename() in addedFilenames
@@ -293,6 +295,7 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                     addedFilenames = addedFilenames + it.name.normalizedFilename()
                     addedTitleKeys = addedTitleKeys + it.nameWithoutExtension.normalizedTitleKey()
                 }
+                addedGutenbergKeys = addedGutenbergKeys + book.addedKeys()
                 message = null
                 onLibraryChanged()
             } catch (_: CancellationException) {
@@ -509,6 +512,13 @@ private val SEED_GUTENBERG_FILES = mapOf(
 private fun GutenbergBook.gutenbergId(): String? =
     Regex("/ebooks/(\\d+)").find(id)?.groupValues?.get(1)
         ?: Regex("/ebooks/(\\d+)").find(downloadUrl)?.groupValues?.get(1)
+
+private fun GutenbergBook.addedKeys(): Set<String> =
+    buildSet {
+        id.takeIf { it.isNotBlank() }?.let(::add)
+        downloadUrl.takeIf { it.isNotBlank() }?.let(::add)
+        gutenbergId()?.let { add("gutenberg:$it") }
+    }
 
 private fun String.normalizedTitleKey(): String =
     lowercase().replace(Regex("[^a-z0-9]"), "")
