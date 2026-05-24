@@ -352,6 +352,10 @@ PDF support is **experimental** as of v0.5.0. PDFs are converted to HTML on-the-
 
 If you enjoy wBooks, consider supporting development via GitHub Sponsors or Ko-fi.
 
+## Privacy
+
+See [PRIVACY.md](PRIVACY.md) for how wBooks handles local book data, reading statistics, the local web interface, Project Gutenberg downloads, and optional crash reports.
+
 ## Contributing
 
 wBooks is open to contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting issues, code style, testing, and submitting pull requests.
