@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,44 +52,19 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
         snackbarHost = { GutenbergSnackbarHost(state, snackbarState, onCancelDownload = vm::cancelDownload) },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            SearchBar(
-                value = state.query,
-                onValueChange = vm::onQueryChange,
-                onSubmit = vm::submitSearch,
-            )
             when {
-                state.loading && state.visibleBooks.isEmpty() -> CenteredProgress()
-                state.showingSearch && state.searchResults.isEmpty() -> CenteredText("No results.")
-                state.showingSearch -> ResultsList(
-                    results = state.searchResults,
-                    downloadingId = state.downloadingId,
-                    loadingMore = state.loadingMore,
-                    hasMore = state.searchHasMore,
-                    onLoadMore = { vm.loadMore(GutenbergListTarget.SEARCH) },
-                    isPresentOnDevice = vm::isPresentOnDevice,
-                    onAdd = vm::sendToWatch,
+                state.noWatch -> WatchReconnectPrompt(
+                    text = stringResource(R.string.no_watch),
+                    onReconnect = vm::reconnect,
                 )
-                state.popularBooks.isEmpty() && state.recentReleases.isEmpty() -> CenteredText("No books.")
-                else -> HomeSections(
-                    popularBooks = state.popularBooks,
-                    recentReleases = state.recentReleases,
-                    selectedSection = homeSection,
-                    onSectionChange = { homeSection = it },
-                    downloadingId = state.downloadingId,
-                    loadingMore = state.loadingMore,
-                    popularHasMore = state.popularHasMore,
-                    recentHasMore = state.recentHasMore,
-                    onLoadMore = { section ->
-                        vm.loadMore(
-                            when (section) {
-                                GutenbergHomeSection.POPULAR -> GutenbergListTarget.POPULAR
-                                GutenbergHomeSection.RECENT -> GutenbergListTarget.RECENT
-                            },
-                        )
-                    },
-                    isPresentOnDevice = vm::isPresentOnDevice,
-                    onAdd = vm::sendToWatch,
-                )
+                else -> {
+                    SearchBar(
+                        value = state.query,
+                        onValueChange = vm::onQueryChange,
+                        onSubmit = vm::submitSearch,
+                    )
+                    GutenbergContent(state, homeSection, { homeSection = it }, vm)
+                }
             }
         }
     }
@@ -100,6 +76,49 @@ fun GutenbergScreen(vm: GutenbergViewModel, onBack: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = vm::dismissError) { Text("OK") }
             },
+        )
+    }
+}
+
+@Composable
+private fun GutenbergContent(
+    state: GutenbergViewModel.UiState,
+    homeSection: GutenbergHomeSection,
+    onHomeSectionChange: (GutenbergHomeSection) -> Unit,
+    vm: GutenbergViewModel,
+) {
+    when {
+        state.loading && state.visibleBooks.isEmpty() -> CenteredProgress()
+        state.showingSearch && state.searchResults.isEmpty() -> CenteredText("No results.")
+        state.showingSearch -> ResultsList(
+            results = state.searchResults,
+            downloadingId = state.downloadingId,
+            loadingMore = state.loadingMore,
+            hasMore = state.searchHasMore,
+            onLoadMore = { vm.loadMore(GutenbergListTarget.SEARCH) },
+            isPresentOnDevice = vm::isPresentOnDevice,
+            onAdd = vm::sendToWatch,
+        )
+        state.popularBooks.isEmpty() && state.recentReleases.isEmpty() -> CenteredText("No books.")
+        else -> HomeSections(
+            popularBooks = state.popularBooks,
+            recentReleases = state.recentReleases,
+            selectedSection = homeSection,
+            onSectionChange = onHomeSectionChange,
+            downloadingId = state.downloadingId,
+            loadingMore = state.loadingMore,
+            popularHasMore = state.popularHasMore,
+            recentHasMore = state.recentHasMore,
+            onLoadMore = { section ->
+                vm.loadMore(
+                    when (section) {
+                        GutenbergHomeSection.POPULAR -> GutenbergListTarget.POPULAR
+                        GutenbergHomeSection.RECENT -> GutenbergListTarget.RECENT
+                    },
+                )
+            },
+            isPresentOnDevice = vm::isPresentOnDevice,
+            onAdd = vm::sendToWatch,
         )
     }
 }

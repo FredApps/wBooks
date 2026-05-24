@@ -48,7 +48,10 @@ fun StatsScreen(vm: StatsViewModel, onBack: () -> Unit) {
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             when {
                 state.loading && state.stats == null -> CenteredProgress()
-                state.noWatch -> CenteredText("No watch connected.")
+                state.noWatch -> WatchReconnectPrompt(
+                    text = "No watch connected.",
+                    onReconnect = vm::refresh,
+                )
                 state.stats == null -> CenteredText("No stats yet.")
                 else -> StatsContent(state.stats!!)
             }

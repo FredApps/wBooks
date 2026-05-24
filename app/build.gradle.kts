@@ -78,8 +78,8 @@ android {
         applicationId = requireLocalProperty("wbooks.applicationId")
         minSdk = 30
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.9.0"
+        versionCode = 13
+        versionName = "1.0.0"
 
         manifestPlaceholders["sentryDsn"] = localProperty("sentry.dsn")
     }
@@ -133,7 +133,8 @@ android {
 // Only enable Sentry symbol/source upload when an auth token is available.
 // CI builds debug only and has no token; without this gate the Sentry Gradle
 // plugin tries to bundle+upload source context during assembleDebug and fails.
-val hasSentryAuthToken = localProperty("sentry.auth.token").isNotBlank()
+val skipSentryUpload = providers.gradleProperty("wbooks.skipSentryUpload").orNull == "true"
+val hasSentryAuthToken = localProperty("sentry.auth.token").isNotBlank() && !skipSentryUpload
 
 sentry {
     org.set("fredapps")

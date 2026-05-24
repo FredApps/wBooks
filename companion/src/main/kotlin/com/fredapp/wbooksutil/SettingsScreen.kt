@@ -83,8 +83,9 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
             when (val s = state) {
                 is SettingsViewModel.SyncState.Idle,
                 SettingsViewModel.SyncState.Loading -> CenteredProgress()
-                SettingsViewModel.SyncState.NoWatch -> CenteredText(
-                    "No watch connected. Connect your watch to view and edit settings.",
+                SettingsViewModel.SyncState.NoWatch -> WatchReconnectPrompt(
+                    text = "No watch connected. Connect your watch to view and edit settings.",
+                    onReconnect = vm::refresh,
                 )
                 is SettingsViewModel.SyncState.Error -> CenteredText("Couldn't reach watch: ${s.message}")
                 is SettingsViewModel.SyncState.Refreshing -> Column(Modifier.fillMaxSize()) {

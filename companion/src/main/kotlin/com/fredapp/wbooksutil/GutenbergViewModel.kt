@@ -37,6 +37,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
         val errorMessage: String? = null,
         val lastSentTitle: String? = null,
         val lastStatusMessage: String? = null,
+        val noWatch: Boolean = false,
     ) {
         val showingSearch: Boolean
             get() = query.trim().isNotEmpty()
@@ -84,6 +85,12 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 }
         }
+    }
+
+    fun reconnect() {
+        _state.value = _state.value.copy(noWatch = false, errorMessage = null)
+        loadHomeSections()
+        refreshDeviceBooks()
     }
 
     fun onQueryChange(value: String) {
@@ -256,13 +263,7 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
                         lastSentTitle = book.title,
                     )
                 result is WatchRepository.Result.NoWatch ->
-                    _state.value.copy(
-                        downloadingId = null,
-                        downloadingTitle = null,
-                        downloadProgressBytes = 0L,
-                        downloadProgressTotal = -1L,
-                        errorMessage = "No watch connected",
-                    )
+                    _state.value.disconnectedCopy()
                 result is WatchRepository.Result.Error ->
                     _state.value.copy(
                         downloadingId = null,
@@ -333,11 +334,25 @@ class GutenbergViewModel(application: Application) : AndroidViewModel(applicatio
                     deviceBookTitleKeys = result.value.books.mapTo(mutableSetOf()) {
                         it.title.normalizedTitleKey()
                     },
+                    noWatch = false,
                 )
             }
-            else -> Unit
+            is WatchRepository.Result.NoWatch -> _state.value = _state.value.disconnectedCopy()
+            is WatchRepository.Result.Error -> Unit
         }
     }
+
+    private fun UiState.disconnectedCopy(): UiState = copy(
+        downloadingId = null,
+        downloadingTitle = null,
+        downloadProgressBytes = 0L,
+        downloadProgressTotal = -1L,
+        noWatch = true,
+        loading = false,
+        loadingMore = false,
+        errorMessage = null,
+        lastStatusMessage = null,
+    )
 
     private fun mergeBooks(current: List<GutenbergBook>, incoming: List<GutenbergBook>): List<GutenbergBook> {
         val seen = current.mapTo(mutableSetOf()) { it.id.ifEmpty { it.downloadUrl } }

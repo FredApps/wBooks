@@ -11,6 +11,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.IOException
 import java.io.InputStream
 import java.net.URLEncoder
 
@@ -75,7 +76,7 @@ class WatchRepository(context: Context) {
             val bytes = sendRequest(node, WearProtocol.PATH_SETTINGS_SET, payload)
             val snap = SettingsJson.decode(bytes) ?: return@runCatching Result.Error("Empty settings response")
             Result.Ok(snap)
-        }.getOrElse { it.toActionError("Failed to update setting") }
+        }.getOrElse { it.toConnectionOrActionError("Failed to update setting") }
     }
 
     suspend fun deleteBook(id: String): Result<LibrarySnapshot> = withContext(Dispatchers.IO) {
@@ -84,7 +85,7 @@ class WatchRepository(context: Context) {
             val payload = org.json.JSONObject().put("id", id).toString().toByteArray(Charsets.UTF_8)
             val bytes = sendRequest(node, WearProtocol.PATH_DELETE, payload)
             Result.Ok(LibraryListJson.decode(bytes))
-        }.getOrElse { it.toActionError("Delete failed") }
+        }.getOrElse { it.toConnectionOrActionError("Delete failed") }
     }
 
     suspend fun uploadBook(
@@ -143,7 +144,7 @@ class WatchRepository(context: Context) {
                     }
                 }
                 Result.Ok(Unit)
-            }.getOrElse { Result.Error(it.message ?: "Upload failed") }
+            }.getOrElse { it.toConnectionOrActionError("Upload failed") }
         }
 
     internal object WearUploadPath {
@@ -175,7 +176,7 @@ class WatchRepository(context: Context) {
             val payload = """{"name":${jsonString(name)}}""".toByteArray(Charsets.UTF_8)
             val bytes = sendRequest(node, WearProtocol.PATH_MKDIR, payload)
             Result.Ok(LibraryListJson.decode(bytes))
-        }.getOrElse { it.toActionError("mkdir failed") }
+            }.getOrElse { it.toConnectionOrActionError("mkdir failed") }
     }
 
     suspend fun renameFolder(oldName: String, newName: String): Result<LibrarySnapshot> = withContext(Dispatchers.IO) {
@@ -185,7 +186,7 @@ class WatchRepository(context: Context) {
                 .toByteArray(Charsets.UTF_8)
             val bytes = sendRequest(node, WearProtocol.PATH_RENAME, payload)
             Result.Ok(LibraryListJson.decode(bytes))
-        }.getOrElse { it.toActionError("rename failed") }
+            }.getOrElse { it.toConnectionOrActionError("rename failed") }
     }
 
     suspend fun moveBook(bookId: String, targetFolder: String): Result<LibrarySnapshot> =
@@ -196,7 +197,7 @@ class WatchRepository(context: Context) {
                     .toByteArray(Charsets.UTF_8)
                 val bytes = sendRequest(node, WearProtocol.PATH_MOVE, payload)
                 Result.Ok(LibraryListJson.decode(bytes))
-            }.getOrElse { it.toActionError("move failed") }
+            }.getOrElse { it.toConnectionOrActionError("move failed") }
         }
 
     suspend fun reorderBooks(folder: String, orderedIds: List<String>): Result<LibrarySnapshot> =
@@ -208,7 +209,7 @@ class WatchRepository(context: Context) {
                     .toByteArray(Charsets.UTF_8)
                 val bytes = sendRequest(node, WearProtocol.PATH_REORDER, payload)
                 Result.Ok(LibraryListJson.decode(bytes))
-            }.getOrElse { it.toActionError("reorder failed") }
+            }.getOrElse { it.toConnectionOrActionError("reorder failed") }
         }
 
     suspend fun hasReachableWatch(): Boolean = withContext(Dispatchers.IO) {
@@ -246,6 +247,17 @@ class WatchRepository(context: Context) {
 
     private fun <T> Throwable.toActionError(fallback: String): Result<T> =
         Result.Error(if (this is TimeoutCancellationException) "Watch did not respond." else message ?: fallback)
+
+    private fun <T> Throwable.toConnectionOrActionError(fallback: String): Result<T> =
+        if (isWatchConnectionFailure()) Result.NoWatch else toActionError(fallback)
+
+    private fun Throwable.isWatchConnectionFailure(): Boolean =
+        this is TimeoutCancellationException ||
+            this is IOException ||
+            this is com.google.android.gms.common.api.ApiException ||
+            message?.contains("disconnected", ignoreCase = true) == true ||
+            message?.contains("timeout", ignoreCase = true) == true ||
+            message?.contains("timed out", ignoreCase = true) == true
 
     companion object {
         /** Must match the capability the watch app advertises in res/values/wear.xml. */

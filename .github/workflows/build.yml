@@ -62,6 +62,9 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew --no-daemon assembleDebug
 
+      - name: Build release artifacts
+        run: ./gradlew --no-daemon :app:assembleRelease :companion:assembleRelease :app:bundleRelease :companion:bundleRelease
+
       - name: Upload debug APK (watch)
         uses: actions/upload-artifact@v4
         with:
@@ -75,5 +78,37 @@ jobs:
         with:
           name: companion-debug
           path: companion/build/outputs/apk/debug/companion-debug.apk
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Upload release APK (watch)
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Upload release APK (companion)
+        uses: actions/upload-artifact@v4
+        with:
+          name: companion-release-apk
+          path: companion/build/outputs/apk/release/companion-release.apk
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Upload release AAB (watch)
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Upload release AAB (companion)
+        uses: actions/upload-artifact@v4
+        with:
+          name: companion-release-aab
+          path: companion/build/outputs/bundle/release/companion-release.aab
           if-no-files-found: error
           retention-days: 3

@@ -4,17 +4,25 @@ All notable changes to wBooks are documented in this file.
 
 ## [Unreleased]
 
-## [0.9.0] - 2026-05-24
+## [1.0.0] - 2026-05-24
 
 - Reduced watch reader memory pressure: embedded images now decode at display size, and stale parsed-document cache writes are cancelled when switching or closing books.
 - Improved Time left behavior: normal/sentence scrolling now feeds the pace estimate more reliably, and speed-reading mode gets immediate WPM-based ETA.
 - Polished watch Project Gutenberg search: keyboard search submits directly, voice/text controls match, and downloaded entries look like existing library books.
+- Watch Project Gutenberg downloads now show inline progress, flip to Added when complete, and remain tracked after renamed or moved.
 - Book lists now show file size beside format, and bundled seed books use Gutenberg-compatible titles on fresh installs.
+- Web interface and Utility now show watch reading statistics from the same watch-authoritative source.
 - Web and Utility storage summaries now show library usage and free space only, not total device storage.
 - Utility Root layout is adjustable by dragging and leaves more space when folders exist.
+- Utility watch requests now time out instead of hanging forever, and any lost watch connection opens the reconnect screen, including mid-session Gutenberg adds.
 - Web same-folder drag-and-drop now updates order directly instead of treating the drop as a move.
 - Hardened Wear/web transfer cleanup and reduced temporary disk use during web uploads.
 - GitHub Actions artifact/caching retention was tightened to reduce repository Actions storage usage.
+- CI now builds signed release APKs and AABs for GitHub/direct install and Play Console testing.
+
+## [0.9.0] - 2026-05-24
+
+- Release-candidate build used for final watch, Utility, webserver, Gutenberg, storage, and Actions cleanup testing.
 
 ## [0.8.0] — 2026-05-24
 
