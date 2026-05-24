@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -110,8 +111,9 @@ private fun ImageBlockView(
     val isRound = config.isScreenRound
     val minAxis = min(config.screenWidthDp, config.screenHeightDp).dp
     val safeSide = if (isRound) (minAxis * (1f / sqrt(2f))) else minAxis
-    val bitmap = remember(block) {
-        runCatching { BitmapFactory.decodeByteArray(block.bytes, 0, block.bytes.size) }.getOrNull()
+    val maxBitmapPx = with(LocalDensity.current) { safeSide.roundToPx() }.coerceAtLeast(1)
+    val bitmap = remember(block, maxBitmapPx) {
+        decodeSampledBitmap(block.bytes, maxBitmapPx)
     }
     Box(
         modifier = Modifier
@@ -141,6 +143,30 @@ private fun ImageBlockView(
         }
     }
 }
+
+/**
+ * Decode at roughly the largest size the watch can display. EPUB cover art can
+ * easily be thousands of pixels wide; decoding those full-size bitmaps for a
+ * 300-450 px display is wasted heap and a classic path to OOM on Wear OS.
+ */
+private fun decodeSampledBitmap(bytes: ByteArray, maxDisplayPx: Int): android.graphics.Bitmap? =
+    runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+
+        var sample = 1
+        val longest = maxOf(bounds.outWidth, bounds.outHeight)
+        while (longest / (sample * 2) >= maxDisplayPx) {
+            sample *= 2
+        }
+
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+        }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+    }.getOrNull()
 
 private fun List<Run>.toAnnotatedString(): AnnotatedString = buildAnnotatedString {
     for (run in this@toAnnotatedString) {

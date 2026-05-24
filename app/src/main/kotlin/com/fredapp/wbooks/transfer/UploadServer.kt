@@ -14,8 +14,10 @@ import com.fredapp.wbooks.util.uniqueFile
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.runBlocking
 import java.io.File
+import java.io.IOException
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.nio.file.Files
 import java.security.MessageDigest
 
 /**
@@ -1095,7 +1097,7 @@ class UploadServer(
             val safeName = originalName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
             val dest = uniqueFile(targetDir, safeName)
             if (!dest.isInsideBooksDir() || dest.canonicalFile == booksDir.canonicalFile) continue
-            File(tempPath).copyTo(dest, overwrite = false)
+            moveUploadedTemp(File(tempPath), dest)
             appendToOrder(targetDir, dest.name)
             written++
         }
@@ -1503,6 +1505,15 @@ class UploadServer(
     private fun prependToOrder(dir: File, name: String) {
         if (!dir.isInsideBooksDir() || !dir.isDirectory) return
         writeOrder(dir, listOf(name) + readOrder(dir).keys.filterNot { it == name })
+    }
+
+    private fun moveUploadedTemp(temp: File, dest: File) {
+        try {
+            Files.move(temp.toPath(), dest.toPath())
+        } catch (_: IOException) {
+            temp.copyTo(dest, overwrite = false)
+            temp.delete()
+        }
     }
 
     private fun currentTopFolderNames(): List<String> =

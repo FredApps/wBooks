@@ -151,6 +151,7 @@ class ReaderViewModel(
     private val _document = MutableStateFlow<DocumentState>(DocumentState.Idle)
     val document: StateFlow<DocumentState> = _document.asStateFlow()
     private var loadJob: Job? = null
+    private var cacheStoreJob: Job? = null
 
     /**
      * Identity of the currently-open book, or null when nothing is open.
@@ -599,6 +600,7 @@ class ReaderViewModel(
 
     fun openBook(book: Book) {
         loadJob?.cancel()
+        cacheStoreJob?.cancel()
         // Reset pace baseline so the first reportPosition after the new book
         // loads doesn't compute a cross-book delta.
         lastAdvancePosition = null
@@ -681,13 +683,14 @@ class ReaderViewModel(
                 parseBook(book).also { parsed ->
                     updateLoadingProgress(book, 95, "Preparing reader")
                     Log.i(TAG, "Parsed ${book.id} (${book.format}) in ${System.currentTimeMillis() - startedAt}ms")
-                    appScope.launch(Dispatchers.IO) {
+                    cacheStoreJob = appScope.launch(Dispatchers.IO) {
                         val storeStartedAt = System.currentTimeMillis()
                         runCatching { documentCache.store(key, parsed) }
                             .onSuccess {
                                 Log.i(TAG, "Cached ${book.id} in ${System.currentTimeMillis() - storeStartedAt}ms")
                             }
                             .onFailure {
+                                if (it is kotlinx.coroutines.CancellationException) throw it
                                 Log.w(TAG, "Failed to cache ${book.id}", it)
                             }
                     }
@@ -735,7 +738,15 @@ class ReaderViewModel(
 
     fun closeBook() {
         loadJob?.cancel()
+        cacheStoreJob?.cancel()
         _document.value = DocumentState.Idle
+    }
+
+    override fun onCleared() {
+        loadJob?.cancel()
+        cacheStoreJob?.cancel()
+        sessionFlushJob?.cancel()
+        super.onCleared()
     }
 
     // ---- Settings edits ----
