@@ -317,12 +317,6 @@ fun SecondaryScreen(
                             text = "~ ${formatDurationMs(e.bookMs)} in book",
                             style = MaterialTheme.typography.body2,
                         )
-                        Text(
-                            text = e.status,
-                            style = MaterialTheme.typography.caption2,
-                            color = MaterialTheme.colors.onSurface.copy(alpha = 0.55f),
-                            textAlign = TextAlign.Center,
-                        )
                     }
                 }
             }

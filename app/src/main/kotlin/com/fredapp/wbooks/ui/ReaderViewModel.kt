@@ -330,7 +330,6 @@ class ReaderViewModel(
     data class ReadingEta(
         val chapterMs: Long,
         val bookMs: Long,
-        val status: String,
     )
 
     /**
@@ -354,21 +353,18 @@ class ReaderViewModel(
                         metrics,
                         pos,
                         BOOTSTRAP_MS_PER_WORD,
-                        "Estimating - learning pace 0/20",
                     )
                     !pace.isReady -> computeEta(
                         state.doc,
                         metrics,
                         pos,
                         pace.msPerWord,
-                        "Estimating - learning pace ${pace.sampleCount}/20",
                     )
                     else -> computeEta(
                         state.doc,
                         metrics,
                         pos,
                         pace.msPerWord,
-                        "Personalized - ${pace.sampleCount} samples",
                     )
                 }
             }
@@ -390,7 +386,6 @@ class ReaderViewModel(
         metrics: DocumentMetrics,
         position: BookPosition,
         msPerWord: Double,
-        status: String,
     ): ReadingEta? {
         if (doc.chapters.isEmpty() || msPerWord <= 0.0) return null
         val totalWords = metrics.totalWords
@@ -419,7 +414,6 @@ class ReaderViewModel(
         return ReadingEta(
             chapterMs = (wordsRemainingInChapter * msPerWord).toLong(),
             bookMs = (wordsRemainingInBook * msPerWord).toLong(),
-            status = status,
         )
     }
 
@@ -444,7 +438,6 @@ class ReaderViewModel(
         return ReadingEta(
             chapterMs = (wordsRemainingInChapter * msPerWord).toLong(),
             bookMs = (wordsRemainingInBook * msPerWord).toLong(),
-            status = "Speed reading - ${wpm.coerceIn(ReaderSettings.WPM_RANGE)} wpm",
         )
     }
 
