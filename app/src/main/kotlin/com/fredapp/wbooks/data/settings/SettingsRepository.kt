@@ -65,7 +65,7 @@ class SettingsRepository(context: Context) {
         "theme" -> true
         "textSizeSp" -> intUpdate(value) { copy(textSizeSp = it.coerceIn(ReaderSettings.TEXT_SIZE_RANGE)) }
         "sentenceTextSizeSp" -> intUpdate(value) { copy(sentenceTextSizeSp = it.coerceIn(ReaderSettings.SENTENCE_TEXT_SIZE_RANGE)) }
-        "textColorArgb" -> intUpdate(value) { copy(textColorArgb = it) }
+        "textColorArgb" -> intUpdate(value) { copy(textColorArgb = normalizeTextColor(it)) }
         "autoscrollSpeed" -> intUpdate(value) { copy(autoscrollSpeed = it.coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE)) }
         "screenBrightness" -> intUpdate(value) { copy(screenBrightness = it.coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE)) }
         "speedreadWpm" -> intUpdate(value) { copy(speedreadWpm = it.coerceIn(ReaderSettings.WPM_RANGE)) }
@@ -109,7 +109,7 @@ class SettingsRepository(context: Context) {
                 .coerceIn(ReaderSettings.TEXT_SIZE_RANGE),
             sentenceTextSizeSp = (this[Keys.SENTENCE_TEXT_SIZE] ?: defaults.sentenceTextSizeSp)
                 .coerceIn(ReaderSettings.SENTENCE_TEXT_SIZE_RANGE),
-            textColorArgb = this[Keys.TEXT_COLOR] ?: defaults.textColorArgb,
+            textColorArgb = normalizeTextColor(this[Keys.TEXT_COLOR] ?: defaults.textColorArgb),
             autoscrollEnabled = this[Keys.AUTOSCROLL_ENABLED] ?: defaults.autoscrollEnabled,
             autoscrollSpeed = (this[Keys.AUTOSCROLL_SPEED] ?: defaults.autoscrollSpeed)
                 .coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE),
@@ -127,7 +127,7 @@ class SettingsRepository(context: Context) {
         this[Keys.FONT] = s.font.name
         this[Keys.TEXT_SIZE] = s.textSizeSp.coerceIn(ReaderSettings.TEXT_SIZE_RANGE)
         this[Keys.SENTENCE_TEXT_SIZE] = s.sentenceTextSizeSp.coerceIn(ReaderSettings.SENTENCE_TEXT_SIZE_RANGE)
-        this[Keys.TEXT_COLOR] = s.textColorArgb
+        this[Keys.TEXT_COLOR] = normalizeTextColor(s.textColorArgb)
         this[Keys.AUTOSCROLL_ENABLED] = s.autoscrollEnabled
         this[Keys.AUTOSCROLL_SPEED] = s.autoscrollSpeed.coerceIn(ReaderSettings.AUTOSCROLL_SPEED_RANGE)
         this[Keys.SCREEN_BRIGHTNESS] = s.screenBrightness.coerceIn(ReaderSettings.SCREEN_BRIGHTNESS_RANGE)
@@ -140,4 +140,12 @@ class SettingsRepository(context: Context) {
 
     private fun readFont(raw: String): FontChoice =
         runCatching { FontChoice.valueOf(raw) }.getOrDefault(FontChoice.SERIF)
+
+    private fun normalizeTextColor(argb: Int): Int =
+        if (argb == LEGACY_WARM_WHITE) GREY else argb
+
+    private companion object {
+        private val LEGACY_WARM_WHITE = 0xFFE8E6E1.toInt()
+        private val GREY = 0xFFB0B0B0.toInt()
+    }
 }

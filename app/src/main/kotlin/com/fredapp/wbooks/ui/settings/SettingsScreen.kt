@@ -489,7 +489,6 @@ private fun colorName(argb: Int): String = when (argb) {
     0xFFD4C19C.toInt() -> "Sepia"
     0xFFFFFFFF.toInt() -> "Cold white"
     0xFFB0B0B0.toInt() -> "Grey"
-    0xFFE8E6E1.toInt() -> "Warm white"
     0xFF9CB5D4.toInt() -> "Pale blue"
     0xFFA8D49C.toInt() -> "Pale green"
     0xFFD49C9C.toInt() -> "Pale red"

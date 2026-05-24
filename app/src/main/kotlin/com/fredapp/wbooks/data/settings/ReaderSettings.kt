@@ -59,7 +59,6 @@ data class ReaderSettings(
             0xFFD4C19C.toInt(), // sepia (default)
             0xFFFFFFFF.toInt(), // pure white
             0xFFB0B0B0.toInt(), // grey
-            0xFFE8E6E1.toInt(), // warm white legacy value
             0xFF9CB5D4.toInt(), // pale blue
             0xFFA8D49C.toInt(), // pale green
             0xFFD49C9C.toInt(), // pale red
