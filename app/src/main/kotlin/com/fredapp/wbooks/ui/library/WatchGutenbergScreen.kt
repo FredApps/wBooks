@@ -98,6 +98,7 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     var downloadProgressTotal by remember { mutableStateOf(-1L) }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
     var addedFilenames by remember { mutableStateOf(emptySet<String>()) }
+    var addedTitleKeys by remember { mutableStateOf(emptySet<String>()) }
     var message by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val listState = rememberScalingLazyListState()
@@ -105,11 +106,12 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = listState)
 
     fun refreshAddedFilenames() {
-        addedFilenames = app.booksDir
+        val files = app.booksDir
             .listFiles()
             ?.filter { it.isFile }
-            ?.mapTo(mutableSetOf()) { it.name.normalizedFilename() }
             ?: emptySet()
+        addedFilenames = files.mapTo(mutableSetOf()) { it.name.normalizedFilename() }
+        addedTitleKeys = files.mapTo(mutableSetOf()) { it.nameWithoutExtension.normalizedTitleKey() }
     }
 
     fun loadHome() {
@@ -194,7 +196,11 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     }
 
     fun isPresent(book: GutenbergBook): Boolean =
-        filenameFor(book).normalizedFilename() in addedFilenames
+        filenameFor(book).normalizedFilename() in addedFilenames ||
+            book.gutenbergId()?.let { id ->
+                SEED_GUTENBERG_FILES[id]?.normalizedFilename() in addedFilenames
+            } == true ||
+            book.title.normalizedTitleKey() in addedTitleKeys
 
     fun addBook(book: GutenbergBook) {
         if (downloadJob?.isActive == true || isPresent(book)) return
@@ -233,7 +239,10 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
                     }
                     app.libraryRepository.refresh()
                 }
-                destFile?.let { addedFilenames = addedFilenames + it.name.normalizedFilename() }
+                destFile?.let {
+                    addedFilenames = addedFilenames + it.name.normalizedFilename()
+                    addedTitleKeys = addedTitleKeys + it.nameWithoutExtension.normalizedTitleKey()
+                }
                 message = null
                 onLibraryChanged()
             } catch (_: CancellationException) {
@@ -381,67 +390,78 @@ private fun GutenbergSearchInput(
                     modifier = Modifier.size(18.dp),
                 )
             },
-            label = { Text("Voice") },
+            label = { Text("Voice search") },
             onClick = onVoice,
             colors = ChipDefaults.primaryChipColors(),
             modifier = Modifier.fillMaxWidth(),
         )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.fillMaxWidth(),
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(RoundedCornerShape(26.dp))
+                .border(1.dp, onSurface.copy(alpha = 0.4f), RoundedCornerShape(26.dp))
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.CenterStart,
         ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(38.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .border(1.dp, onSurface.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
-                    .padding(horizontal = 12.dp),
-                contentAlignment = Alignment.CenterStart,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                if (value.isBlank()) {
-                    Text(
-                        "Search Gutenberg",
-                        color = onSurface.copy(alpha = 0.5f),
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Clip,
+                Icon(
+                    painter = painterResource(R.drawable.ic_search),
+                    contentDescription = null,
+                    tint = onSurface,
+                    modifier = Modifier.size(18.dp),
+                )
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (value.isBlank()) {
+                        Text(
+                            "Text search",
+                            color = onSurface.copy(alpha = 0.5f),
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Clip,
+                        )
+                    }
+                    BasicTextField(
+                        value = value,
+                        onValueChange = onValueChange,
+                        singleLine = true,
+                        textStyle = TextStyle(color = onSurface, fontSize = 14.sp, textAlign = TextAlign.Start),
+                        cursorBrush = SolidColor(onSurface),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = {
+                            keyboard?.hide()
+                            onSubmit()
+                        }),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    singleLine = true,
-                    textStyle = TextStyle(color = onSurface, fontSize = 14.sp, textAlign = TextAlign.Start),
-                    cursorBrush = SolidColor(onSurface),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        keyboard?.hide()
-                        onSubmit()
-                    }),
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
-            Chip(
-                icon = {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_search),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                },
-                label = { Text("Go") },
-                onClick = {
-                    keyboard?.hide()
-                    onSubmit()
-                },
-                colors = ChipDefaults.secondaryChipColors(),
-                modifier = Modifier.weight(0.62f),
-            )
         }
     }
 }
+
+private val SEED_GUTENBERG_FILES = mapOf(
+    "35" to "time-machine.odt",
+    "43" to "jekyll-and-hyde.docx",
+    "1342" to "pride-and-prejudice.txt",
+    "1661" to "sherlock-holmes.html",
+    "1952" to "yellow-wallpaper.fb2",
+    "2701" to "moby-dick.epub",
+)
+
+private fun GutenbergBook.gutenbergId(): String? =
+    Regex("/ebooks/(\\d+)").find(id)?.groupValues?.get(1)
+        ?: Regex("/ebooks/(\\d+)").find(downloadUrl)?.groupValues?.get(1)
+
+private fun String.normalizedTitleKey(): String =
+    lowercase().replace(Regex("[^a-z0-9]"), "")
 
 @Composable
 private fun GutenbergDownloadStatus(title: String, bytes: Long, total: Long, onCancel: () -> Unit) {
