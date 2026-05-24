@@ -49,7 +49,7 @@ object CompanionChangelog {
                 "Large folder sets now stay in a half-screen scroll area so Root remains visible below them, while small folder sets shrink upward dynamically.",
                 "Books in an expanded folder now render directly under that folder's chip; Root sits below the folder list and scrolls to centre as folder count grows.",
                 "Rename-folder dialog (edit icon next to the delete icon).",
-                "Project Gutenberg search works again — search results now synthesise the EPUB download URL from the book id, and the keyboard Enter key submits.",
+                "Project Gutenberg search works again - search results now synthesise the EPUB download URL from the book id, and the keyboard Enter key submits.",
                 "Library and settings auto-refresh every 5 s while the screen is on stage; the manual refresh icon is gone.",
                 "Upload flow shows a modal with a progress bar while the bytes are in flight.",
                 "Watch settings page gained Changelog and About sections at the bottom.",
@@ -68,7 +68,7 @@ object CompanionChangelog {
             version = "0.3.0",
             date = "2026-05-19",
             notes = listOf(
-                "Initial phone companion. SAF file picker → Wear Data Layer upload to the watch. Material 3, dark-mode aware.",
+                "Initial phone companion. SAF file picker sends books through Wear Data Layer upload to the watch. Material 3, dark-mode aware.",
                 "Folder organisation: create, expand, delete, drag-and-drop assignment.",
             ),
         ),

@@ -468,14 +468,6 @@ private fun ConfirmDeleteScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            item(key = "cancel") {
-                Chip(
-                    label = { Text("Cancel") },
-                    onClick = onCancel,
-                    colors = ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
         }
     }
 }
@@ -658,14 +650,6 @@ private fun FolderActionsScreen(
                     label = { Text("Delete folder", color = Color.White) },
                     onClick = onDelete,
                     colors = ChipDefaults.chipColors(backgroundColor = DeleteRed, contentColor = Color.White),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            item(key = "cancel") {
-                Chip(
-                    label = { Text("Cancel") },
-                    onClick = onCancel,
-                    colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

@@ -53,7 +53,7 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
             "Books-finished counter, daily reading totals (30-day rolling window), and last-50 WPM samples now persisted on the watch and exposed over a new /wbooks/stats Wear Data Layer path.",
             "Phone companion gains a stats dashboard: Today / Total / Finished cards, a 30-day bar chart of reading minutes, and a WPM-trend line chart (both pure Compose Canvas).",
             "Sentry SDK wired into both APKs; DSN sourced from local.properties so the project builds without an account.",
-            "Phone-side Project Gutenberg browser: search the OPDS catalogue and stream a downloaded book straight to the watch via ChannelClient â€” no intermediate temp file.",
+            "Phone-side Project Gutenberg browser: search the OPDS catalogue and stream a downloaded book straight to the watch via ChannelClient - no intermediate temp file.",
             "Release builds run through R8 + resource shrinking for both modules.",
         ),
     ),
@@ -63,7 +63,7 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
         notes = listOf(
             "Phone companion app (separate APK). Mirrors the watch's library; SAF picker sends books to the watch over the Wear Data Layer (no IP / PIN). Material 3, dark-mode aware, minSdk 24.",
             "Watch-side BookReceiverService accepts uploads via ChannelClient and list / delete via MessageClient.sendRequest. Scope is cancelled on service teardown; binder thread is no longer blocked.",
-            "LAN upload server (NanoHTTPD) stays as an additive transport â€” companion is an alternative, not a replacement.",
+            "LAN upload server (NanoHTTPD) stays as an additive transport - companion is an alternative, not a replacement.",
         ),
     ),
     ChangelogEntry(
@@ -71,7 +71,7 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
         date = "2026-05-19",
         notes = listOf(
             "DOCX and ODT support (Office Open XML, OpenDocument Text). Headings split into chapters, inline bold / italic / underline preserved, unsupported elements (tables, images, frames, ...) silently dropped.",
-            "Two new bundled seed books: Stevenson's Jekyll & Hyde (DOCX) and Wells's The Time Machine (ODT) â€” pandoc-converted from Project Gutenberg, header / license boilerplate stripped.",
+            "Two new bundled seed books: Stevenson's Jekyll & Hyde (DOCX) and Wells's The Time Machine (ODT) - pandoc-converted from Project Gutenberg, header / license boilerplate stripped.",
             "Upload server hardened: PIN now checked before multipart body is spooled; sliding-window rate limiter (10 wrong PINs / 60s -> 429); constant-time PIN compare; HTML escaping on the library listing.",
             "Repo housekeeping: GPLv3 LICENSE at root, GitHub Actions CI (assembleDebug + JVM unit tests for the parsers).",
         ),

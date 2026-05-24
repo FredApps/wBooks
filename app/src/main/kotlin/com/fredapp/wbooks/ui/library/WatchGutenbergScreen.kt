@@ -107,9 +107,9 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
 
     fun refreshAddedFilenames() {
         val files = app.booksDir
-            .listFiles()
-            ?.filter { it.isFile }
-            ?: emptySet()
+            .walkTopDown()
+            .filter { it.isFile && BookFormat.fromExtension(it.extension) != null }
+            .toList()
         addedFilenames = files.mapTo(mutableSetOf()) { it.name.normalizedFilename() }
         addedTitleKeys = files.mapTo(mutableSetOf()) { it.nameWithoutExtension.normalizedTitleKey() }
     }
@@ -161,6 +161,15 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
     }
 
     fun loadMore(target: GutenbergTarget) {
+        val currentCount = when (target) {
+            GutenbergTarget.POPULAR -> popular.size
+            GutenbergTarget.RECENT -> recent.size
+            GutenbergTarget.SEARCH -> results.size
+        }
+        if (currentCount >= MAX_LIST_ITEMS) {
+            error = "Showing the maximum $MAX_LIST_ITEMS Gutenberg results for this list."
+            return
+        }
         scope.launch {
             loading = true
             error = null
@@ -178,16 +187,19 @@ fun WatchGutenbergScreen(onBack: () -> Unit, onLibraryChanged: () -> Unit) {
             }.onSuccess { page ->
                 when (target) {
                     GutenbergTarget.POPULAR -> {
-                        popular = mergeBooks(popular, page)
-                        popularHasMore = page.hasMore
+                        val merged = mergeBooks(popular, page)
+                        popular = merged
+                        popularHasMore = page.hasMore && merged.size < MAX_LIST_ITEMS
                     }
                     GutenbergTarget.RECENT -> {
-                        recent = mergeBooks(recent, page)
-                        recentHasMore = page.hasMore
+                        val merged = mergeBooks(recent, page)
+                        recent = merged
+                        recentHasMore = page.hasMore && merged.size < MAX_LIST_ITEMS
                     }
                     GutenbergTarget.SEARCH -> {
-                        results = mergeBooks(results, page)
-                        searchHasMore = page.hasMore
+                        val merged = mergeBooks(results, page)
+                        results = merged
+                        searchHasMore = page.hasMore && merged.size < MAX_LIST_ITEMS
                     }
                 }
             }.onFailure { error = it.message ?: "Load more failed" }
@@ -421,7 +433,7 @@ private fun GutenbergSearchInput(
                 ) {
                     if (value.isBlank()) {
                         Text(
-                            "Text search",
+                            "Search Gutenberg",
                             color = onSurface.copy(alpha = 0.5f),
                             fontSize = 14.sp,
                             maxLines = 1,
