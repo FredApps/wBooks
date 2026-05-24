@@ -19,7 +19,7 @@ object CompanionChangelog {
             notes = listOf(
                 "Library drag sorting now matches the web interface, including before/after drops inside a folder and first-position drops when moving into folders.",
                 "Project Gutenberg listings now use the same author, optional release date, format, and file-size layout for popular books, recent releases, and search results.",
-                "Utility library now shows watch library storage used, free space, and total disk space above the folder list.",
+                "Utility library now shows watch library storage used and free space above the folder list.",
                 "Hardware Back now follows the same page navigation as the software back arrows.",
             ),
         ),

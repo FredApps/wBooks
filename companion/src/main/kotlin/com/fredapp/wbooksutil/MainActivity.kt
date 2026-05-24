@@ -18,6 +18,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -51,7 +52,9 @@ import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -403,11 +406,14 @@ private fun BoundedBookList(
 ) {
     var expandedFolders by rememberSaveable { mutableStateOf(emptySet<String>()) }
     var rootExpanded by rememberSaveable { mutableStateOf(true) }
+    var rootOffsetDp by rememberSaveable { mutableFloatStateOf(0f) }
     val rootBooks = books.filter { it.id !in bookFolders }
     val folderListState = rememberLazyListState()
+    val density = LocalDensity.current
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val folderMaxHeight = maxHeight / 2
+        val maxRootOffsetDp = (maxHeight / 4).value.coerceAtLeast(0f)
         val folderPaneHeight = folderPaneHeight(
             folders = folders,
             books = books,
@@ -445,6 +451,17 @@ private fun BoundedBookList(
             }
 
             LazyColumn(modifier = Modifier.weight(1f)) {
+                if (folders.isNotEmpty()) {
+                    item(key = "root_drag_gap") {
+                        RootPositionHandle(
+                            offsetDp = rootOffsetDp,
+                            onDrag = { dragPixels ->
+                                val deltaDp = with(density) { dragPixels.toDp().value }
+                                rootOffsetDp = (rootOffsetDp + deltaDp).coerceIn(0f, maxRootOffsetDp)
+                            },
+                        )
+                    }
+                }
                 item(key = "root_header") {
                     RootHeader(
                         rootBooks = rootBooks,
@@ -479,7 +496,6 @@ private fun BoundedBookList(
 @Composable
 private fun LibraryStorageSummary(storage: StorageSummary?) {
     val used = storage?.usedBytes?.let(::humanBytes) ?: "..."
-    val total = storage?.totalBytes?.let(::humanBytes) ?: "..."
     val free = storage?.freeBytes?.let(::humanBytes) ?: "..."
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -488,10 +504,39 @@ private fun LibraryStorageSummary(storage: StorageSummary?) {
         shape = MaterialTheme.shapes.medium,
     ) {
         Text(
-            text = "Library: $used / $total\nFree: $free",
+            text = "Library: $used\nFree: $free",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun RootPositionHandle(
+    offsetDp: Float,
+    onDrag: (dragPixels: Float) -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(14.dp + offsetDp.dp)
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { change, dragAmount ->
+                    change.consume()
+                    onDrag(dragAmount)
+                }
+            },
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.32f),
+            shape = MaterialTheme.shapes.extraSmall,
+            modifier = Modifier
+                .padding(bottom = 5.dp)
+                .width(44.dp)
+                .height(4.dp),
+            content = {},
         )
     }
 }
