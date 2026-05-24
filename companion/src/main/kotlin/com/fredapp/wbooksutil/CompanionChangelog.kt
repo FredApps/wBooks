@@ -18,6 +18,7 @@ object CompanionChangelog {
             date = "2026-05-24",
             notes = listOf(
                 "Utility root layout is easier to manage: Root sits lower when folders exist and its position can be adjusted by dragging.",
+                "Reading stats keep refreshing from the watch while the Utility stats screen is open.",
                 "Storage summary now shows library usage and free space only, matching the watch web interface.",
                 "Project Gutenberg requests identify this release with the updated wBooks Utility user agent.",
                 "Folder assignment keeps same-folder drops useful by moving the dropped book to the top.",

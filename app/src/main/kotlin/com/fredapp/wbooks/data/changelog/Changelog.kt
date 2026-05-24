@@ -17,6 +17,7 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
         notes = listOf(
             "Reader memory pressure reduced: embedded images are decoded at watch-display size, and stale parsed-document cache writes are cancelled when switching or closing books.",
             "Time left estimates now learn from sustained normal/sentence scrolling and speed-reading mode shows an immediate WPM-based estimate.",
+            "The web interface now includes read-only reading statistics from the watch.",
             "Watch Project Gutenberg search controls were tightened: keyboard search submits directly, voice/text controls match visually, and downloaded entries look like existing library books.",
             "Book lists now show file size beside format, and bundled seed books use Gutenberg-compatible titles on fresh installs.",
             "Web and Utility library storage summaries now show only library usage and free space, not the device's total storage volume.",

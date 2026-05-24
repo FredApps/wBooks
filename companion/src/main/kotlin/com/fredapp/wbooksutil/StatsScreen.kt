@@ -23,6 +23,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun StatsScreen(vm: StatsViewModel, onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
 
+    DisposableEffect(vm) {
+        vm.startPolling()
+        onDispose { vm.stopPolling() }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

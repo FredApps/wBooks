@@ -5,6 +5,8 @@ import com.fredapp.wbooks.BuildConfig
 import com.fredapp.wbooks.data.about.WATCH_ABOUT_SECTIONS
 import com.fredapp.wbooks.data.book.BookFormat
 import com.fredapp.wbooks.data.folder.FolderPolicy
+import com.fredapp.wbooks.data.stats.ReadingStatsRepository
+import com.fredapp.wbooks.data.stats.formatDurationMs
 import com.fredapp.wbooks.data.settings.FontChoice
 import com.fredapp.wbooks.data.settings.ReaderSettings
 import com.fredapp.wbooks.data.settings.ReadingMode
@@ -45,6 +47,7 @@ class UploadServer(
     private val booksDir: File,
     private val pin: String,
     private val settingsRepository: SettingsRepository,
+    private val statsRepository: ReadingStatsRepository,
     private val crashReportingPref: CrashReportingPref,
     private val assets: AssetManager,
     private val onBookDeleted: (bookId: String) -> Unit = {},
@@ -155,6 +158,7 @@ class UploadServer(
             """<p class="flash" role="status">${htmlEscape(flash)}</p>""" else ""
         val webSettings = runBlocking { settingsRepository.snapshot() }
         val settingsHtml = renderSettingsPanel(webSettings)
+        val statsHtml = renderStatsPanel(runBlocking { statsRepository.snapshot() })
         val storageHtml = renderStorageSummary()
         val bodyStyle = "font-family:${webFontCss(webSettings.font)},system-ui,sans-serif;color:${argbCss(webSettings.textColorArgb)};"
         val html = """
@@ -219,6 +223,13 @@ class UploadServer(
               .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:10px}
               .setting{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px}
               .setting small{display:block;margin-top:4px}
+              .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:10px}
+              .stat-card{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px}
+              .stat-value{display:block;font-size:1.35rem;font-weight:800;line-height:1.1}
+              .stat-label{display:block;margin-top:4px;color:var(--muted);font-size:.88rem;font-weight:700}
+              .daily-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:8px;margin-top:12px}
+              .day-stat{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center}
+              .day-stat strong{display:block}
               .checkbox-row{display:flex;align-items:center;gap:8px}
               .swatches{display:flex;gap:8px;flex-wrap:wrap}
               .swatch{width:32px;height:32px;border-radius:50%;border:2px solid var(--line);cursor:pointer}
@@ -231,7 +242,7 @@ class UploadServer(
               @media (prefers-color-scheme: dark) {
                 :root{--bg:#111;--panel:#191919;--panel-2:#232323;--control:#222;--ink:#eee;--muted:#b8b8b8;--line:#3b3b3b;--accent:#df7f34;--accent-2:#6cc1ba;--shadow:0 14px 36px rgba(0,0,0,.35)}
                 body{background:linear-gradient(135deg,#101010,#1c1a17 55%,#111)}
-                input,select,button,.book-card{background:var(--control);color:#eee;border-color:#555}
+                input,select,button,.book-card,.day-stat{background:var(--control);color:#eee;border-color:#555}
                 .file-picker{background:#211b15}
                 .flash{background:#18351d;border-color:#426b45}
               }
@@ -954,6 +965,7 @@ class UploadServer(
                   $library
                 </section>
               </section>
+              $statsHtml
               $settingsHtml
             </main>
             <div id="pdf-modal" class="modal" role="dialog" aria-modal="true">
@@ -1360,6 +1372,31 @@ class UploadServer(
             ${renderInstructionsPanel()}
             ${renderChangelogPanel()}
             ${renderAboutPanel()}
+        """.trimIndent()
+    }
+
+    private fun renderStatsPanel(summary: ReadingStatsRepository.Summary): String {
+        val latestWpm = summary.recentWpm.lastOrNull()?.wpm
+        val lastSeven = summary.recentDaily.takeLast(7)
+        val dailyHtml = lastSeven.joinToString("") { day ->
+            val label = "${day.date.monthValue}/${day.date.dayOfMonth}"
+            """<div class="day-stat"><strong>${htmlEscape(formatDurationMs(day.ms))}</strong><span class="note">${htmlEscape(label)}</span></div>"""
+        }
+        val wpmHtml = latestWpm?.let {
+            """<div class="stat-card"><span class="stat-value">${htmlEscape(it.toString())}</span><span class="stat-label">Latest WPM</span></div>"""
+        }.orEmpty()
+        return """
+            <section class="settings">
+              <h2>Reading stats</h2>
+              <p class="note">Read-only watch statistics. Reload this page to fetch the latest watch snapshot.</p>
+              <div class="stats-grid">
+                <div class="stat-card"><span class="stat-value">${htmlEscape(formatDurationMs(summary.todayMs))}</span><span class="stat-label">Today</span></div>
+                <div class="stat-card"><span class="stat-value">${htmlEscape(formatDurationMs(summary.totalMs))}</span><span class="stat-label">Total</span></div>
+                <div class="stat-card"><span class="stat-value">${htmlEscape(summary.booksFinished.toString())}</span><span class="stat-label">Finished</span></div>
+                $wpmHtml
+              </div>
+              <div class="daily-list">$dailyHtml</div>
+            </section>
         """.trimIndent()
     }
 

@@ -197,7 +197,7 @@ class ReaderViewModel(
     fun reportPosition(position: BookPosition) {
         val state = _document.value
         if (state !is DocumentState.Loaded) return
-        recordAdvanceIfNeeded(state.book.id, position)
+        recordAdvanceIfNeeded(state, position)
         maybeMarkFinished(state, position)
         viewModelScope.launch { positionsRepo.setPosition(state.book.id, position) }
     }
@@ -284,10 +284,11 @@ class ReaderViewModel(
      *    are treated like jumps even if no explicit jumpTo ran â€" defends
      *    against renderer quirks. See [naturalAdvanceBlocks].
      *
-     * Remaining outliers (long pauses, double-fires) are clamped at the
-     * repository level via [ReadingPaceRepository]'s MIN/MAX bounds.
+     * We store ms-per-word, not ms-per-block. That matters for bezel scrolling:
+     * a single rotary motion can pass several short blocks, and block-based
+     * pace made those advances look impossibly fast.
      */
-    private fun recordAdvanceIfNeeded(bookId: String, position: BookPosition) {
+    private fun recordAdvanceIfNeeded(state: DocumentState.Loaded, position: BookPosition) {
         val mode = settings.value.mode
         if (mode != ReadingMode.NORMAL && mode != ReadingMode.SENTENCE) {
             // RSVP: don't record, but update the baseline so resuming Normal
@@ -301,9 +302,13 @@ class ReaderViewModel(
         val prior = lastAdvancePosition
         if (prior != null && prior != position) {
             val advancedBlocks = naturalAdvanceBlocks(prior, position)
-            if (advancedBlocks > 0) {
-                val deltaPerBlock = (now - lastAdvanceMs) / advancedBlocks
-                viewModelScope.launch { paceRepo.recordAdvances(bookId, deltaPerBlock, advancedBlocks) }
+            val metrics = state.metrics
+            if (advancedBlocks > 0 && metrics != null) {
+                val advancedWords = (metrics.wordIndexAt(position) - metrics.wordIndexAt(prior)).coerceAtLeast(1)
+                val deltaPerWord = ((now - lastAdvanceMs) / advancedWords).coerceAtLeast(1L)
+                viewModelScope.launch {
+                    paceRepo.recordWordAdvances(state.book.id, deltaPerWord, advancedWords)
+                }
             }
         }
         lastAdvancePosition = position
@@ -322,13 +327,17 @@ class ReaderViewModel(
     }
 
     // ---- Reading-pace ETA ----
-    data class ReadingEta(val chapterMs: Long, val bookMs: Long)
+    data class ReadingEta(
+        val chapterMs: Long,
+        val bookMs: Long,
+        val status: String,
+    )
 
     /**
-     * Time-to-finish estimate based on the per-book EMA of ms-per-block-advance
+     * Time-to-finish estimate based on the per-book EMA of ms-per-word
      * (see [ReadingPaceRepository]) and the remaining-block counts derived from
-     * the parsed Document. Null until the user has read enough blocks to trust
-     * the pace estimate.
+     * the parsed Document. A bootstrap estimate is shown while personalized
+     * pace is still learning so Tools does not sit on "Calculating" forever.
      */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val readingEta: StateFlow<ReadingEta?> = _document
@@ -340,8 +349,27 @@ class ReaderViewModel(
                     metrics == null -> null
                     settings.mode == ReadingMode.SPEEDREAD ->
                         computeSpeedreadEta(state.doc, metrics, pos, settings.speedreadWpm)
-                    pace == null || !pace.isReady -> null
-                    else -> computeEta(state.doc, metrics, pos, pace.msPerBlock)
+                    pace == null -> computeEta(
+                        state.doc,
+                        metrics,
+                        pos,
+                        BOOTSTRAP_MS_PER_WORD,
+                        "Estimating - learning pace 0/20",
+                    )
+                    !pace.isReady -> computeEta(
+                        state.doc,
+                        metrics,
+                        pos,
+                        pace.msPerWord,
+                        "Estimating - learning pace ${pace.sampleCount}/20",
+                    )
+                    else -> computeEta(
+                        state.doc,
+                        metrics,
+                        pos,
+                        pace.msPerWord,
+                        "Personalized - ${pace.sampleCount} samples",
+                    )
                 }
             }
         }
@@ -361,16 +389,13 @@ class ReaderViewModel(
         doc: Document,
         metrics: DocumentMetrics,
         position: BookPosition,
-        msPerBlock: Double,
+        msPerWord: Double,
+        status: String,
     ): ReadingEta? {
-        if (doc.chapters.isEmpty() || msPerBlock <= 0.0) return null
-        val totalBlocks = metrics.totalBlocks
+        if (doc.chapters.isEmpty() || msPerWord <= 0.0) return null
         val totalWords = metrics.totalWords
-        if (totalBlocks == 0 || totalWords == 0) return null
+        if (totalWords == 0) return null
 
-        val avgWordsPerBlock = totalWords.toDouble() / totalBlocks
-        if (avgWordsPerBlock <= 0.0) return null
-        val msPerWord = msPerBlock / avgWordsPerBlock
         val derivedWpm = 60_000.0 / msPerWord
         // Refuse to publish an ETA when the implied reading speed is
         // physically implausible. Fast initial paging or huge pauses produce
@@ -394,6 +419,7 @@ class ReaderViewModel(
         return ReadingEta(
             chapterMs = (wordsRemainingInChapter * msPerWord).toLong(),
             bookMs = (wordsRemainingInBook * msPerWord).toLong(),
+            status = status,
         )
     }
 
@@ -418,6 +444,7 @@ class ReaderViewModel(
         return ReadingEta(
             chapterMs = (wordsRemainingInChapter * msPerWord).toLong(),
             bookMs = (wordsRemainingInBook * msPerWord).toLong(),
+            status = "Speed reading - ${wpm.coerceIn(ReaderSettings.WPM_RANGE)} wpm",
         )
     }
 
@@ -839,6 +866,7 @@ class ReaderViewModel(
         const val SESSION_FLUSH_INTERVAL_MS = 60_000L
         const val MIN_TRUSTED_WPM = 50.0
         const val MAX_TRUSTED_WPM = 800.0
+        const val BOOTSTRAP_MS_PER_WORD = 250.0
         const val MAX_NATURAL_ADVANCE_BLOCKS = 60
     }
 

@@ -12,8 +12,8 @@ import kotlinx.coroutines.flow.map
 private val Context.paceDataStore: DataStore<Preferences> by preferencesDataStore(name = "reading_pace")
 
 /**
- * Per-book reading-pace statistic. We track the average milliseconds spent
- * between block-level position advances (each tap-to-page on the reader, roughly).
+ * Per-book reading-pace statistic. We track the average milliseconds per word
+ * between natural position advances.
  *
  * Encoding is an exponential moving average so a single per-book Preferences
  * value captures the rolling pace cheaply â€” no need to retain a sliding window
@@ -27,13 +27,13 @@ class ReadingPaceRepository(context: Context) {
 
     private val store: DataStore<Preferences> = context.applicationContext.paceDataStore
 
-    data class Pace(val msPerBlock: Double, val sampleCount: Int) {
+    data class Pace(val msPerWord: Double, val sampleCount: Int) {
         /** A pace is "ready" once we've seen enough samples to trust the average. */
         val isReady: Boolean get() = sampleCount >= MIN_READY_SAMPLES
     }
 
     fun paceFlow(bookId: String): Flow<Pace?> {
-        val key = stringPreferencesKey("pace:$bookId")
+        val key = stringPreferencesKey("wordpace:$bookId")
         return store.data.map { prefs -> prefs[key]?.let(::decode) }
     }
 
@@ -42,45 +42,51 @@ class ReadingPaceRepository(context: Context) {
      * deleted so removed books don't leave orphaned pace data.
      */
     suspend fun clear(bookId: String) {
-        val key = stringPreferencesKey("pace:$bookId")
-        store.edit { it.remove(key) }
+        val key = stringPreferencesKey("wordpace:$bookId")
+        val legacyKey = stringPreferencesKey("pace:$bookId")
+        store.edit {
+            it.remove(key)
+            it.remove(legacyKey)
+        }
     }
 
     suspend fun moveBookId(fromBookId: String, toBookId: String) {
         if (fromBookId == toBookId) return
-        val from = stringPreferencesKey("pace:$fromBookId")
-        val to = stringPreferencesKey("pace:$toBookId")
+        val from = stringPreferencesKey("wordpace:$fromBookId")
+        val to = stringPreferencesKey("wordpace:$toBookId")
+        val legacyFrom = stringPreferencesKey("pace:$fromBookId")
         store.edit { prefs ->
             prefs[from]?.let { prefs[to] = it }
             prefs.remove(from)
+            prefs.remove(legacyFrom)
         }
     }
 
-    suspend fun recordAdvance(bookId: String, deltaMs: Long) {
-        recordAdvances(bookId, deltaMs, 1)
+    suspend fun recordWordAdvance(bookId: String, msPerWord: Long) {
+        recordWordAdvances(bookId, msPerWord, 1)
     }
 
-    suspend fun recordAdvances(bookId: String, deltaMs: Long, count: Int) {
-        if (deltaMs !in MIN_DELTA_MS..MAX_DELTA_MS) return
-        val safeCount = count.coerceIn(1, MAX_ADVANCES_PER_REPORT)
-        val key = stringPreferencesKey("pace:$bookId")
+    suspend fun recordWordAdvances(bookId: String, msPerWord: Long, count: Int) {
+        val clampedMsPerWord = msPerWord.coerceIn(MIN_MS_PER_WORD, MAX_MS_PER_WORD)
+        val safeCount = count.coerceIn(1, MAX_WORDS_PER_REPORT)
+        val key = stringPreferencesKey("wordpace:$bookId")
         store.edit { prefs ->
             val prior = prefs[key]?.let(::decode)
-            var msPerBlock = prior?.msPerBlock ?: deltaMs.toDouble()
+            var averageMsPerWord = prior?.msPerWord ?: clampedMsPerWord.toDouble()
             var sampleCount = prior?.sampleCount ?: 0
             repeat(safeCount) {
-                msPerBlock = if (sampleCount == 0) {
-                    deltaMs.toDouble()
+                averageMsPerWord = if (sampleCount == 0) {
+                    clampedMsPerWord.toDouble()
                 } else {
-                    ALPHA * deltaMs + (1.0 - ALPHA) * msPerBlock
+                    ALPHA * clampedMsPerWord + (1.0 - ALPHA) * averageMsPerWord
                 }
                 sampleCount = (sampleCount + 1).coerceAtMost(MAX_SAMPLE_COUNT)
             }
-            prefs[key] = encode(Pace(msPerBlock, sampleCount))
+            prefs[key] = encode(Pace(averageMsPerWord, sampleCount))
         }
     }
 
-    private fun encode(p: Pace): String = "${p.msPerBlock}|${p.sampleCount}"
+    private fun encode(p: Pace): String = "${p.msPerWord}|${p.sampleCount}"
 
     private fun decode(raw: String): Pace? {
         val bar = raw.indexOf('|')
@@ -94,20 +100,15 @@ class ReadingPaceRepository(context: Context) {
         /** EMA smoothing factor. Higher = more responsive, more jittery. */
         const val ALPHA = 0.2
 
-        /** Below this we treat the advance as an accidental double-tap. */
-        const val MIN_DELTA_MS = 500L
+        /** 75 ms/word = 800 WPM. Faster movement is clamped to this bootstrap ceiling. */
+        const val MIN_MS_PER_WORD = 75L
+
+        /** 5 seconds/word is slow enough to cover pauses without poisoning the average forever. */
+        const val MAX_MS_PER_WORD = 5_000L
 
         /**
-         * Above this the user was probably idle (locked, called away, ...).
-         * Dense / technical reading on a small screen can legitimately spend
-         * 1â€“2 minutes on a single block, so the cap is generous.
-         */
-        const val MAX_DELTA_MS = 180_000L
-
-        /**
-         * Need at least this many natural block advances before showing the
-         * estimate. Three was far too few — a couple of fast initial taps would
-         * produce wildly wrong ETAs. Twenty is enough for the EMA to converge.
+         * Need at least this many word advances before calling the pace
+         * personalized. The UI can still show a bootstrap estimate before this.
          */
         const val MIN_READY_SAMPLES = 20
 
@@ -115,10 +116,10 @@ class ReadingPaceRepository(context: Context) {
         const val MAX_SAMPLE_COUNT = 10_000
 
         /**
-         * One renderer report can cover many blocks during a continuous swipe.
-         * Cap it high enough for a deliberate scroll, low enough that accidental
-         * same-chapter teleports don't instantly make the ETA look established.
+         * One renderer report can cover many words during a continuous swipe.
+         * Cap it high enough for deliberate bezel/touch scrolling, low enough
+         * that accidental same-chapter teleports don't instantly dominate.
          */
-        const val MAX_ADVANCES_PER_REPORT = 60
+        const val MAX_WORDS_PER_REPORT = 1_000
     }
 }

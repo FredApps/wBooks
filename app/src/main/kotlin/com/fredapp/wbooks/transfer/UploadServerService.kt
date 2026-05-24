@@ -82,6 +82,7 @@ class UploadServerService : Service() {
             booksDir = app.booksDir,
             pin = pin,
             settingsRepository = app.settingsRepository,
+            statsRepository = app.readingStatsRepository,
             crashReportingPref = app.crashReportingPref,
             assets = app.assets,
             onBookDeleted = { bookId ->
