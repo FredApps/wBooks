@@ -86,7 +86,7 @@ class GutenbergRepository {
                 pickPreferred(acq)
             } else {
                 bookIdFromOpdsUrl(id)?.let { numeric ->
-                    Acquisition("$BASE_NO_SLASH/ebooks/$numeric.epub3.images", "epub", null)
+                    Acquisition("$BASE_NO_SLASH/ebooks/$numeric.epub.noimages", "epub", null)
                 }
             } ?: continue
             val contentText = entry.selectFirst("content")?.text()?.trim()?.takeIf { it.isNotEmpty() }
@@ -129,6 +129,7 @@ class GutenbergRepository {
     private data class Acquisition(val url: String, val extension: String, val sizeBytes: Long?)
 
     private fun pickPreferred(links: org.jsoup.select.Elements): Acquisition? {
+        var epubNoImages: Acquisition? = null
         var epub: Acquisition? = null
         var txt: Acquisition? = null
         for (link in links) {
@@ -138,12 +139,24 @@ class GutenbergRepository {
             val abs = resolveUrl(href)
             val sizeBytes = link.attr("length").toLongOrNull()?.takeIf { it > 0L }
             when (type) {
-                "application/epub+zip" -> if (epub == null) epub = Acquisition(abs, "epub", sizeBytes)
+                "application/epub+zip" -> {
+                    val noImages = noImagesEpubUrl(abs)
+                    val acquisition = Acquisition(noImages, "epub", if (noImages == abs) sizeBytes else null)
+                    if (abs.contains(".noimages", ignoreCase = true) && epubNoImages == null) {
+                        epubNoImages = acquisition
+                    } else if (epub == null) {
+                        epub = acquisition
+                    }
+                }
                 "text/plain" -> if (txt == null) txt = Acquisition(abs, "txt", sizeBytes)
             }
         }
-        return epub ?: txt
+        return epubNoImages ?: epub ?: txt
     }
+
+    private fun noImagesEpubUrl(url: String): String =
+        url.replace(".epub3.images", ".epub.noimages")
+            .replace(".epub.images", ".epub.noimages")
 
     private suspend fun List<GutenbergBook>.withResolvedSizes(): List<GutenbergBook> = coroutineScope {
         if (isEmpty()) return@coroutineScope this@withResolvedSizes

@@ -6,7 +6,6 @@ import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
 import java.io.File
 import java.io.InputStream
-import java.net.URLDecoder
 import java.util.zip.ZipFile
 
 /**
@@ -28,9 +27,6 @@ class EpubParser(
     private val tmpDir: File? = null,
     private val onProgress: (Int) -> Unit = {},
 ) : BookParser {
-    // The HTML parser is constructed per-archive once we have a ZipFile in
-    // hand - each EPUB needs its own image resolver bound to that zip.
-
     override fun parse(input: InputStream): Document {
         val tmp = File.createTempFile("wbooks-epub-", ".epub", tmpDir)
         try {
@@ -60,31 +56,14 @@ class EpubParser(
         val opf = parseOpf(opfXml)
         onProgress(45)
 
-        // Image resolver: src is interpreted relative to the chapter file
-        // (baseHref), normalised, then looked up as a zip entry. Mime comes
-        // from the manifest when we can match the path, else inferred from
-        // the extension. We restrict to BitmapFactory-decodable types.
-        val mimeByHref = opf.mimeByHref
-        val resolver: ImageResolver = { src, baseHref ->
-            val baseDir = baseHref.substringBeforeLast('/', missingDelimiterValue = "")
-            val resolved = joinEpubPath(baseDir, cleanResourceHref(src).removePrefix("./"))
-            val bytes = zip.readBinaryEntry(resolved)
-            if (bytes == null) null
-            else {
-                val mime = mimeByHref[resolved]
-                    ?: mimeByHref[resolved.removePrefix("$opfDir/")]
-                    ?: guessMimeFromExt(resolved)
-                if (isSupportedImageMime(mime)) bytes to mime else null
-            }
-        }
-        val htmlParser = HtmlParser(imageResolver = resolver)
+        val htmlParser = HtmlParser()
 
         val total = opf.spineHrefs.size.coerceAtLeast(1)
         val chapters = opf.spineHrefs.mapIndexedNotNull { index, href ->
             val full = joinEpubPath(opfDir, href)
             val xhtml = zip.readTextEntry(full) ?: return@mapIndexedNotNull null
             onProgress(45 + ((index + 1) * 40 / total))
-            Chapter(title = null, blocks = htmlParser.blocksOf(xhtml, baseHref = full))
+            Chapter(title = null, blocks = htmlParser.blocksOf(xhtml))
         }
 
         onProgress(90)
@@ -99,30 +78,7 @@ class EpubParser(
         val title: String?,
         val creator: String?,
         val spineHrefs: List<String>,
-        /** Map of manifest href -> media-type. Used to identify image entries. */
-        val mimeByHref: Map<String, String>,
     )
-
-    /** Restrict to formats Android's `BitmapFactory` decodes natively. */
-    private fun isSupportedImageMime(mime: String?): Boolean = when (mime?.lowercase()) {
-        "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/bmp" -> true
-        else -> false
-    }
-
-    private fun guessMimeFromExt(path: String): String? = when (path.substringAfterLast('.', "").lowercase()) {
-        "jpg", "jpeg" -> "image/jpeg"
-        "png" -> "image/png"
-        "gif" -> "image/gif"
-        "webp" -> "image/webp"
-        "bmp" -> "image/bmp"
-        else -> null
-    }
-
-    private fun cleanResourceHref(raw: String): String {
-        val withoutAnchor = raw.substringBefore('#').substringBefore('?')
-        return runCatching { URLDecoder.decode(withoutAnchor, Charsets.UTF_8.name()) }
-            .getOrDefault(withoutAnchor)
-    }
 
     private fun parseContainer(xml: String): String {
         val doc = Jsoup.parse(xml, "", Parser.xmlParser())
@@ -140,10 +96,9 @@ class EpubParser(
 
         val manifestItems = doc.select("manifest > item")
         val hrefById = manifestItems.associate { it.attr("id") to it.attr("href") }
-        val mimeByHref = manifestItems.associate { it.attr("href") to it.attr("media-type") }
         val spineHrefs = doc.select("spine > itemref").mapNotNull { hrefById[it.attr("idref")] }
 
-        return OpfData(title = title, creator = creator, spineHrefs = spineHrefs, mimeByHref = mimeByHref)
+        return OpfData(title = title, creator = creator, spineHrefs = spineHrefs)
     }
 
     /**

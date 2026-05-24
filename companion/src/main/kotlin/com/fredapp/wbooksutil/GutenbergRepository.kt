@@ -25,7 +25,7 @@ import kotlin.coroutines.coroutineContext
  *   - Recent releases:  https://www.gutenberg.org/ebooks/search.opds/?sort_order=release_date
  *
  * For each result we pick the best download link the reader can open natively
- * (EPUB > TXT) and surface a [GutenbergBook] with the direct URL. [withDownload]
+ * (no-images EPUB > TXT) and surface a [GutenbergBook] with the direct URL. [withDownload]
  * streams the raw HTTP body so the caller can pipe it straight to the watch
  * via [WatchRepository.uploadStream] without buffering the whole book in RAM.
  *
@@ -130,7 +130,7 @@ class GutenbergRepository {
             } else {
                 bookIdFromOpdsUrl(id)?.let { numeric ->
                     Acquisition(
-                        url = "$BASE_NO_SLASH/ebooks/$numeric.epub3.images",
+                        url = "$BASE_NO_SLASH/ebooks/$numeric.epub.noimages",
                         extension = "epub",
                         sizeBytes = null,
                     )
@@ -199,6 +199,7 @@ class GutenbergRepository {
 
     /** Pick the first acquisition link whose MIME type we know how to parse. */
     private fun pickPreferred(links: org.jsoup.select.Elements): Acquisition? {
+        var epubNoImages: Acquisition? = null
         var epub: Acquisition? = null
         var txt: Acquisition? = null
         for (link in links) {
@@ -208,12 +209,24 @@ class GutenbergRepository {
             val abs = resolveUrl(href)
             val sizeBytes = link.attr("length").toLongOrNull()?.takeIf { it > 0L }
             when (type) {
-                "application/epub+zip" -> if (epub == null) epub = Acquisition(abs, "epub", sizeBytes)
+                "application/epub+zip" -> {
+                    val noImages = noImagesEpubUrl(abs)
+                    val acquisition = Acquisition(noImages, "epub", if (noImages == abs) sizeBytes else null)
+                    if (abs.contains(".noimages", ignoreCase = true) && epubNoImages == null) {
+                        epubNoImages = acquisition
+                    } else if (epub == null) {
+                        epub = acquisition
+                    }
+                }
                 "text/plain" -> if (txt == null) txt = Acquisition(abs, "txt", sizeBytes)
             }
         }
-        return epub ?: txt
+        return epubNoImages ?: epub ?: txt
     }
+
+    private fun noImagesEpubUrl(url: String): String =
+        url.replace(".epub3.images", ".epub.noimages")
+            .replace(".epub.images", ".epub.noimages")
 
     private suspend fun List<GutenbergBook>.withResolvedSizes(): List<GutenbergBook> = coroutineScope {
         if (isEmpty()) return@coroutineScope this@withResolvedSizes

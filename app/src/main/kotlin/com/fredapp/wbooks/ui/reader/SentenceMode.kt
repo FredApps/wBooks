@@ -293,7 +293,7 @@ private fun segmentSentences(doc: Document): List<SentenceItem> {
             val text = when (block) {
                 is Block.Heading -> block.text
                 is Block.Paragraph -> block.runs.joinToString("") { it.text }
-                Block.Divider, is Block.Code, is Block.Image -> ""
+                Block.Divider, is Block.Code -> ""
             }.trim()
             if (text.isEmpty()) continue
 

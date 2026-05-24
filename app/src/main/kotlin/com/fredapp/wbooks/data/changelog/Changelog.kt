@@ -15,7 +15,7 @@ val CHANGELOG: List<ChangelogEntry> = listOf(
         version = "1.0.0",
         date = "2026-05-24",
         notes = listOf(
-            "Reader memory pressure reduced: embedded images are decoded at watch-display size, and stale parsed-document cache writes are cancelled when switching or closing books.",
+            "Reader memory pressure reduced by dropping embedded book images and cancelling stale parsed-document cache writes when switching or closing books.",
             "Time left estimates now learn from sustained normal/sentence scrolling and speed-reading mode shows an immediate WPM-based estimate.",
             "The web interface now includes read-only reading statistics from the watch.",
             "Watch Project Gutenberg search controls were tightened: keyboard search submits directly, voice/text controls match visually, downloads show inline progress, and completed entries stay marked as Added after rename or move.",

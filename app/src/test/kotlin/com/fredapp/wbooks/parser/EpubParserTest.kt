@@ -1,18 +1,15 @@
 package com.fredapp.wbooks.parser
 
-import com.fredapp.wbooks.parser.model.Block
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
-import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class EpubParserTest {
 
     @Test
-    fun resolvesEncodedImageHrefWithQueryAndFragment() {
+    fun dropsEmbeddedImages() {
         val imageBytes = byteArrayOf(
             0x89.toByte(), 0x50, 0x4E, 0x47,
             0x0D, 0x0A, 0x1A, 0x0A,
@@ -55,12 +52,9 @@ class EpubParserTest {
             }
 
             val doc = EpubParser().parse(epub)
-            val image = doc.chapters.single().blocks.singleOrNull() as? Block.Image
 
-            assertNotNull(image)
-            assertEquals("image/png", image!!.mime)
-            assertEquals("cover", image.alt)
-            assertArrayEquals(imageBytes, image.bytes)
+            assertEquals("Images", doc.title)
+            assertEquals(emptyList<Any>(), doc.chapters.single().blocks)
         } finally {
             epub.delete()
         }

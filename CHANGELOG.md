@@ -6,7 +6,7 @@ All notable changes to wBooks are documented in this file.
 
 ## [1.0.0] - 2026-05-24
 
-- Reduced watch reader memory pressure: embedded images now decode at display size, and stale parsed-document cache writes are cancelled when switching or closing books.
+- Reduced watch reader memory pressure by dropping embedded book images and cancelling stale parsed-document cache writes when switching or closing books.
 - Improved Time left behavior: normal/sentence scrolling now feeds the pace estimate more reliably, and speed-reading mode gets immediate WPM-based ETA.
 - Polished watch Project Gutenberg search: keyboard search submits directly, voice/text controls match, and downloaded entries look like existing library books.
 - Watch Project Gutenberg downloads now show inline progress, flip to Added when complete, and remain tracked after renamed or moved.

@@ -172,7 +172,7 @@ class GutenbergRepositoryTest {
 
         assertEquals(1, books.size)
         assertEquals("epub", books.single().extension)
-        assertEquals("https://www.gutenberg.org/ebooks/2701.epub3.images", books.single().downloadUrl)
+        assertEquals("https://www.gutenberg.org/ebooks/2701.epub.noimages", books.single().downloadUrl)
         assertEquals("https://www.gutenberg.org/ebooks/2701", books.single().infoUrl)
         assertNull(books.single().sizeBytes)
     }

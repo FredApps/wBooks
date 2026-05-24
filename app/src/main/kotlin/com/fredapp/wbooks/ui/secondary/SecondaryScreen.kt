@@ -512,7 +512,6 @@ private fun blockTextAt(
         is com.fredapp.wbooks.parser.model.Block.Heading -> block.text
         is com.fredapp.wbooks.parser.model.Block.Paragraph -> block.runs.joinToString("") { it.text }
         is com.fredapp.wbooks.parser.model.Block.Code -> block.text
-        is com.fredapp.wbooks.parser.model.Block.Image -> block.alt
         com.fredapp.wbooks.parser.model.Block.Divider -> ""
     }
 }
