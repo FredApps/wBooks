@@ -29,5 +29,8 @@ push.ps1
 # Captures
 captures/
 
+# Play Store listing assets (uploaded via Play Console, not part of the build)
+store-listing/
+
 # External native
 .cxx/
