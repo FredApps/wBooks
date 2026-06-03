@@ -12,6 +12,14 @@ data class ChangelogEntry(
  */
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "1.0.1",
+        date = "2026-06-03",
+        notes = listOf(
+            "Fixed a crash that closed the app immediately on launch on newer Wear OS watches.",
+            "Fixed a \"device not compatible\" error that blocked installing from Google Play on some round watches.",
+        ),
+    ),
+    ChangelogEntry(
         version = "1.0.0",
         date = "2026-05-24",
         notes = listOf(

@@ -78,8 +78,8 @@ android {
         applicationId = requireLocalProperty("wbooks.applicationId")
         minSdk = 30
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.0.0"
+        versionCode = 16
+        versionName = "1.0.1"
 
         manifestPlaceholders["sentryDsn"] = localProperty("sentry.dsn")
     }
@@ -140,6 +140,9 @@ sentry {
     org.set("fredapps")
     projectName.set("wbooks")
     authToken.set(localProperty("sentry.auth.token"))
+    // Org is in Sentry's EU region; without this the plugin hits the US API
+    // and the mapping upload fails with "Failed to get region URL" / 401.
+    url.set("https://de.sentry.io")
 
     // Upload ProGuard/R8 mapping so minified release stack traces are readable.
     // Only runs on release variants where minify is on; debug builds are untouched.

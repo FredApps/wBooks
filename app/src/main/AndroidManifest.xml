@@ -3,6 +3,21 @@
 
     <uses-feature android:name="android.hardware.type.watch" />
 
+    <!--
+      Override the *implied* required features Google Play derives from the
+      manifest, otherwise Play filters the app off devices that don't advertise
+      them ("device is not compatible"):
+      - screen.portrait/landscape: implied required=true by the activity's
+        android:screenOrientation="portrait". Round Wear OS watches (e.g.
+        Galaxy Watch 6) don't advertise a portrait screen, so they'd be
+        excluded. We still lock the UI to portrait at runtime.
+      - wifi: implied required=true by ACCESS_WIFI_STATE. Book transfer falls
+        back to the Bluetooth data layer, so don't require WiFi hardware.
+    -->
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
+    <uses-feature android:name="android.hardware.screen.landscape" android:required="false" />
+    <uses-feature android:name="android.hardware.wifi" android:required="false" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />

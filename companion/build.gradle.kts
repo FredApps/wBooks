@@ -72,7 +72,7 @@ android {
         applicationId = requireLocalProperty("wbooks.applicationId")
         minSdk = 24
         targetSdk = 35
-        versionCode = 13
+        versionCode = 14
         versionName = "1.0.0"
 
         manifestPlaceholders["sentryDsn"] = localProperty("sentry.dsn")
@@ -124,6 +124,9 @@ sentry {
     org.set("fredapps")
     projectName.set("wbooks")
     authToken.set(localProperty("sentry.auth.token"))
+    // Org is in Sentry's EU region; without this the plugin hits the US API
+    // and the mapping upload fails with "Failed to get region URL" / 401.
+    url.set("https://de.sentry.io")
 
     autoUploadProguardMapping.set(hasSentryAuthToken)
     includeSourceContext.set(hasSentryAuthToken)
