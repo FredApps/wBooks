@@ -14,6 +14,13 @@ data class CompanionChangelogEntry(
 object CompanionChangelog {
     val ENTRIES: List<CompanionChangelogEntry> = listOf(
         CompanionChangelogEntry(
+            version = "1.0.1",
+            date = "2026-06-03",
+            notes = listOf(
+                "Maintenance release keeping the companion version aligned with the 1.0.1 watch app. No functional changes to the companion.",
+            ),
+        ),
+        CompanionChangelogEntry(
             version = "1.0.0",
             date = "2026-05-24",
             notes = listOf(
