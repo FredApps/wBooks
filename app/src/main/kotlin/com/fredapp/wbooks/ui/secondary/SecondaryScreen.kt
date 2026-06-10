@@ -55,6 +55,7 @@ import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.foundation.rotary.rotaryScrollable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.CompactChip
@@ -96,6 +97,7 @@ fun SecondaryScreen(
     vm: ReaderViewModel,
     onSearchActiveChanged: (Boolean) -> Unit,
     onReaderPageRequested: () -> Unit,
+    onExit: () -> Unit,
     isActive: Boolean = true,
 ) {
     val listState = rememberScalingLazyListState()
@@ -203,6 +205,27 @@ fun SecondaryScreen(
             contentPadding = watchListPadding(start = 4.dp, top = 12.dp, end = 4.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CompactChip(
+                        label = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.KeyboardArrowUp,
+                                    contentDescription = "Book list",
+                                    tint = FolderGreyText,
+                                )
+                                Text("Book list", color = FolderGreyText)
+                            }
+                        },
+                        onClick = onExit,
+                        colors = ChipDefaults.chipColors(backgroundColor = FolderGrey, contentColor = FolderGreyText),
+                    )
+                }
+            }
             item {
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     CompactChip(

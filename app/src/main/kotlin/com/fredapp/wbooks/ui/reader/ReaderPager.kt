@@ -68,6 +68,7 @@ fun ReaderPager(
                 isActive = sidePage == 0,
                 onSearchActiveChanged = { toolsSearchActive = it },
                 onReaderPageRequested = goToReader,
+                onExit = onExit,
             )
             1 -> ReaderScreen(state = state, vm = vm, isActive = readerActive, onExit = onExit)
             2 -> SettingsScreen(

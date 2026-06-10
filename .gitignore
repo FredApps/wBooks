@@ -25,6 +25,7 @@ Thumbs.db
 # Local deploy helpers
 rebuild-reinstall.ps1
 push.ps1
+.secrets-scripts/
 
 # Captures
 captures/
