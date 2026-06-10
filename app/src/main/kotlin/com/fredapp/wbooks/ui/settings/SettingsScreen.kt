@@ -296,6 +296,7 @@ fun SettingsScreen(vm: ReaderViewModel, isActive: Boolean = true, onBack: () -> 
                 ChoiceChip(
                     label = font.familyName,
                     fontFamily = font.toFontFamily(),
+                    fontScale = font.sizeScale,
                     selected = settings.font == font,
                     onClick = { vm.setFont(font) },
                 )
@@ -416,9 +417,15 @@ private fun CyclerChip(label: String, value: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChoiceChip(label: String, fontFamily: FontFamily? = null, selected: Boolean, onClick: () -> Unit) {
+private fun ChoiceChip(label: String, fontFamily: FontFamily? = null, fontScale: Float = 1f, selected: Boolean, onClick: () -> Unit) {
     Chip(
-        label = { Text(if (selected) "$label (selected)" else label, fontFamily = fontFamily) },
+        label = {
+            Text(
+                if (selected) "$label (selected)" else label,
+                fontFamily = fontFamily,
+                fontSize = MaterialTheme.typography.button.fontSize * fontScale,
+            )
+        },
         onClick = onClick,
         colors = if (selected) ChipDefaults.primaryChipColors() else ChipDefaults.secondaryChipColors(),
         modifier = Modifier.fillMaxWidth(),

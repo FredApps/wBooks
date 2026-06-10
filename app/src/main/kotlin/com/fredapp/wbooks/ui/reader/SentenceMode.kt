@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.fredapp.wbooks.data.position.BookPosition
@@ -195,7 +196,7 @@ fun SentenceMode(
                 FittingSentenceText(
                     text = sentences[index].text,
                     color = Color(settings.textColorArgb),
-                    targetFontSizeSp = settings.sentenceTextSizeSp,
+                    targetFontSizeSp = (settings.sentenceTextSizeSp * settings.font.sizeScale).roundToInt(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = sentenceTextMaxHeight),

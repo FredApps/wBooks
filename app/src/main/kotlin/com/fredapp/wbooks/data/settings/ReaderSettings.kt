@@ -9,14 +9,20 @@ fun ReadingMode.next(): ReadingMode = when (this) {
     ReadingMode.SENTENCE -> ReadingMode.NORMAL
 }
 
-enum class FontChoice(val familyName: String) {
+/**
+ * @property sizeScale Multiplier applied to the user's text size so fonts with a
+ * tall x-height render at roughly the same apparent size as the others. Inter sits
+ * large on the em box, so its choices are scaled down slightly; the platform
+ * families stay at 1.0.
+ */
+enum class FontChoice(val familyName: String, val sizeScale: Float = 1f) {
     DEFAULT("default"),
     SERIF("serif"),
     SANS("sans-serif"),
     MONO("monospace"),
     CURSIVE("cursive"),
-    INTER_LIGHT("Inter Light"),
-    INTER_MEDIUM("Inter Medium");
+    INTER_LIGHT("Inter Light", 0.9f),
+    INTER_MEDIUM("Inter Medium", 0.9f);
 
     fun next(): FontChoice = entries[(ordinal + 1) % entries.size]
 }

@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import androidx.wear.compose.material.CompactChip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.MaterialTheme
@@ -159,7 +160,7 @@ fun SpeedReadMode(
         ) {
             FocalWord(
                 word = words[index].text,
-                fontSizeSp = settings.textSizeSp + 10,
+                fontSizeSp = ((settings.textSizeSp + 10) * settings.font.sizeScale).roundToInt(),
                 baseColor = Color(settings.textColorArgb),
                 focalColor = FOCAL_COLOR,
             )

@@ -34,7 +34,8 @@ import com.fredapp.wbooks.ui.theme.toFontFamily
 @Composable
 fun BlockView(block: Block, settings: ReaderSettings) {
     val baseColor = Color(settings.textColorArgb)
-    val baseSize = settings.textSizeSp.sp
+    val scale = settings.font.sizeScale
+    val baseSize = (settings.textSizeSp * scale).sp
     val family = settings.font.toFontFamily()
 
     when (block) {
@@ -45,7 +46,7 @@ fun BlockView(block: Block, settings: ReaderSettings) {
                 color = baseColor,
                 fontFamily = family,
                 fontWeight = FontWeight.Bold,
-                fontSize = (settings.textSizeSp + bump).sp,
+                fontSize = ((settings.textSizeSp + bump) * scale).sp,
             )
         }
         is Block.Paragraph -> {
