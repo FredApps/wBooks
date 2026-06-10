@@ -12,6 +12,20 @@ data class ChangelogEntry(
  */
 val CHANGELOG: List<ChangelogEntry> = listOf(
     ChangelogEntry(
+        version = "1.0.3",
+        date = "2026-06-10",
+        notes = listOf(
+            "Added two new reader fonts: Inter Light and Inter Medium.",
+        ),
+    ),
+    ChangelogEntry(
+        version = "1.0.2",
+        date = "2026-06-10",
+        notes = listOf(
+            "Added a \"Book list\" button in the reader tools to return to your library without the hardware/swipe back gesture.",
+        ),
+    ),
+    ChangelogEntry(
         version = "1.0.1",
         date = "2026-06-03",
         notes = listOf(

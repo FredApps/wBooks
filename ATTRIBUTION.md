@@ -63,6 +63,10 @@ wBooks includes the following open-source libraries and components:
 The Material Design Icons are used from:
 - **Material Design Icons** - Apache License 2.0 (Icon Design)
   - URL: https://fonts.google.com/icons
+- **Inter** (Light & Medium weights) - SIL Open Font License 1.1
+  - by Rasmus Andersson. Bundled in `app/src/main/res/font/`.
+  - Full license text: `app/src/main/assets/licenses/OFL-Inter.txt`
+  - URL: https://rsms.me/inter/
 
 ## Project Resources
 - **Project Gutenberg Texts** - Public Domain (in the United States)

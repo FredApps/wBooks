@@ -1521,6 +1521,8 @@ class UploadServer(
         FontChoice.SANS -> "Arial"
         FontChoice.MONO -> "\"Courier New\",monospace"
         FontChoice.CURSIVE -> "cursive"
+        FontChoice.INTER_LIGHT -> "Inter,system-ui,sans-serif"
+        FontChoice.INTER_MEDIUM -> "Inter,system-ui,sans-serif"
     }
 
     private inline fun <reified E : Enum<E>> enumParam(params: Map<String, List<String>>, name: String, fallback: E): E =

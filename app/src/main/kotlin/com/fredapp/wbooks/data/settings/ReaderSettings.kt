@@ -14,7 +14,9 @@ enum class FontChoice(val familyName: String) {
     SERIF("serif"),
     SANS("sans-serif"),
     MONO("monospace"),
-    CURSIVE("cursive");
+    CURSIVE("cursive"),
+    INTER_LIGHT("Inter Light"),
+    INTER_MEDIUM("Inter Medium");
 
     fun next(): FontChoice = entries[(ordinal + 1) % entries.size]
 }
