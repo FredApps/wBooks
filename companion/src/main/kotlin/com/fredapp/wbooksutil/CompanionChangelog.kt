@@ -14,7 +14,7 @@ data class CompanionChangelogEntry(
 object CompanionChangelog {
     val ENTRIES: List<CompanionChangelogEntry> = listOf(
         CompanionChangelogEntry(
-            version = "1.0.4",
+            version = "1.0.5",
             date = "2026-06-12",
             notes = listOf(
                 "You can now read your books on the phone itself, with the same Normal, Sentence, and Speed-Reading modes as the watch, plus in-book search, bookmarks, and chapter jumping.",
