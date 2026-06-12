@@ -208,14 +208,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 applySnapshot(snapshot, noWatch = false, syncMessage = null)
             }
             WatchRepository.Result.NoWatch -> {
-                applySnapshot(localSnapshot(), noWatch = true, syncMessage = "Offline - showing cached watch library")
+                applySnapshot(localSnapshot(), noWatch = true, syncMessage = pendingSyncBanner())
             }
             is WatchRepository.Result.Error -> {
+                // Background sync hiccup — the local library still shows, so keep it
+                // quiet (no central error dialog) and just reflect any pending sync.
                 applySnapshot(
                     localSnapshot(),
                     noWatch = false,
-                    syncMessage = "Sync issue - showing cached watch library",
-                    errorMessage = result.message,
+                    syncMessage = pendingSyncBanner(),
                 )
             }
         }
@@ -323,14 +324,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 applySnapshot(
                     localSnapshot(),
                     noWatch = true,
-                    syncMessage = "Offline - queued for watch sync",
+                    syncMessage = pendingSyncBanner(),
                 )
             }
             is WatchRepository.Result.Error -> {
                 applySnapshot(
                     localSnapshot(),
                     noWatch = false,
-                    syncMessage = "Upload queued for retry",
+                    syncMessage = pendingSyncBanner(),
                     errorMessage = result.message,
                 )
             }
@@ -370,7 +371,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 applySnapshot(
                     localSnapshot(),
                     noWatch = true,
-                    syncMessage = "Offline - queued for watch sync",
+                    syncMessage = pendingSyncBanner(),
                 )
             }
             is WatchRepository.Result.Error -> {
@@ -380,7 +381,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 applySnapshot(
                     localSnapshot(),
                     noWatch = false,
-                    syncMessage = if (cachedId != null) "Upload queued for retry" else null,
+                    syncMessage = if (cachedId != null) pendingSyncBanner() else null,
                     errorMessage = result.message,
                 )
             }
@@ -452,7 +453,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loading = false,
         noWatch = true,
         pendingPdf = null,
-        syncMessage = "Offline - queued for watch sync",
+        syncMessage = pendingSyncBanner(),
     )
 
     private suspend fun localSnapshot(): LibrarySnapshot {
@@ -560,6 +561,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             candidate = File(dir, "$base ($i)$ext")
             if (!candidate.exists()) return candidate
             i++
+        }
+    }
+
+    /**
+     * Peripheral, non-alarming status line for the library header. The phone is a
+     * fully usable reader on its own, so a missing watch is never an error — we
+     * only mention sync when books are actually waiting to reach the watch.
+     */
+    private fun pendingSyncBanner(): String? {
+        val n = pendingUploads().size
+        return when {
+            n <= 0 -> null
+            n == 1 -> "1 book will sync when your watch is connected"
+            else -> "$n books will sync when your watch is connected"
         }
     }
 

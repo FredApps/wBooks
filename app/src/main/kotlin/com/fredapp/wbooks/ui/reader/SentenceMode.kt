@@ -36,8 +36,10 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.fredapp.wbooks.data.position.BookPosition
 import com.fredapp.wbooks.data.settings.ReaderSettings
-import com.fredapp.wbooks.parser.model.Block
 import com.fredapp.wbooks.parser.model.Document
+import com.fredapp.wbooks.parser.model.SentenceItem
+import com.fredapp.wbooks.parser.model.indexAtOrAfter
+import com.fredapp.wbooks.parser.model.segmentSentences
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.layout.watchContentPadding
@@ -46,7 +48,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlin.math.abs
 
-private data class SentenceItem(val text: String, val position: BookPosition)
 private const val SENTENCE_SWIPE_THRESHOLD_PX = 36f
 private const val AUTOSCROLL_SPEED_STEP = 5
 
@@ -73,7 +74,7 @@ fun SentenceMode(
     isActive: Boolean,
     onAutoscrollSpeedChange: (Int) -> Unit,
 ) {
-    val sentences = remember(document) { segmentSentences(document) }
+    val sentences = remember(document) { document.segmentSentences() }
     if (sentences.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("(no readable text)")
@@ -82,7 +83,7 @@ fun SentenceMode(
     }
 
     var index by remember(document) {
-        mutableIntStateOf(sentenceIndexFor(sentences, initialPosition))
+        mutableIntStateOf(sentences.indexAtOrAfter(initialPosition))
     }
     var autoscrollPaused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
@@ -96,7 +97,7 @@ fun SentenceMode(
 
     // Handle external jumps (chapter list, bookmark tap).
     LaunchedEffect(document) {
-        vm.jumps.collect { target -> index = sentenceIndexFor(sentences, target) }
+        vm.jumps.collect { target -> index = sentences.indexAtOrAfter(target) }
     }
 
     // Report position back to the VM as the user advances.
@@ -287,86 +288,5 @@ private fun String.tokenStartIndexes(token: String): List<Int> {
     return out
 }
 
-private fun segmentSentences(doc: Document): List<SentenceItem> {
-    val out = mutableListOf<SentenceItem>()
-    for ((ci, chapter) in doc.chapters.withIndex()) {
-        for ((bi, block) in chapter.blocks.withIndex()) {
-            val text = when (block) {
-                is Block.Heading -> block.text
-                is Block.Paragraph -> block.runs.joinToString("") { it.text }
-                Block.Divider, is Block.Code -> ""
-            }.trim()
-            if (text.isEmpty()) continue
-
-            var subIndex = 0
-            for (part in text.splitAtPunctuation()) {
-                if (part.isEmpty()) continue
-                out.add(SentenceItem(part, BookPosition(ci, bi, subIndex)))
-                subIndex++
-            }
-        }
-    }
-    return out
-}
-
-/**
- * Always break after `.`, `."`, `,`, `,"` when followed by whitespace or end.
- * The trailing-space requirement keeps decimals like "3.14" and abbreviations
- * like "Mr.Smith" intact, while still splitting at every real sentence /
- * clause boundary.
- *
- * Quote characters include straight ("/') and curly (U+201C/D/U+2018/9) so
- * ebooks that use smart quotes still split after `."`.
- *
- * Fragments shorter than [MIN_FRAGMENT_SPACES] inter-word spaces are not
- * emitted as their own screen — instead the break is skipped and the
- * fragment keeps growing until it reaches the next valid boundary.
- */
-private const val MIN_FRAGMENT_SPACES = 3
-
-private fun Char.isCloseQuote(): Boolean =
-    this == '"' || this == '\'' || this == '“' || this == '”' || this == '‘' || this == '’'
-
-private fun String.splitAtPunctuation(): List<String> {
-    val pieces = mutableListOf<String>()
-    var start = 0
-    var i = 0
-    while (i < length) {
-        val c = this[i]
-        if (c == '.' || c == ',') {
-            var end = i + 1
-            if (end < length && this[end].isCloseQuote()) end++
-            val nextIsBoundary = end >= length || this[end].isWhitespace()
-            if (nextIsBoundary) {
-                val fragment = substring(start, end).trim()
-                if (fragment.isNotEmpty() && fragment.count { it == ' ' } >= MIN_FRAGMENT_SPACES) {
-                    pieces += fragment
-                    start = end
-                }
-                i = end
-                continue
-            }
-        }
-        i++
-    }
-    substring(start).trim().takeIf { it.isNotEmpty() }?.let { pieces += it }
-    return pieces.ifEmpty { listOf(trim()) }
-}
-
-/**
- * First sentence at or after [target], compared lexicographically on
- * (chapter, block, sub). Matching the sub-index lets bookmarks made in
- * sentence mode land back on the exact sentence — not just the start of
- * the paragraph.
- */
-private fun sentenceIndexFor(sentences: List<SentenceItem>, target: BookPosition): Int {
-    val i = sentences.indexOfFirst { s ->
-        val p = s.position
-        when {
-            p.chapterIndex != target.chapterIndex -> p.chapterIndex > target.chapterIndex
-            p.blockIndex != target.blockIndex -> p.blockIndex > target.blockIndex
-            else -> p.subIndex >= target.subIndex
-        }
-    }
-    return if (i >= 0) i else sentences.lastIndex
-}
+// Sentence segmentation and position lookup live in :reader-core
+// (parser/model/ReaderSegmentation.kt) so the phone reader splits identically.

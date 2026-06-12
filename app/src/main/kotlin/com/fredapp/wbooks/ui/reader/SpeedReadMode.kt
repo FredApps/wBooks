@@ -37,8 +37,10 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.fredapp.wbooks.data.position.BookPosition
 import com.fredapp.wbooks.data.settings.ReaderSettings
-import com.fredapp.wbooks.parser.model.Block
 import com.fredapp.wbooks.parser.model.Document
+import com.fredapp.wbooks.parser.model.focalIndex
+import com.fredapp.wbooks.parser.model.indexAtOrAfter
+import com.fredapp.wbooks.parser.model.tokenizeWords
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.layout.watchContentPadding
@@ -68,7 +70,7 @@ fun SpeedReadMode(
     isActive: Boolean,
     onWpmChange: (Int) -> Unit,
 ) {
-    val words = remember(document) { tokenize(document) }
+    val words = remember(document) { document.tokenizeWords() }
     if (words.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("(no readable text)")
@@ -76,7 +78,7 @@ fun SpeedReadMode(
         return
     }
 
-    var index by remember(document) { mutableIntStateOf(wordIndexFor(words, initialPosition)) }
+    var index by remember(document) { mutableIntStateOf(words.indexAtOrAfter(initialPosition)) }
     var playing by remember { mutableStateOf(true) }
     var displayedWpm by remember { mutableIntStateOf(settings.speedreadWpm) }
     val focusRequester = remember { FocusRequester() }
@@ -86,7 +88,7 @@ fun SpeedReadMode(
     }
 
     LaunchedEffect(document) {
-        vm.jumps.collect { target -> index = wordIndexFor(words, target) }
+        vm.jumps.collect { target -> index = words.indexAtOrAfter(target) }
     }
 
     LaunchedEffect(document, words) {
@@ -214,8 +216,6 @@ fun SpeedReadMode(
 private val FOCAL_COLOR = Color(0xFFF06B5A)
 private const val WPM_STEP = 25
 
-private data class WordItem(val text: String, val position: BookPosition)
-
 @Composable
 private fun FocalWord(
     word: String,
@@ -262,56 +262,8 @@ private fun FocalWord(
     }
 }
 
-/**
- * Optimal recognition point. Standard RSVP table:
- *   1 char      -> 0
- *   2-5 chars   -> 1
- *   6-9 chars   -> 2
- *   10-13 chars -> 3
- *   14+ chars   -> 4
- */
-internal fun focalIndex(word: String): Int = when (word.length) {
-    0, 1 -> 0
-    in 2..5 -> 1
-    in 6..9 -> 2
-    in 10..13 -> 3
-    else -> 4
-}.coerceAtMost(word.lastIndex.coerceAtLeast(0))
-
-private fun tokenize(doc: Document): List<WordItem> {
-    val ws = Regex("\\s+")
-    val out = mutableListOf<WordItem>()
-    for ((ci, chapter) in doc.chapters.withIndex()) {
-        for ((bi, block) in chapter.blocks.withIndex()) {
-            val text = when (block) {
-                is Block.Heading -> block.text
-                is Block.Paragraph -> block.runs.joinToString("") { it.text }
-                Block.Divider, is Block.Code -> ""
-            }
-            if (text.isNotBlank()) {
-                out.addAll(
-                    text.trim()
-                        .split(ws)
-                        .filter { it.isNotEmpty() }
-                        .mapIndexed { wordIndex, word -> WordItem(word, BookPosition(ci, bi, wordIndex)) },
-                )
-            }
-        }
-    }
-    return out
-}
-
-private fun wordIndexFor(words: List<WordItem>, target: BookPosition): Int {
-    val i = words.indexOfFirst { word ->
-        val p = word.position
-        when {
-            p.chapterIndex != target.chapterIndex -> p.chapterIndex > target.chapterIndex
-            p.blockIndex != target.blockIndex -> p.blockIndex > target.blockIndex
-            else -> p.subIndex >= target.subIndex
-        }
-    }
-    return if (i >= 0) i else words.lastIndex
-}
+// Word tokenisation, position lookup, and the RSVP focal index live in
+// :reader-core (parser/model/ReaderSegmentation.kt) so the phone reader matches.
 
 private fun bookPercent(index: Int, totalWords: Int): Int {
     if (totalWords <= 0) return 0

@@ -18,8 +18,7 @@ object CompanionChangelog {
             date = "2026-06-12",
             notes = listOf(
                 "You can now read your books on the phone itself, with the same Normal, Sentence, and Speed-Reading modes as the watch, plus in-book search, bookmarks, and chapter jumping.",
-                "Your library is now kept on the phone as well as the watch, so books open instantly and you can keep reading even when the watch isn't nearby.",
-                "Reading position, bookmarks, and reader settings stay in sync between the phone and the watch.",
+                "The app now works as a standalone reader — your library lives on the phone, so you can add and read books with no watch connected. When a watch is paired, your library, reading position, bookmarks, and settings sync to it automatically.",
             ),
         ),
         CompanionChangelogEntry(

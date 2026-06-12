@@ -225,10 +225,9 @@ private fun CompanionScreen(
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             when {
                 state.loading && state.books.isEmpty() -> CenteredProgress()
-                state.noWatch && state.books.isEmpty() && state.folders.isEmpty() -> ReconnectPrompt(
-                    text = stringResource(R.string.no_watch),
-                    onReconnect = vm::refresh,
-                )
+                // The phone library stands on its own; an empty library invites
+                // adding a book rather than nagging about a missing watch. Watch
+                // sync state is surfaced quietly via the syncMessage chip instead.
                 state.books.isEmpty() && state.folders.isEmpty() ->
                     CenteredText(stringResource(R.string.empty_library))
                 else -> BoundedBookList(
@@ -1023,24 +1022,6 @@ private fun CenteredText(text: String) {
         modifier = Modifier.fillMaxSize().padding(24.dp),
         contentAlignment = Alignment.Center,
     ) { Text(text) }
-}
-
-@Composable
-private fun ReconnectPrompt(text: String, onReconnect: () -> Unit) {
-    Box(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(text, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Button(onClick = onReconnect) {
-                Text(stringResource(R.string.reconnect))
-            }
-        }
-    }
 }
 
 /** MIME types that SAF should offer. Matches the parsers in `:app`, plus

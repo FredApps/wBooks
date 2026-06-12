@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">wBooks</string>
-    <string name="library_title">Watch library</string>
+    <string name="library_title">Library</string>
     <string name="add_book">Add book</string>
     <string name="no_watch">No watch connected. Make sure wBooks is installed on your paired watch.</string>
     <string name="empty_library">Library is empty. Tap + to add a book.</string>
     <string name="delete">Delete</string>
-    <string name="confirm_delete">Delete this book from the watch?</string>
+    <string name="confirm_delete">Delete this book from your library?</string>
     <string name="cancel">Cancel</string>
     <string name="sending">Sending…</string>
     <string name="refresh">Refresh</string>

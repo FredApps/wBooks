@@ -76,7 +76,11 @@ import com.fredapp.wbooks.data.settings.ReadingMode
 import com.fredapp.wbooks.parser.model.Block
 import com.fredapp.wbooks.parser.model.Document
 import com.fredapp.wbooks.parser.model.flatIndexOf
+import com.fredapp.wbooks.parser.model.focalIndex
+import com.fredapp.wbooks.parser.model.indexAtOrAfter
 import com.fredapp.wbooks.parser.model.positionAt
+import com.fredapp.wbooks.parser.model.segmentSentences
+import com.fredapp.wbooks.parser.model.tokenizeWords
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -238,14 +242,14 @@ private fun SentencePhoneReader(
     settings: ReaderSettings,
     vm: PhoneReaderViewModel,
 ) {
-    val sentences = remember(document) { sentenceItems(document) }
+    val sentences = remember(document) { document.segmentSentences() }
     if (sentences.isEmpty()) {
         CenteredText("(no readable text)")
         return
     }
-    var index by remember(document) { mutableIntStateOf(sentences.sentenceIndexFor(initialPosition)) }
+    var index by remember(document) { mutableIntStateOf(sentences.indexAtOrAfter(initialPosition)) }
     LaunchedEffect(document) {
-        vm.jumps.collect { target -> index = sentences.sentenceIndexFor(target) }
+        vm.jumps.collect { target -> index = sentences.indexAtOrAfter(target) }
     }
     LaunchedEffect(index) { vm.reportPosition(sentences[index].position) }
     LaunchedEffect(settings.autoscrollEnabled, settings.autoscrollSpeed) {
@@ -285,15 +289,15 @@ private fun SpeedPhoneReader(
     settings: ReaderSettings,
     vm: PhoneReaderViewModel,
 ) {
-    val words = remember(document) { wordItems(document) }
+    val words = remember(document) { document.tokenizeWords() }
     if (words.isEmpty()) {
         CenteredText("(no readable text)")
         return
     }
-    var index by remember(document) { mutableIntStateOf(words.wordIndexFor(initialPosition)) }
+    var index by remember(document) { mutableIntStateOf(words.indexAtOrAfter(initialPosition)) }
     var playing by remember(document) { mutableStateOf(true) }
     LaunchedEffect(document) {
-        vm.jumps.collect { target -> index = words.wordIndexFor(target) }
+        vm.jumps.collect { target -> index = words.indexAtOrAfter(target) }
     }
     LaunchedEffect(index) { vm.reportPosition(words[index].position) }
     LaunchedEffect(playing, settings.speedreadWpm) {
@@ -512,58 +516,8 @@ private fun CenteredText(text: String) {
     }
 }
 
-private data class SentenceItem(val text: String, val position: BookPosition)
-private data class WordItem(val text: String, val position: BookPosition)
-
-private fun sentenceItems(document: Document): List<SentenceItem> {
-    val out = mutableListOf<SentenceItem>()
-    for ((ci, chapter) in document.chapters.withIndex()) {
-        for ((bi, block) in chapter.blocks.withIndex()) {
-            blockText(block).split(Regex("(?<=[.!?])\\s+"))
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-                .forEachIndexed { si, sentence -> out += SentenceItem(sentence, BookPosition(ci, bi, si)) }
-        }
-    }
-    return out
-}
-
-private fun wordItems(document: Document): List<WordItem> {
-    val out = mutableListOf<WordItem>()
-    for ((ci, chapter) in document.chapters.withIndex()) {
-        for ((bi, block) in chapter.blocks.withIndex()) {
-            blockText(block).split(Regex("\\s+"))
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-                .forEachIndexed { wi, word -> out += WordItem(word, BookPosition(ci, bi, wi)) }
-        }
-    }
-    return out
-}
-
-private fun blockText(block: Block): String = when (block) {
-    is Block.Heading -> block.text
-    is Block.Paragraph -> block.runs.joinToString("") { it.text }
-    is Block.Code -> block.text
-    Block.Divider -> ""
-}
-
-private fun List<SentenceItem>.sentenceIndexFor(position: BookPosition): Int =
-    indexOfFirst { it.position >= position }.takeIf { it >= 0 } ?: lastIndex
-
-private fun List<WordItem>.wordIndexFor(position: BookPosition): Int =
-    indexOfFirst { it.position >= position }.takeIf { it >= 0 } ?: lastIndex
-
-private operator fun BookPosition.compareTo(other: BookPosition): Int =
-    compareValuesBy(this, other, BookPosition::chapterIndex, BookPosition::blockIndex, BookPosition::subIndex)
-
-private fun focalIndex(word: String): Int = when (word.length) {
-    0, 1 -> 0
-    in 2..5 -> 1
-    in 6..9 -> 2
-    in 10..13 -> 3
-    else -> 4
-}.coerceAtMost(word.lastIndex.coerceAtLeast(0))
+// Sentence/word segmentation, position lookup, and the RSVP focal index are
+// shared with the watch reader via :reader-core (parser/model/ReaderSegmentation.kt).
 
 private fun FontChoice.toFontFamily(): FontFamily = when (this) {
     FontChoice.DEFAULT -> FontFamily.Default

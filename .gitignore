@@ -33,5 +33,8 @@ captures/
 # Play Store listing assets (uploaded via Play Console, not part of the build)
 store-listing/
 
+# Agent tool notes (machine-specific paths; not part of the build)
+AGENTS.md
+
 # External native
 .cxx/
