@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
     private val gutenbergViewModel: GutenbergViewModel by viewModels { GutenbergViewModel.Factory(application) }
     private val statsViewModel: StatsViewModel by viewModels { StatsViewModel.Factory(application) }
     private val settingsViewModel: SettingsViewModel by viewModels { SettingsViewModel.Factory(application) }
+    private val phoneReaderViewModel: PhoneReaderViewModel by viewModels { PhoneReaderViewModel.Factory(application) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,6 +96,13 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 when (screen) {
+                    Screen.READER -> PhoneReaderScreen(
+                        vm = phoneReaderViewModel,
+                        onBack = {
+                            screen = Screen.LIBRARY
+                            mainViewModel.refresh()
+                        },
+                    )
                     Screen.GUTENBERG -> GutenbergScreen(
                         vm = gutenbergViewModel,
                         onBack = {
@@ -118,6 +126,10 @@ class MainActivity : ComponentActivity() {
                             statsViewModel.refresh()
                         },
                         onOpenSettings = { screen = Screen.SETTINGS },
+                        onOpenBook = { book ->
+                            phoneReaderViewModel.openBook(book.id)
+                            screen = Screen.READER
+                        },
                     )
                 }
             }
@@ -146,7 +158,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private enum class Screen { LIBRARY, GUTENBERG, STATS, SETTINGS }
+    private enum class Screen { LIBRARY, GUTENBERG, STATS, SETTINGS, READER }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -156,6 +168,7 @@ private fun CompanionScreen(
     onBrowseGutenberg: () -> Unit,
     onShowStats: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenBook: (BookSummary) -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
 
@@ -212,7 +225,7 @@ private fun CompanionScreen(
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             when {
                 state.loading && state.books.isEmpty() -> CenteredProgress()
-                state.noWatch -> ReconnectPrompt(
+                state.noWatch && state.books.isEmpty() && state.folders.isEmpty() -> ReconnectPrompt(
                     text = stringResource(R.string.no_watch),
                     onReconnect = vm::refresh,
                 )
@@ -228,6 +241,8 @@ private fun CompanionScreen(
                     onRenameFolder = { folderToRename = it },
                     onAssignToFolder = vm::assignBookToFolder,
                     onReorderBook = vm::reorderBook,
+                    onOpenBook = onOpenBook,
+                    syncMessage = state.syncMessage,
                 )
             }
         }
@@ -406,6 +421,8 @@ private fun BoundedBookList(
     onRenameFolder: (Folder) -> Unit,
     onAssignToFolder: (bookId: String, folderId: String?) -> Unit,
     onReorderBook: (fromId: String, targetId: String, placeAfterTarget: Boolean) -> Unit,
+    onOpenBook: (BookSummary) -> Unit,
+    syncMessage: String?,
 ) {
     var expandedFolders by rememberSaveable { mutableStateOf(emptySet<String>()) }
     var rootExpanded by rememberSaveable { mutableStateOf(true) }
@@ -425,6 +442,13 @@ private fun BoundedBookList(
             maxHeight = folderMaxHeight,
         )
         Column(modifier = Modifier.fillMaxSize()) {
+            syncMessage?.let { message ->
+                AssistChip(
+                    onClick = {},
+                    label = { Text(message) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                )
+            }
             LibraryStorageSummary(storage)
             if (folders.isNotEmpty()) {
                 Box(
@@ -447,6 +471,7 @@ private fun BoundedBookList(
                             onRenameFolder = onRenameFolder,
                             onAssignToFolder = onAssignToFolder,
                             onReorderBook = onReorderBook,
+                            onOpenBook = onOpenBook,
                         )
                     }
                     FolderScrollbar(state = folderListState)
@@ -485,7 +510,7 @@ private fun BoundedBookList(
                         }
                     } else {
                         items(rootBooks, key = { "rb_${it.id}" }) { book ->
-                            BookItem(book = book, onDelete = onDelete, onReorderBook = onReorderBook)
+                            BookItem(book = book, onDelete = onDelete, onReorderBook = onReorderBook, onOpenBook = onOpenBook)
                             HorizontalDivider()
                         }
                     }
@@ -574,6 +599,7 @@ private fun LazyListScope.folderItems(
     onRenameFolder: (Folder) -> Unit,
     onAssignToFolder: (bookId: String, folderId: String?) -> Unit,
     onReorderBook: (fromId: String, targetId: String, placeAfterTarget: Boolean) -> Unit,
+    onOpenBook: (BookSummary) -> Unit,
 ) {
     for (folder in folders) {
         val folderBooks = books.filter { bookFolders[it.id] == folder.id }
@@ -598,7 +624,7 @@ private fun LazyListScope.folderItems(
         }
         if (isExpanded) {
             items(folderBooks, key = { "b_${folder.id}_${it.id}" }) { book ->
-                BookItem(book = book, onDelete = onDelete, onReorderBook = onReorderBook)
+                BookItem(book = book, onDelete = onDelete, onReorderBook = onReorderBook, onOpenBook = onOpenBook)
                 HorizontalDivider()
             }
             if (folderBooks.isEmpty()) {
@@ -681,6 +707,7 @@ private fun BookList(
     onRenameFolder: (Folder) -> Unit,
     onAssignToFolder: (bookId: String, folderId: String?) -> Unit,
     onReorderBook: (fromId: String, targetId: String, placeAfterTarget: Boolean) -> Unit,
+    onOpenBook: (BookSummary) -> Unit,
 ) {
     var expandedFolders by rememberSaveable { mutableStateOf(emptySet<String>()) }
     var rootExpanded by rememberSaveable { mutableStateOf(true) }
@@ -708,7 +735,7 @@ private fun BookList(
             }
             if (isExpanded) {
                 items(folderBooks, key = { "b_${folder.id}_${it.id}" }) { book ->
-                    BookItem(book = book, onDelete = onDelete, onReorderBook = onReorderBook)
+                    BookItem(book = book, onDelete = onDelete, onReorderBook = onReorderBook, onOpenBook = onOpenBook)
                     HorizontalDivider()
                 }
                 if (folderBooks.isEmpty()) {
@@ -744,7 +771,7 @@ private fun BookList(
                 }
             } else {
                 items(rootBooks, key = { "rb_${it.id}" }) { book ->
-                    BookItem(book = book, onDelete = onDelete, onReorderBook = onReorderBook)
+                    BookItem(book = book, onDelete = onDelete, onReorderBook = onReorderBook, onOpenBook = onOpenBook)
                     HorizontalDivider()
                 }
             }
@@ -931,6 +958,7 @@ private fun BookItem(
     book: BookSummary,
     onDelete: (BookSummary) -> Unit,
     onReorderBook: (fromId: String, targetId: String, placeAfterTarget: Boolean) -> Unit,
+    onOpenBook: (BookSummary) -> Unit,
 ) {
     val heightPx = remember { mutableStateOf(1) }
     val target = remember(book.id) {
@@ -952,11 +980,13 @@ private fun BookItem(
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
             }
         },
-        modifier = Modifier.dragAndDropSource {
+        modifier = Modifier
+            .clickable { onOpenBook(book) }
+            .dragAndDropSource {
             detectTapGestures(onLongPress = {
                 startTransfer(DragAndDropTransferData(ClipData.newPlainText("bookId", book.id)))
             })
-        }
+            }
             .onSizeChanged { heightPx.value = it.height.coerceAtLeast(1) }
             .dragAndDropTarget(
                 shouldStartDragAndDrop = { event ->

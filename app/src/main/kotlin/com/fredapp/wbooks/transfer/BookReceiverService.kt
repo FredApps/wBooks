@@ -98,6 +98,14 @@ class BookReceiverService : WearableListenerService() {
                         reorderBooks(folder, order)
                         currentLibraryJson()
                     }
+                    WearProtocol.PATH_SYNC_PULL -> currentSyncJson()
+                    WearProtocol.PATH_SYNC_PUSH -> {
+                        // v1 queue replay endpoint: accept the payload so newer
+                        // phones can drain local queues, then return the watch
+                        // snapshot. Fine-grained mutation replay is handled by
+                        // the existing action paths until both APKs require it.
+                        currentSyncJson()
+                    }
                     WearProtocol.PATH_STATS -> currentStatsJson()
                     WearProtocol.PATH_SETTINGS_GET -> currentSettingsJson()
                     WearProtocol.PATH_SETTINGS_SET -> {
@@ -121,16 +129,33 @@ class BookReceiverService : WearableListenerService() {
     }
 
     private suspend fun currentLibraryJson(): ByteArray {
+        return currentLibraryJsonString().toByteArray(Charsets.UTF_8)
+    }
+
+    private suspend fun currentLibraryJsonString(): String {
         val app = application as WBooksApp
         app.libraryRepository.refresh()
         val books = app.libraryRepository.books.value.map { b ->
-            BookSummary(id = b.id, title = b.title, format = b.format.name)
+            BookSummary(
+                id = b.id,
+                title = b.title,
+                format = b.format.name,
+                sizeBytes = b.file.length(),
+                modifiedAtMs = b.file.lastModified(),
+            )
         }
         val folders = app.booksDir.listFiles { f -> f.isDirectory }
             ?.map { it.name }
             ?.sorted()
             .orEmpty()
-        return LibraryListJson.encode(books, folders, app.booksDir.storageSummary()).toByteArray(Charsets.UTF_8)
+        return LibraryListJson.encode(books, folders, app.booksDir.storageSummary())
+    }
+
+    private suspend fun currentSyncJson(): ByteArray {
+        val library = currentLibraryJsonString()
+        val settings = String(currentSettingsJson(), Charsets.UTF_8)
+        val stats = String(currentStatsJson(), Charsets.UTF_8)
+        return SyncJson.encode(library, settings, stats).toByteArray(Charsets.UTF_8)
     }
 
     private suspend fun currentSettingsJson(): ByteArray {
@@ -170,6 +195,10 @@ class BookReceiverService : WearableListenerService() {
     }
 
     override fun onChannelOpened(channel: ChannelClient.Channel) {
+        if (channel.path.startsWith(WearProtocol.PATH_BOOK_DOWNLOAD_PREFIX)) {
+            streamBookDownload(channel)
+            return
+        }
         if (!channel.path.startsWith(WearProtocol.PATH_UPLOAD_PREFIX)) return
         val uploadMeta = parseUploadPath(channel.path)
         val filename = URLDecoder.decode(uploadMeta.encodedFilename, "UTF-8")
@@ -227,6 +256,28 @@ class BookReceiverService : WearableListenerService() {
         scope.launch {
             runCatching {
                 Wearable.getChannelClient(this@BookReceiverService).close(channel).await()
+            }
+        }
+    }
+
+    private fun streamBookDownload(channel: ChannelClient.Channel) {
+        val raw = channel.path.removePrefix(WearProtocol.PATH_BOOK_DOWNLOAD_PREFIX)
+        val bookId = URLDecoder.decode(raw, "UTF-8")
+        val app = application as WBooksApp
+        scope.launch {
+            val client = Wearable.getChannelClient(this@BookReceiverService)
+            val file = File(app.booksDir, bookId)
+            val valid = file.isFile &&
+                file.canonicalFile.toPath().startsWith(app.booksDir.canonicalFile.toPath()) &&
+                file.canonicalFile != app.booksDir.canonicalFile
+            try {
+                if (valid) {
+                    client.getOutputStream(channel).await().use { out ->
+                        file.inputStream().use { input -> input.copyTo(out) }
+                    }
+                }
+            } finally {
+                runCatching { client.close(channel).await() }
             }
         }
     }

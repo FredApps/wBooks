@@ -15,7 +15,7 @@ import java.io.File
  */
 class OdtParserTest {
 
-    private val seed = File("src/main/assets/seed-books/The Time Machine.odt")
+    private val seed = File("../app/src/main/assets/seed-books/The Time Machine.odt")
 
     @Test
     fun parses_title_and_author_from_meta() {

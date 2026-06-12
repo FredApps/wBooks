@@ -9,6 +9,7 @@ object WearProtocol {
     const val PATH_LIST = "/wbooks/library/list"
     const val PATH_DELETE = "/wbooks/library/delete"
     const val PATH_UPLOAD_PREFIX = "/wbooks/upload/"
+    const val PATH_BOOK_DOWNLOAD_PREFIX = "/wbooks/download/"
     const val PATH_STATS = "/wbooks/stats"
     const val PATH_SETTINGS_GET = "/wbooks/settings/get"
     const val PATH_SETTINGS_SET = "/wbooks/settings/set"
@@ -16,6 +17,8 @@ object WearProtocol {
     const val PATH_MOVE = "/wbooks/library/move"
     const val PATH_RENAME = "/wbooks/library/rename"
     const val PATH_REORDER = "/wbooks/library/reorder"
+    const val PATH_SYNC_PULL = "/wbooks/sync/pull"
+    const val PATH_SYNC_PUSH = "/wbooks/sync/push"
 }
 
 /**
@@ -154,7 +157,13 @@ object SettingsJson {
     }
 }
 
-data class BookSummary(val id: String, val title: String, val format: String)
+data class BookSummary(
+    val id: String,
+    val title: String,
+    val format: String,
+    val sizeBytes: Long = 0L,
+    val modifiedAtMs: Long = 0L,
+)
 
 data class LibrarySnapshot(
     val books: List<BookSummary>,
@@ -339,6 +348,8 @@ object LibraryListJson {
                 id = readString(obj, "id"),
                 title = readString(obj, "title"),
                 format = readString(obj, "format"),
+                sizeBytes = readLong(obj, "sizeBytes") ?: 0L,
+                modifiedAtMs = readLong(obj, "modifiedAtMs") ?: 0L,
             )
             i = objEnd + 1
         }

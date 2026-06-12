@@ -13,7 +13,10 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import java.io.InputStream
+import java.io.File
 import java.net.URLEncoder
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * Thin wrapper over the Wear Data Layer. The watch app advertises a
@@ -45,6 +48,20 @@ class WatchRepository(context: Context) {
             val bytes = sendRequest(node, WearProtocol.PATH_LIST, ByteArray(0))
             Result.Ok(LibraryListJson.decode(bytes))
         }.getOrElse { it.toFetchResult("Failed to fetch library") }
+    }
+
+    suspend fun syncPull(): Result<ByteArray> = withContext(Dispatchers.IO) {
+        val node = bestNode() ?: return@withContext Result.NoWatch
+        runCatching {
+            Result.Ok(sendRequest(node, WearProtocol.PATH_SYNC_PULL, ByteArray(0)))
+        }.getOrElse { it.toFetchResult("Failed to sync") }
+    }
+
+    suspend fun syncPush(payload: ByteArray): Result<ByteArray> = withContext(Dispatchers.IO) {
+        val node = bestNode() ?: return@withContext Result.NoWatch
+        runCatching {
+            Result.Ok(sendRequest(node, WearProtocol.PATH_SYNC_PUSH, payload))
+        }.getOrElse { it.toConnectionOrActionError("Failed to push sync queue") }
     }
 
     suspend fun fetchStats(): Result<StatsSummary> = withContext(Dispatchers.IO) {
@@ -146,6 +163,45 @@ class WatchRepository(context: Context) {
                 Result.Ok(Unit)
             }.getOrElse { it.toConnectionOrActionError("Upload failed") }
         }
+
+    suspend fun downloadBook(
+        bookId: String,
+        destination: File,
+        expectedBytes: Long = -1L,
+        onProgress: (receivedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val node = bestNode() ?: return@withContext Result.NoWatch
+        destination.parentFile?.mkdirs()
+        val temp = File.createTempFile("wbooks-download-", ".tmp", destination.parentFile)
+        runCatching {
+            val encoded = URLEncoder.encode(bookId, "UTF-8")
+            val channel = channelClient.openChannel(node.id, WearProtocol.PATH_BOOK_DOWNLOAD_PREFIX + encoded).await()
+            try {
+                channelClient.getInputStream(channel).await().use { input ->
+                    temp.outputStream().buffered().use { output ->
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        var received = 0L
+                        onProgress(0L, expectedBytes)
+                        while (true) {
+                            val n = input.read(buffer)
+                            if (n < 0) break
+                            output.write(buffer, 0, n)
+                            received += n
+                            onProgress(received, expectedBytes)
+                        }
+                        if (expectedBytes >= 0L && received != expectedBytes) {
+                            throw IOException("Download ended after $received of $expectedBytes bytes")
+                        }
+                    }
+                }
+            } finally {
+                channelClient.close(channel).await()
+            }
+            Files.move(temp.toPath(), destination.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            Result.Ok(Unit)
+        }.onFailure { temp.delete() }
+            .getOrElse { it.toConnectionOrActionError("Download failed") }
+    }
 
     internal object WearUploadPath {
         fun encode(filename: String, totalBytes: Long, overwrite: Boolean): String {

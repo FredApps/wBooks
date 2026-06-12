@@ -33,4 +33,21 @@ class LibraryListJsonTest {
         assertEquals(emptyList<String>(), snapshot.folders)
         assertEquals(listOf(BookSummary("root.txt", "root", "TXT")), snapshot.books)
     }
+
+    @Test
+    fun decodesBookCacheMetadata() {
+        val json = """
+            {
+              "books":[
+                {"id":"root.txt","title":"root","format":"TXT","sizeBytes":1234,"modifiedAtMs":5678}
+              ],
+              "folders":[]
+            }
+        """.trimIndent()
+
+        val snapshot = LibraryListJson.decode(json.toByteArray(Charsets.UTF_8))
+
+        assertEquals(1234L, snapshot.books.single().sizeBytes)
+        assertEquals(5678L, snapshot.books.single().modifiedAtMs)
+    }
 }

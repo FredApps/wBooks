@@ -1,11 +1,20 @@
 ﻿package com.fredapp.wbooksutil
 
 import android.app.Application
+import com.fredapp.wbooks.data.bookmarks.BookmarksRepository
+import com.fredapp.wbooks.data.gutenberg.GutenbergDownloadsRepository
+import com.fredapp.wbooks.data.library.LibraryRepository
+import com.fredapp.wbooks.data.pace.ReadingPaceRepository
+import com.fredapp.wbooks.data.position.PositionsRepository
+import com.fredapp.wbooks.data.settings.SettingsRepository
+import com.fredapp.wbooks.data.stats.ReadingStatsRepository
+import com.fredapp.wbooks.parser.cache.DocumentCache
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * Application subclass so the phone module can do manual Sentry init gated on
@@ -21,8 +30,17 @@ import kotlinx.coroutines.launch
 class CompanionApp : Application() {
 
     val crashReportingPref: CrashReportingPref by lazy { CrashReportingPref(this) }
+    val booksDir: File by lazy { File(filesDir, "books").apply { mkdirs() } }
+    val libraryRepository: LibraryRepository by lazy { LibraryRepository(booksDir) }
+    val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
+    val positionsRepository: PositionsRepository by lazy { PositionsRepository(this) }
+    val bookmarksRepository: BookmarksRepository by lazy { BookmarksRepository(this) }
+    val readingPaceRepository: ReadingPaceRepository by lazy { ReadingPaceRepository(this) }
+    val readingStatsRepository: ReadingStatsRepository by lazy { ReadingStatsRepository(this) }
+    val gutenbergDownloadsRepository: GutenbergDownloadsRepository by lazy { GutenbergDownloadsRepository(this) }
+    val documentCache: DocumentCache by lazy { DocumentCache(File(cacheDir, "parsed")) }
 
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()

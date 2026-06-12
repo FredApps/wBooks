@@ -20,6 +20,9 @@ internal object WearProtocol {
     /** ChannelClient path prefix. Real path: `/wbooks/upload/<urlencoded-filename>`. */
     const val PATH_UPLOAD_PREFIX = "/wbooks/upload/"
 
+    /** ChannelClient path prefix. Real path: `/wbooks/download/<urlencoded-book-id>`. */
+    const val PATH_BOOK_DOWNLOAD_PREFIX = "/wbooks/download/"
+
     /** Phone -> watch (empty payload). Watch replies with [StatsJson]. */
     const val PATH_STATS = "/wbooks/stats"
 
@@ -48,6 +51,12 @@ internal object WearProtocol {
 
     /** Phone -> watch. Payload: JSON `{"folder":"<folder>","order":["<bookId>",...]}`. Reply: [LibraryListJson]. */
     const val PATH_REORDER = "/wbooks/library/reorder"
+
+    /** Phone -> watch. Empty payload. Reply includes library, settings, and stats metadata. */
+    const val PATH_SYNC_PULL = "/wbooks/sync/pull"
+
+    /** Phone -> watch. Payload is queued mutation JSON. Reply is the same shape as [PATH_SYNC_PULL]. */
+    const val PATH_SYNC_PUSH = "/wbooks/sync/push"
 }
 
 /**
@@ -72,6 +81,8 @@ internal object LibraryListJson {
             sb.append("""{"id":""").append(jsonString(b.id))
               .append(""","title":""").append(jsonString(b.title))
               .append(""","format":""").append(jsonString(b.format))
+              .append(""","sizeBytes":""").append(b.sizeBytes)
+              .append(""","modifiedAtMs":""").append(b.modifiedAtMs)
               .append('}')
         }
         sb.append("""],"folders":[""")
@@ -94,8 +105,19 @@ internal object LibraryListJson {
     }
 }
 
-internal data class BookSummary(val id: String, val title: String, val format: String)
+internal data class BookSummary(
+    val id: String,
+    val title: String,
+    val format: String,
+    val sizeBytes: Long = 0L,
+    val modifiedAtMs: Long = 0L,
+)
 internal data class StorageSummary(val usedBytes: Long, val freeBytes: Long, val totalBytes: Long)
+
+internal object SyncJson {
+    fun encode(libraryJson: String, settingsJson: String, statsJson: String): String =
+        """{"library":$libraryJson,"settings":$settingsJson,"stats":$statsJson}"""
+}
 
 /**
  * Encoder for [com.fredapp.wbooks.data.stats.ReadingStatsRepository.Summary]. Same

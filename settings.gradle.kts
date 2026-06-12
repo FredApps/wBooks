@@ -23,3 +23,4 @@ dependencyResolutionManagement {
 rootProject.name = "wBooks"
 include(":app")
 include(":companion")
+include(":reader-core")

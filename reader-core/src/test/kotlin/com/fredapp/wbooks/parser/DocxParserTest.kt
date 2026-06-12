@@ -15,7 +15,7 @@ import java.io.File
  */
 class DocxParserTest {
 
-    private val seed = File("src/main/assets/seed-books/The strange case of Dr. Jekyll and Mr. Hyde.docx")
+    private val seed = File("../app/src/main/assets/seed-books/The strange case of Dr. Jekyll and Mr. Hyde.docx")
 
     @Test
     fun parses_title_and_author_from_core_props() {
