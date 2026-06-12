@@ -19,6 +19,7 @@ object CompanionChangelog {
             notes = listOf(
                 "You can now read your books on the phone itself, with the same Normal, Sentence, and Speed-Reading modes as the watch, plus in-book search, bookmarks, and chapter jumping.",
                 "The app now works as a standalone reader — your library lives on the phone, so you can add and read books with no watch connected. When a watch is paired, your library, reading position, bookmarks, and settings sync to it automatically.",
+                "Reading stats now reflect your reading everywhere: your phone and watch reading time, finished books, and speed are combined into one view.",
             ),
         ),
         CompanionChangelogEntry(

@@ -16,12 +16,11 @@ import kotlinx.coroutines.launch
 class StatsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val watch = WatchRepository(application)
+    private val statsRepo = (application as CompanionApp).readingStatsRepository
 
     data class UiState(
         val stats: StatsSummary? = null,
         val loading: Boolean = false,
-        val noWatch: Boolean = false,
-        val errorMessage: String? = null,
     )
 
     private val _state = MutableStateFlow(UiState())
@@ -48,23 +47,13 @@ class StatsViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun refreshNow(showLoading: Boolean) {
-        if (showLoading) {
-            _state.value = _state.value.copy(loading = true, errorMessage = null)
-        } else {
-            _state.value = _state.value.copy(errorMessage = null)
-        }
-        when (val result = watch.fetchStats()) {
-            is WatchRepository.Result.Ok ->
-                _state.value = _state.value.copy(stats = result.value, noWatch = false, loading = false)
-            is WatchRepository.Result.NoWatch ->
-                _state.value = _state.value.copy(stats = null, noWatch = true, loading = false)
-            is WatchRepository.Result.Error ->
-                _state.value = _state.value.copy(errorMessage = result.message, loading = false)
-        }
-    }
-
-    fun dismissError() {
-        _state.value = _state.value.copy(errorMessage = null)
+        if (showLoading) _state.value = _state.value.copy(loading = true)
+        val phone = statsRepo.snapshot()
+        // The watch's stats fold in when it's reachable; otherwise we just show
+        // the phone's own. A missing or erroring watch is invisible here — the
+        // Stats screen always has something to show because the phone reads too.
+        val watchStats = (watch.fetchStats() as? WatchRepository.Result.Ok)?.value
+        _state.value = _state.value.copy(stats = StatsMerge.merge(watchStats, phone), loading = false)
     }
 
     class Factory(private val app: Application) : ViewModelProvider.Factory {
