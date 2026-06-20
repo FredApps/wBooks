@@ -160,7 +160,7 @@ class UploadServer(
         val settingsHtml = renderSettingsPanel(webSettings)
         val statsHtml = renderStatsPanel(runBlocking { statsRepository.snapshot() })
         val storageHtml = renderStorageSummary()
-        val bodyStyle = "font-family:${webFontCss(webSettings.font)},system-ui,sans-serif;color:${argbCss(webSettings.textColorArgb)};"
+        val bodyStyle = "font-family:${webFontCss(webSettings.font)},system-ui,sans-serif;font-weight:${if (webSettings.font.forceBold) "700" else "400"};color:${argbCss(webSettings.textColorArgb)};"
         val html = """
             <!doctype html>
             <html><head><meta charset="utf-8"><title>wBooks transfer</title>
@@ -1523,6 +1523,8 @@ class UploadServer(
         FontChoice.CURSIVE -> "cursive"
         FontChoice.INTER_LIGHT -> "Inter,system-ui,sans-serif"
         FontChoice.INTER_MEDIUM -> "Inter,system-ui,sans-serif"
+        FontChoice.INTER_BOLD -> "Inter,system-ui,sans-serif"
+        FontChoice.ARIMO_BOLD -> "Arimo,Arial,Helvetica,sans-serif"
     }
 
     private inline fun <reified E : Enum<E>> enumParam(params: Map<String, List<String>>, name: String, fallback: E): E =

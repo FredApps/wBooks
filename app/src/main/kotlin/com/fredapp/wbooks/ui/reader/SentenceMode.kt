@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.rotary.onPreRotaryScrollEvent
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,6 +45,7 @@ import com.fredapp.wbooks.parser.model.segmentSentences
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.layout.watchContentPadding
+import com.fredapp.wbooks.ui.theme.toFontFamily
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -197,6 +200,8 @@ fun SentenceMode(
                 FittingSentenceText(
                     text = sentences[index].text,
                     color = Color(settings.textColorArgb),
+                    fontFamily = settings.font.toFontFamily(),
+                    fontWeight = if (settings.font.forceBold) FontWeight.Bold else null,
                     targetFontSizeSp = (settings.sentenceTextSizeSp * settings.font.sizeScale).roundToInt(),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -231,6 +236,8 @@ fun SentenceMode(
 private fun FittingSentenceText(
     text: String,
     color: Color,
+    fontFamily: FontFamily,
+    fontWeight: FontWeight?,
     targetFontSizeSp: Int,
     modifier: Modifier = Modifier,
 ) {
@@ -242,6 +249,8 @@ private fun FittingSentenceText(
     Text(
         text = variants[variantIndex],
         color = color,
+        fontFamily = fontFamily,
+        fontWeight = fontWeight,
         fontSize = fontSizeSp.sp,
         textAlign = TextAlign.Center,
         overflow = TextOverflow.Clip,

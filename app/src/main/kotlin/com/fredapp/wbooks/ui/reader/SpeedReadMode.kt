@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.rotary.onPreRotaryScrollEvent
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,6 +45,7 @@ import com.fredapp.wbooks.parser.model.tokenizeWords
 import com.fredapp.wbooks.ui.ReaderViewModel
 import com.fredapp.wbooks.ui.focus.ClaimRotaryFocusOnActive
 import com.fredapp.wbooks.ui.layout.watchContentPadding
+import com.fredapp.wbooks.ui.theme.toFontFamily
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -162,7 +164,9 @@ fun SpeedReadMode(
         ) {
             FocalWord(
                 word = words[index].text,
+                fontFamily = settings.font.toFontFamily(),
                 fontSizeSp = ((settings.textSizeSp + 10) * settings.font.sizeScale).roundToInt(),
+                fontWeight = if (settings.font.forceBold) FontWeight.Bold else FontWeight.Medium,
                 baseColor = Color(settings.textColorArgb),
                 focalColor = FOCAL_COLOR,
             )
@@ -219,7 +223,9 @@ private const val WPM_STEP = 25
 @Composable
 private fun FocalWord(
     word: String,
+    fontFamily: FontFamily,
     fontSizeSp: Int,
+    fontWeight: FontWeight,
     baseColor: Color,
     focalColor: Color,
 ) {
@@ -236,8 +242,9 @@ private fun FocalWord(
             Text(
                 text = prefix,
                 color = baseColor,
+                fontFamily = fontFamily,
                 fontSize = fontSizeSp.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = fontWeight,
                 textAlign = TextAlign.End,
                 maxLines = 1,
             )
@@ -245,16 +252,18 @@ private fun FocalWord(
         Text(
             text = focal,
             color = focalColor,
+            fontFamily = fontFamily,
             fontSize = fontSizeSp.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = fontWeight,
             maxLines = 1,
         )
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             Text(
                 text = suffix,
                 color = baseColor,
+                fontFamily = fontFamily,
                 fontSize = fontSizeSp.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = fontWeight,
                 textAlign = TextAlign.Start,
                 maxLines = 1,
             )

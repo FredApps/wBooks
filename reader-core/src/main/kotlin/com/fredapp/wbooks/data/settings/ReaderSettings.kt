@@ -15,14 +15,20 @@ fun ReadingMode.next(): ReadingMode = when (this) {
  * large on the em box, so its choices are scaled down slightly; the platform
  * families stay at 1.0.
  */
-enum class FontChoice(val familyName: String, val sizeScale: Float = 1f) {
+enum class FontChoice(val familyName: String, val sizeScale: Float = 1f, val forceBold: Boolean = false) {
     DEFAULT("default"),
     SERIF("serif"),
     SANS("sans-serif"),
     MONO("monospace"),
     CURSIVE("cursive"),
     INTER_LIGHT("Inter Light", 0.9f),
-    INTER_MEDIUM("Inter Medium", 0.9f);
+    INTER_MEDIUM("Inter Medium", 0.9f),
+    INTER_BOLD("Inter Bold", 0.9f, forceBold = true),
+
+    // Arimo is metric-compatible with Helvetica/Arial, so it sits at the same
+    // apparent size as the platform families (sizeScale stays 1.0). The bundled
+    // file is the Bold weight; forceBold makes the renderer request it.
+    ARIMO_BOLD("Arimo Bold", forceBold = true);
 
     fun next(): FontChoice = entries[(ordinal + 1) % entries.size]
 }

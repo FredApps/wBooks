@@ -4,6 +4,10 @@ All notable changes to wBooks are documented in this file.
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-06-20
+
+- Added Arimo Bold (a metric-compatible Helvetica/Arial alternative, SIL OFL 1.1) as a selectable reader font on both the watch and the phone reader, kept in sync over the companion settings link.
+
 ## [1.0.0] - 2026-05-24
 
 - Reduced watch reader memory pressure by dropping embedded book images and cancelling stale parsed-document cache writes when switching or closing books.

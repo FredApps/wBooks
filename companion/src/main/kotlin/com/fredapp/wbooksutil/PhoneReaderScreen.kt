@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -269,6 +270,7 @@ private fun SentencePhoneReader(
             text = sentences[index].text,
             color = Color(settings.textColorArgb),
             fontFamily = settings.font.toFontFamily(),
+            fontWeight = if (settings.font.forceBold) FontWeight.Bold else null,
             fontSize = settings.sentenceTextSizeSp.sp,
             textAlign = TextAlign.Center,
             lineHeight = (settings.sentenceTextSizeSp + 8).sp,
@@ -333,6 +335,7 @@ private fun SpeedPhoneReader(
 @Composable
 private fun PhoneBlock(block: Block, settings: ReaderSettings) {
     val color = Color(settings.textColorArgb)
+    val forceBold = settings.font.forceBold
     when (block) {
         is Block.Heading -> Text(
             block.text,
@@ -347,7 +350,7 @@ private fun PhoneBlock(block: Block, settings: ReaderSettings) {
                 block.runs.forEach { run ->
                     withStyle(
                         SpanStyle(
-                            fontWeight = if (run.style.bold) FontWeight.Bold else FontWeight.Normal,
+                            fontWeight = if (run.style.bold || forceBold) FontWeight.Bold else null,
                             fontStyle = if (run.style.italic) FontStyle.Italic else FontStyle.Normal,
                         )
                     ) { append(run.text) }
@@ -372,13 +375,36 @@ private fun PhoneBlock(block: Block, settings: ReaderSettings) {
 private fun FocalWord(word: String, settings: ReaderSettings) {
     val focal = focalIndex(word)
     val fontSize = (settings.textSizeSp + 18).sp
+    val fontFamily = settings.font.toFontFamily()
+    val fontWeight = if (settings.font.forceBold) FontWeight.Bold else FontWeight.Medium
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-            Text(word.take(focal), color = Color(settings.textColorArgb), fontSize = fontSize, maxLines = 1)
+            Text(
+                word.take(focal),
+                color = Color(settings.textColorArgb),
+                fontFamily = fontFamily,
+                fontWeight = fontWeight,
+                fontSize = fontSize,
+                maxLines = 1,
+            )
         }
-        Text(word.getOrNull(focal)?.toString().orEmpty(), color = Color(0xFFF06B5A), fontSize = fontSize, maxLines = 1)
+        Text(
+            word.getOrNull(focal)?.toString().orEmpty(),
+            color = Color(0xFFF06B5A),
+            fontFamily = fontFamily,
+            fontWeight = fontWeight,
+            fontSize = fontSize,
+            maxLines = 1,
+        )
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            Text(word.drop(focal + 1), color = Color(settings.textColorArgb), fontSize = fontSize, maxLines = 1)
+            Text(
+                word.drop(focal + 1),
+                color = Color(settings.textColorArgb),
+                fontFamily = fontFamily,
+                fontWeight = fontWeight,
+                fontSize = fontSize,
+                maxLines = 1,
+            )
         }
     }
 }
@@ -495,7 +521,7 @@ private fun ReaderSettingsSheet(settings: ReaderSettings, vm: PhoneReaderViewMod
                 valueRange = ReaderSettings.WPM_RANGE.first.toFloat()..ReaderSettings.WPM_RANGE.last.toFloat(),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FontChoice.entries.take(5).forEach { font ->
+                FontChoice.entries.forEach { font ->
                     FilterChip(selected = settings.font == font, onClick = { vm.setFont(font) }, label = { Text(font.familyName) })
                 }
             }
@@ -527,4 +553,6 @@ private fun FontChoice.toFontFamily(): FontFamily = when (this) {
     FontChoice.CURSIVE -> FontFamily.Cursive
     FontChoice.INTER_LIGHT,
     FontChoice.INTER_MEDIUM -> FontFamily.SansSerif
+    FontChoice.INTER_BOLD -> FontFamily(Font(R.font.inter_bold, FontWeight.Bold))
+    FontChoice.ARIMO_BOLD -> FontFamily(Font(R.font.arimo_bold, FontWeight.Bold))
 }

@@ -13,6 +13,10 @@ enum class FontChoice(val familyName: String) {
     SANS("sans-serif"),
     MONO("monospace"),
     CURSIVE("cursive"),
+    INTER_LIGHT("Inter Light"),
+    INTER_MEDIUM("Inter Medium"),
+    INTER_BOLD("Inter Bold"),
+    ARIMO_BOLD("Arimo Bold"),
 }
 
 object SettingsRanges {

@@ -50,11 +50,14 @@ fun BlockView(block: Block, settings: ReaderSettings) {
             )
         }
         is Block.Paragraph -> {
-            val annotated = remember(block) { block.runs.toAnnotatedString() }
+            val annotated = remember(block, settings.font.forceBold) {
+                block.runs.toAnnotatedString(forceBold = settings.font.forceBold)
+            }
             Text(
                 text = annotated,
                 color = baseColor,
                 fontFamily = family,
+                fontWeight = if (settings.font.forceBold) FontWeight.Bold else null,
                 fontSize = baseSize,
             )
         }
@@ -79,10 +82,10 @@ fun BlockView(block: Block, settings: ReaderSettings) {
     }
 }
 
-private fun List<Run>.toAnnotatedString(): AnnotatedString = buildAnnotatedString {
+private fun List<Run>.toAnnotatedString(forceBold: Boolean): AnnotatedString = buildAnnotatedString {
     for (run in this@toAnnotatedString) {
         val style = SpanStyle(
-            fontWeight = if (run.style.bold) FontWeight.Bold else null,
+            fontWeight = if (run.style.bold || forceBold) FontWeight.Bold else null,
             fontStyle = if (run.style.italic) FontStyle.Italic else null,
             textDecoration = if (run.style.underline) TextDecoration.Underline else null,
             color = run.style.color?.let { Color(it) } ?: Color.Unspecified,

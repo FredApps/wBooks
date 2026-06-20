@@ -14,4 +14,6 @@ fun FontChoice.toFontFamily(): FontFamily = when (this) {
     FontChoice.CURSIVE -> FontFamily.Cursive
     FontChoice.INTER_LIGHT -> FontFamily(Font(R.font.inter_light, FontWeight.Light))
     FontChoice.INTER_MEDIUM -> FontFamily(Font(R.font.inter_medium, FontWeight.Medium))
+    FontChoice.INTER_BOLD -> FontFamily(Font(R.font.inter_bold, FontWeight.Bold))
+    FontChoice.ARIMO_BOLD -> FontFamily(Font(R.font.arimo_bold, FontWeight.Bold))
 }

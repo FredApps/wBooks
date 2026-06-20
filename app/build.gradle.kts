@@ -78,8 +78,8 @@ android {
         applicationId = requireLocalProperty("wbooks.applicationId")
         minSdk = 30
         targetSdk = 35
-        versionCode = 19
-        versionName = "1.0.3"
+        versionCode = 28
+        versionName = "1.0.8"
 
         manifestPlaceholders["sentryDsn"] = localProperty("sentry.dsn")
     }

@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -428,6 +429,10 @@ private fun FontChoice.toFontFamily(): FontFamily = when (this) {
     FontChoice.SANS -> FontFamily.SansSerif
     FontChoice.MONO -> FontFamily.Monospace
     FontChoice.CURSIVE -> FontFamily.Cursive
+    FontChoice.INTER_LIGHT,
+    FontChoice.INTER_MEDIUM -> FontFamily.SansSerif
+    FontChoice.INTER_BOLD -> FontFamily(Font(R.font.inter_bold, FontWeight.Bold))
+    FontChoice.ARIMO_BOLD -> FontFamily(Font(R.font.arimo_bold, FontWeight.Bold))
 }
 
 @Composable
